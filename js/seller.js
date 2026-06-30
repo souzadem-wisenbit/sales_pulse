@@ -98,11 +98,18 @@ const Seller = (() => {
     };
   }
 
-  function init() {
+  async function init() {
     const user = Auth.getUser();
     if (!user || user.role !== 'seller') {
       Auth.logout();
       return;
+    }
+
+    // Re-sincroniza com o backend sempre que o painel é aberto: o vendedor pode
+    // ter ficado logado com a aba aberta enquanto o gestor cadastrava um novo
+    // cliente/sessão, e o cache local (carregado só no login) ficaria desatualizado.
+    if (window.Storage && typeof Storage.hydrate === 'function') {
+      await Storage.hydrate();
     }
 
     const settings = Storage.getSettings ? Storage.getSettings() : {};
@@ -466,17 +473,17 @@ const Seller = (() => {
   }
 
   // Called when user clicks "Iniciar Novo Treinamento" ou clica na notificação
-  function startTraining(clientId = null, sessionId = null) {
+  async function startTraining(clientId = null, sessionId = null) {
     const user = Auth.getUser();
-    
+
     if (!sessionId || !clientId) {
       alert('Sessão inválida.');
       return;
     }
 
-    const allSessions = typeof Storage.getScheduledSessionsForSeller === 'function' ? Storage.getScheduledSessionsForSeller(user.id) : [];
-    const sessionToStart = allSessions.find(s => String(s.id) === String(sessionId));
-    
+    let allSessions = typeof Storage.getScheduledSessionsForSeller === 'function' ? Storage.getScheduledSessionsForSeller(user.id) : [];
+    let sessionToStart = allSessions.find(s => String(s.id) === String(sessionId));
+
     if (!sessionToStart) {
       alert('Você não tem treinamentos agendados disponíveis no momento.');
       return;
@@ -484,7 +491,17 @@ const Seller = (() => {
 
     config = buildConfigForSession(sessionToStart, user);
     if (!config) {
-      alert('Erro ao carregar o cliente para esta sessão.');
+      // Cache local pode estar desatualizado (ex: cliente cadastrado pelo gestor
+      // depois do último login). Resincroniza com o backend e tenta de novo antes de desistir.
+      if (window.Storage && typeof Storage.hydrate === 'function') {
+        await Storage.hydrate();
+        allSessions = typeof Storage.getScheduledSessionsForSeller === 'function' ? Storage.getScheduledSessionsForSeller(user.id) : [];
+        sessionToStart = allSessions.find(s => String(s.id) === String(sessionId));
+        config = sessionToStart ? buildConfigForSession(sessionToStart, user) : null;
+      }
+    }
+    if (!config) {
+      alert('Erro ao carregar o cliente para esta sessão. Tente sair e entrar novamente.');
       return;
     }
 

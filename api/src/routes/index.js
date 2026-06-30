@@ -14,7 +14,7 @@ const schedCtrl = require('../controllers/scheduledSessionsController');
 const syncRouter = express.Router();
 syncRouter.use(authenticate);
 syncRouter.get('/', authorize('manager', 'seller'), syncCtrl.getSync);
-syncRouter.post('/', authorize('manager', 'seller'), syncCtrl.postSync);
+syncRouter.post('/', authorize('manager'), syncCtrl.postSync);
 
 const clientsRouter = express.Router();
 clientsRouter.use(authenticate);

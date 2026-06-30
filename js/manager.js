@@ -2161,12 +2161,16 @@ const Manager = (() => {
     `;
   }
 
-  function saveApiSettings() {
+  async function saveApiSettings() {
     const key   = document.getElementById('cfg-api-key')?.value?.trim();
     const model = document.getElementById('cfg-ai-model')?.value || 'gpt-4o-mini';
     const config = Storage.getConfig();
     Storage.setConfig({ ...config, openaiKey: key, openaiModel: model });
     Storage.setSettings({ openaiKey: key, openaiModel: model });
+    if (window.API && API.isBackendEnabled() && API.saveAiSettings) {
+      try { await API.saveAiSettings(key, model); }
+      catch (e) { UI.toast('⚠️ Chave salva localmente, mas falhou ao sincronizar para os vendedores.', 'warning'); return; }
+    }
     UI.toast('✅ Configurações de API salvas!', 'success');
   }
 

@@ -28,7 +28,9 @@ const Storage = (() => {
       
       const auth = getAuth();
       if (!auth) return;
-      
+
+      if (typeof API.syncDown === 'function') await API.syncDown();
+
       const [clients, products, sched, users] = await Promise.all([
         API.listClients(),
         API.listProducts(),

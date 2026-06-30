@@ -266,6 +266,36 @@ const API = (() => {
   async function updateScheduledSession(id, data) { return await put(`/api/scheduled_sessions/${id}`, data); }
   async function deleteScheduledSession(id) { return await del(`/api/scheduled_sessions/${id}`); }
 
+  // AI Settings (OpenAI key shared across all devices/users via backend)
+  async function getAiSettings() {
+    if (!isBackendEnabled()) return null;
+    return await get('/api/sync');
+  }
+
+  async function saveAiSettings(openaiKey, openaiModel) {
+    if (!isBackendEnabled()) return null;
+    return await post('/api/sync', { openaiKey, openaiModel }, 0);
+  }
+
+  // Pulls the shared OpenAI key/model from the backend into local storage,
+  // so sellers logging in on a different browser than the manager still get it.
+  async function syncDown() {
+    if (!isBackendEnabled()) return;
+    try {
+      const data = await getAiSettings();
+      if (data && (data.openaiKey || data.openaiModel)) {
+        const config = Storage.getConfig();
+        const settings = Storage.getSettings();
+        const openaiKey = data.openaiKey || config.openaiKey || settings.openaiKey;
+        const openaiModel = data.openaiModel || config.openaiModel || settings.openaiModel;
+        Storage.setConfig({ ...config, openaiKey, openaiModel });
+        Storage.setSettings({ ...settings, openaiKey, openaiModel });
+      }
+    } catch (e) {
+      console.warn('[API] syncDown failed', e);
+    }
+  }
+
   return {
     configure,
     isBackendEnabled,
@@ -293,6 +323,9 @@ const API = (() => {
     createScheduledSession,
     updateScheduledSession,
     deleteScheduledSession,
+    getAiSettings,
+    saveAiSettings,
+    syncDown,
   };
 
 })();
