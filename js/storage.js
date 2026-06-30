@@ -21,30 +21,41 @@ const Storage = (() => {
     sellers: []
   };
   let _isReady = false;
+  let _hydrating = null;
 
   async function hydrate() {
-    try {
-      if (!window.API || !window.API.isBackendEnabled()) return;
-      
-      const auth = getAuth();
-      if (!auth) return;
+    // Guard de concorrência: vários gatilhos (login, navegação, foco da aba)
+    // podem chamar hydrate ao mesmo tempo — reaproveita a mesma promessa.
+    if (_hydrating) return _hydrating;
+    _hydrating = (async () => {
+      try {
+        if (!window.API || !window.API.isBackendEnabled()) return;
 
-      if (typeof API.syncDown === 'function') await API.syncDown();
+        const auth = getAuth();
+        if (!auth) return;
 
-      const [clients, products, sched, users] = await Promise.all([
-        API.listClients(),
-        API.listProducts(),
-        API.listScheduledSessions(),
-        API.listUsers()
-      ]);
-      _cache.clients = clients || [];
-      _cache.products = products || [];
-      _cache.scheduled_sessions = sched || [];
-      _cache.sellers = (users || []).filter(u => u.role === 'seller');
-      _isReady = true;
-    } catch(e) {
-      console.error('[STORAGE] Hydration error', e);
-    }
+        if (typeof API.syncDown === 'function') await API.syncDown();
+
+        const [clients, products, sched, users] = await Promise.all([
+          API.listClients(),
+          API.listProducts(),
+          API.listScheduledSessions(),
+          API.listUsers()
+        ]);
+        // Só sobrescreve o cache quando a API devolve dados válidos, evitando
+        // zerar a lista por uma resposta nula/parcial.
+        if (Array.isArray(clients)) _cache.clients = clients;
+        if (Array.isArray(products)) _cache.products = products;
+        if (Array.isArray(sched)) _cache.scheduled_sessions = sched;
+        if (Array.isArray(users)) _cache.sellers = users.filter(u => u.role === 'seller');
+        _isReady = true;
+      } catch(e) {
+        console.error('[STORAGE] Hydration error', e);
+      } finally {
+        _hydrating = null;
+      }
+    })();
+    return _hydrating;
   }
 
   function get(key) {

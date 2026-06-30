@@ -125,6 +125,36 @@ const Seller = (() => {
       : [];
 
     showDashboard(user, pendingSessions.length);
+    setupAutoRefresh();
+  }
+
+  // Re-sincroniza com o backend ao voltar para a aba, atualizando o dashboard
+  // do vendedor com novas sessões atribuídas. NÃO atualiza durante uma sessão
+  // de chat em andamento (evita destruir a conversa do vendedor).
+  let _sellerAutoRefreshBound = false;
+  function setupAutoRefresh() {
+    if (_sellerAutoRefreshBound) return;
+    _sellerAutoRefreshBound = true;
+    let lastRefresh = 0;
+    const refresh = async () => {
+      if (document.hidden) return;
+      // Em sessão ativa de chat? Não mexer.
+      if (document.getElementById('chat-messages')) return;
+      if (!document.getElementById('page-seller')?.classList.contains('active')) return;
+      const now = Date.now();
+      if (now - lastRefresh < 4000) return;
+      lastRefresh = now;
+      try {
+        if (window.Storage && typeof Storage.hydrate === 'function') await Storage.hydrate();
+        const user = Auth.getUser();
+        if (!user || document.getElementById('chat-messages')) return;
+        const pending = (typeof Storage.getScheduledSessionsForSeller === 'function')
+          ? Storage.getScheduledSessionsForSeller(user.id) : [];
+        showDashboard(user, pending.length);
+      } catch (e) { /* silencioso */ }
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
   }
 
   function renderNoApiError() {
@@ -954,32 +984,55 @@ const Seller = (() => {
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
         audioChunks = [];
-        
-        try {
+
+        if (!audioBlob || audioBlob.size === 0) {
           const micBtn = document.getElementById('chat-mic-btn');
-          if (micBtn) {
-            micBtn.classList.remove('recording');
-            micBtn.innerHTML = '⏳';
+          if (micBtn) { micBtn.innerHTML = '🎤'; micBtn.title = 'Gravar áudio'; }
+          try { UI.toast('Nenhum áudio capturado. Tente novamente.', 'warning'); } catch(e) {}
+          return;
+        }
+
+        const micBtn = document.getElementById('chat-mic-btn');
+        if (micBtn) {
+          micBtn.classList.remove('recording');
+          micBtn.innerHTML = '⏳';
+        }
+
+        try {
+          let result;
+          // Caminho principal: transcrever direto no navegador (consistente com o chat).
+          // Funciona sempre que a chave OpenAI estiver disponível localmente.
+          const localKey = config.openaiKey || (Storage.getSettings && Storage.getSettings().openaiKey);
+          if (localKey && typeof AIEngine !== 'undefined' && AIEngine.transcribeAudio) {
+            result = await AIEngine.transcribeAudio(audioBlob, config);
+          } else {
+            // Fallback: enviar pro backend (usa a chave salva no painel/DB).
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'voice.webm');
+            result = await API.transcribeAudio(formData);
           }
-          
-          const formData = new FormData();
-          formData.append('audio', audioBlob, 'voice.webm');
-          
-          const result = await API.transcribeAudio(formData);
-          
+
           const input = document.getElementById('chat-input');
           if (input && result && result.text) {
             input.value = (input.value + ' ' + result.text).trim();
             autoResize(input);
+            input.focus();
+          } else if (result && !result.text) {
+            try { UI.toast('Não consegui entender o áudio. Fale um pouco mais alto.', 'warning'); } catch(e) {}
           }
         } catch (err) {
-          console.error(err);
-          try { UI.toast('Erro ao transcrever áudio.', 'error'); } catch(e) { alert('Erro ao transcrever áudio.'); }
+          console.error('[VOICE] transcription failed', err);
+          const raw = err?.message || String(err);
+          let msg = 'Erro ao transcrever áudio.';
+          if (raw === 'API_KEY_MISSING') msg = 'Transcrição indisponível: chave da OpenAI não configurada pelo gestor.';
+          else if (raw === 'API_KEY_INVALID') msg = 'Chave da OpenAI inválida. Avise o gestor.';
+          else if (raw === 'RATE_LIMIT') msg = 'Limite de uso atingido. Aguarde alguns segundos.';
+          try { UI.toast(msg, 'error'); } catch(e) { alert(msg); }
         } finally {
-          const micBtn = document.getElementById('chat-mic-btn');
-          if (micBtn) {
-            micBtn.innerHTML = '🎤';
-            micBtn.title = 'Gravar áudio';
+          const btn = document.getElementById('chat-mic-btn');
+          if (btn) {
+            btn.innerHTML = '🎤';
+            btn.title = 'Gravar áudio';
           }
         }
       };

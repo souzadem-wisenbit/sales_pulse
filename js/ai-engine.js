@@ -439,6 +439,35 @@ ${commStyleBlock}
     return parseResponse(rawText);
   }
 
+  // ── Transcribe audio directly from the browser to OpenAI Whisper ──
+  // Mirrors how chat talks to OpenAI directly (no backend dependency), so voice
+  // works wherever the local OpenAI key is present (manager or synced seller).
+  async function transcribeAudio(audioBlob, config = {}) {
+    const apiKey = config.openaiKey || Storage.getSettings().openaiKey || Storage.getConfig().openaiKey;
+    if (!apiKey) throw new Error('API_KEY_MISSING');
+
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'voice.webm');
+    formData.append('model', 'whisper-1');
+    formData.append('language', 'pt');
+
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}` }, // não definir Content-Type: o browser monta o boundary
+      body: formData,
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) throw new Error('API_KEY_INVALID');
+      if (response.status === 429) throw new Error('RATE_LIMIT');
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error?.message || 'API_ERROR');
+    }
+
+    const data = await response.json();
+    return { text: data.text || '' };
+  }
+
   // ── Get opening message from AI ──
   async function getOpeningMessage(config) {
     const apiKey = config.openaiKey || Storage.getSettings().openaiKey;
@@ -607,6 +636,7 @@ Retorne EXCLUSIVAMENTE este JSON (sem markdown, sem explicação extra):
     evaluateConversation,
     parseResponse,
     getCoachTip,
+    transcribeAudio,
 
     ARCHETYPES,
     SEGMENTS,

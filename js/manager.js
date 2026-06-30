@@ -36,16 +36,71 @@ const Manager = (() => {
     renderSection('clients');
     setupNavigation();
     updateNotificationBadge();
+
+    // Garante que a chave da OpenAI configurada localmente esteja também no
+    // backend (necessária para transcrição de voz no servidor e para que os
+    // vendedores recebam a chave via sync). É idempotente e silencioso.
+    ensureApiKeyOnBackend();
+
+    // Mantém os dados sincronizados entre dispositivos: ao voltar para a aba,
+    // recarrega do backend e re-renderiza a seção atual.
+    setupAutoRefresh();
+  }
+
+  let _autoRefreshBound = false;
+  async function ensureApiKeyOnBackend() {
+    try {
+      const cfg = Storage.getConfig();
+      const key = cfg.openaiKey || (Storage.getSettings() || {}).openaiKey;
+      if (key && window.API && API.isBackendEnabled() && API.saveAiSettings) {
+        await API.saveAiSettings(key, cfg.openaiModel || 'gpt-4o-mini');
+      }
+    } catch (e) { /* silencioso */ }
+  }
+
+  function setupAutoRefresh() {
+    if (_autoRefreshBound) return;
+    _autoRefreshBound = true;
+    let lastRefresh = 0;
+    const refresh = async () => {
+      if (document.hidden) return;
+      // Não re-renderiza com um modal aberto (evita destruir formulário em edição).
+      if (document.querySelector('#page-manager .modal-overlay.active')) return;
+      const now = Date.now();
+      if (now - lastRefresh < 4000) return; // evita rajadas
+      lastRefresh = now;
+      try {
+        if (window.Storage && typeof Storage.hydrate === 'function') {
+          await Storage.hydrate();
+          // Não re-renderiza a seção de Configurações (pode ter input não salvo, ex: chave da API).
+          if (activeSection !== 'settings' &&
+              document.getElementById('page-manager')?.classList.contains('active') &&
+              !document.querySelector('#page-manager .modal-overlay.active')) {
+            renderSection(activeSection);
+          }
+        }
+      } catch (e) { /* silencioso */ }
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
   }
 
   function setupNavigation() {
     document.querySelectorAll('#page-manager .nav-item[data-section]').forEach(item => {
-      item.addEventListener('click', () => {
+      item.addEventListener('click', async () => {
         const section = item.dataset.section;
         document.querySelectorAll('#page-manager .nav-item').forEach(n => n.classList.remove('active'));
         item.classList.add('active');
+
+        // Re-sincroniza com o backend ao trocar de seção, para sempre exibir
+        // dados atualizados (clientes/produtos/vendedores criados em outro
+        // dispositivo aparecem aqui sem precisar recarregar a página).
+        try {
+          if (window.Storage && typeof Storage.hydrate === 'function') await Storage.hydrate();
+        } catch (e) { /* mantém cache atual em caso de falha */ }
+
         renderSection(section);
-        
+
         // Fechar menu mobile se estiver aberto
         document.getElementById('manager-sidebar')?.classList.remove('open');
         document.getElementById('manager-sidebar-backdrop')?.classList.remove('active');
