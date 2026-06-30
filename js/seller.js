@@ -95,6 +95,7 @@ const Seller = (() => {
       _pendingSessionId:  session.id,
       _showRealtime:      session.showRealtime ?? true,
       _showReport:        session.showReport ?? true,
+      salesApproach:      session.salesApproach || 'active',
     };
   }
 
@@ -665,7 +666,7 @@ const Seller = (() => {
                 🎤
               </button>
               <textarea class="chat-textarea" id="chat-input"
-                placeholder="Digite sua mensagem de vendas..."
+                placeholder="${escHtml(getInitialInputPlaceholder())}"
                 rows="1"
                 onkeydown="Seller.handleKeydown(event)"
                 oninput="Seller.autoResize(this)"
@@ -845,28 +846,54 @@ const Seller = (() => {
       setStatus('Online', false);
 
       messages.forEach(m => {
-        if (m.role === 'user') addUserMessage(m.content, false);
-        else if (m.role === 'system') addSystemMessage(m.content, false);
-        else addBotMessage(m.content, m.isTrick, null, false, false, false);
+        if (m.role === 'user') renderUserMessage(m.content);
+        else if (m.role === 'system') addSystemMessage(m.content);
+        else addBotMessage(m.content, m.isTrick, null, false, false);
       });
-      scrollChat();
+      scrollToBottom();
     } else {
       // First time starting
       const initialConviction = { easy: 35, medium: 20, hard: 10, expert: 5 }[config.difficulty] || 20;
       updateConviction(initialConviction);
-      setStatus('Digitando...', true);
 
-      try {
-        const response = await AIEngine.getOpeningMessage(config);
+      if (config.salesApproach === 'active') {
+        // Prospecção ativa: o cliente não fala nada — o vendedor inicia a abordagem.
         setStatus('Online', false);
-        addBotMessage(response.text, response.isTrick, response.trickType);
-        if (response.conviction !== null && response.conviction !== undefined) {
-          updateConviction(response.conviction);
+      } else {
+        // Venda passiva: o cliente já teve contato prévio e manda a primeira mensagem.
+        setStatus('Digitando...', true);
+        try {
+          const response = await AIEngine.getOpeningMessage(config);
+          setStatus('Online', false);
+          addBotMessage(response.text, response.isTrick, response.trickType);
+          if (response.conviction !== null && response.conviction !== undefined) {
+            updateConviction(response.conviction);
+          }
+        } catch (err) {
+          handleApiError(err);
         }
-      } catch (err) {
-        handleApiError(err);
       }
     }
+
+    updateInputPlaceholder();
+  }
+
+  // ── Placeholder dinâmico do campo de mensagem conforme tipo de abordagem ──
+  function getInitialInputPlaceholder() {
+    const hasUserMsg = messages.some(m => m.role === 'user');
+    if (!hasUserMsg && config.salesApproach === 'active') {
+      return 'Inicie a abordagem ativa digitando uma mensagem de introdução para o cliente.';
+    }
+    if (!hasUserMsg && config.salesApproach === 'passive') {
+      return 'O cliente já teve contato com a empresa, responda a mensagem dele e tente convencê-lo de adquirir o produto em questão.';
+    }
+    return 'Digite sua mensagem de vendas...';
+  }
+
+  function updateInputPlaceholder() {
+    const input = document.getElementById('chat-input');
+    if (!input) return;
+    input.placeholder = getInitialInputPlaceholder();
   }
 
   async function saveCurrentSession() {
@@ -1010,6 +1037,7 @@ const Seller = (() => {
     const userMsg = { role: 'user', content: text, timestamp: new Date() };
     messages.push(userMsg);
     renderUserMessage(text);
+    updateInputPlaceholder();
     updateMsgCount();
     xrayMsgCount++;
 

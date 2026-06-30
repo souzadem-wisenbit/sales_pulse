@@ -134,6 +134,10 @@ const Sessoes = (() => {
 
     const isOverdue = s.dueAt && new Date(s.dueAt) < new Date() && s.status === 'pending';
 
+    const approachLabel = (s.salesApproach === 'passive')
+      ? '💬 Venda Passiva'
+      : '📞 Prospecção Ativa';
+
     return `
       <div class="sessao-card ${isDone ? 'sessao-done' : ''} ${isOverdue ? 'sessao-overdue' : ''}">
         <div class="sessao-card-left">
@@ -146,6 +150,7 @@ const Sessoes = (() => {
               ${client ? `<span class="sessao-client-role">${escHtml(client.role || '')} · ${escHtml(client.company || '')}</span>` : ''}
             </div>
             <div class="sessao-meta">
+              <span class="sessao-tag">${approachLabel}</span>
               <span class="sessao-tag">${timeLabel}</span>
               ${dueLabel ? `<span class="sessao-tag ${isOverdue ? 'sessao-tag-danger' : ''}">${dueLabel}</span>` : ''}
               ${s.notes ? `<span class="sessao-tag">📝 ${escHtml(s.notes.slice(0,40))}${s.notes.length>40?'...':''}</span>` : ''}
@@ -224,6 +229,27 @@ const Sessoes = (() => {
           <span class="form-hint">O vendedor aprenderá que enfrentará este cliente ao entrar no chat.</span>
         </div>
 
+        <!-- Tipo de Abordagem -->
+        <div class="form-group">
+          <label class="form-label">🎯 Tipo de Abordagem *</label>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <label style="display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--border-subtle);border-radius:var(--r-md);cursor:pointer">
+              <input type="radio" name="ss-approach" value="active" checked style="margin-top:3px">
+              <div>
+                <div style="font-weight:600">📞 Prospecção Ativa</div>
+                <div class="form-hint" style="margin:2px 0 0">O cliente não fala nada no início — o vendedor é quem deve iniciar a abordagem com a primeira mensagem.</div>
+              </div>
+            </label>
+            <label style="display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--border-subtle);border-radius:var(--r-md);cursor:pointer">
+              <input type="radio" name="ss-approach" value="passive" style="margin-top:3px">
+              <div>
+                <div style="font-weight:600">💬 Venda Passiva</div>
+                <div class="form-hint" style="margin:2px 0 0">O cliente já teve contato prévio com a empresa e envia a primeira mensagem — o vendedor responde e conduz a venda.</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
         <!-- Tempo para responder -->
         <div class="form-group">
           <label class="form-label">⏱ Tempo máximo de resposta por mensagem</label>
@@ -295,6 +321,7 @@ const Sessoes = (() => {
   async function saveSession() {
     const sellerId       = document.getElementById('ss-seller')?.value;
     const clientId       = document.getElementById('ss-client')?.value;
+    const salesApproach  = document.querySelector('input[name="ss-approach"]:checked')?.value || 'active';
     const responseTimeSec= parseInt(document.getElementById('ss-response-time')?.value || '0');
     const dueAt          = document.getElementById('ss-due-at')?.value;
     const notes          = document.getElementById('ss-notes')?.value?.trim();
@@ -308,6 +335,7 @@ const Sessoes = (() => {
       const created = await Storage.addScheduledSession({
         sellerId,
         clientId,
+        salesApproach,
         responseTimeSec,
         dueAt: dueAt || null,
         notes,

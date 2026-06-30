@@ -10,6 +10,7 @@ async function listScheduledSessions(req, res) {
       clientId: r.client_id,
       showRealtime: r.show_realtime,
       showReport: r.show_report,
+      salesApproach: r.sales_approach || 'active',
       scheduledAt: r.scheduled_at,
       doneAt: r.done_at,
       startedAt: r.started_at,
@@ -31,13 +32,13 @@ async function createScheduledSession(req, res) {
     const id = data.id || 'sched_' + Date.now();
     await db.query(`
       INSERT INTO scheduled_sessions (
-        id, seller_id, client_id, status, show_realtime, show_report
+        id, seller_id, client_id, status, show_realtime, show_report, sales_approach
       ) VALUES (
-        $1, $2, $3, $4, $5, $6
+        $1, $2, $3, $4, $5, $6, $7
       )
     `, [
       id, data.sellerId, data.clientId, data.status || 'pending',
-      data.showRealtime ?? true, data.showReport ?? true
+      data.showRealtime ?? true, data.showReport ?? true, data.salesApproach || 'active'
     ]);
     res.status(201).json({ ...data, id });
   } catch (err) {
