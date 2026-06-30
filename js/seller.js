@@ -27,13 +27,14 @@ const Seller = (() => {
   function buildConfigForSession(session, user) {
     const globalConfig = Storage.getConfig();
     const allClients = Storage.getClients ? Storage.getClients() : [];
-    const client = allClients.find(c => String(c.id) === String(session.clientId));
+    const clientId = session.clientId || session.client_id;
+    const client = allClients.find(c => String(c.id) === String(clientId));
     if (!client) return null;
 
     const allProducts = Storage.getProducts ? Storage.getProducts() : [];
     const clientProds = allProducts.filter(p => (p.clientesAtribuidos||[]).map(String).includes(String(client.id)));
     const sellerProds = allProducts.filter(p => (p.vendedoresAtribuidos||[]).map(String).includes(String(user.id)));
-    let intersectedProducts = clientProds.filter(cp => sellerProds.some(sp => sp.id === cp.id));
+    let intersectedProducts = clientProds.filter(cp => sellerProds.some(sp => String(sp.id) === String(cp.id)));
     if (intersectedProducts.length === 0) intersectedProducts = clientProds;
     if (intersectedProducts.length === 0) intersectedProducts = sellerProds;
     const firstProd = intersectedProducts[0];
@@ -150,8 +151,6 @@ const Seller = (() => {
     const scoreTrend = (lastScore !== null && avgScore > 0)
       ? (lastScore >= avgScore ? '↗ acima da média' : '↘ abaixo da média')
       : '';
-
-    let notifBanner = (typeof Sessoes !== 'undefined') ? Sessoes.renderSellerNotificationBanner(user.id) : '';
 
     const recentSessions = allSessions.slice(-3).reverse();
 
@@ -370,8 +369,6 @@ const Seller = (() => {
           </button>
         </div>
 
-        ${notifBanner ? `<div style="position:relative;z-index:1;padding:0 2.5rem">${notifBanner}</div>` : ''}
-
         <!-- Stats Strip -->
         <div class="seller-stats-strip">
           <div class="stat-pill">
@@ -407,7 +404,8 @@ const Seller = (() => {
             ${(typeof Storage.getScheduledSessionsForSeller === 'function' ? Storage.getScheduledSessionsForSeller(user.id) : []).length > 0 ? 
               (typeof Storage.getScheduledSessionsForSeller === 'function' ? Storage.getScheduledSessionsForSeller(user.id) : []).map(ss => {
                 const allClients = typeof Storage.getClients === 'function' ? Storage.getClients() : [];
-                const client = allClients.find(c => c.id === ss.clientId);
+                const ssClientId = ss.clientId || ss.client_id;
+                const client = allClients.find(c => String(c.id) === String(ssClientId));
                 const cName = client ? client.name : 'Cliente Desconhecido';
                 const isInProgress = !!ss.startedAt;
                 return `
@@ -418,7 +416,7 @@ const Seller = (() => {
                         ${isInProgress ? '⏳ Em andamento...' : '📅 Sessão Agendada'}
                       </div>
                     </div>
-                    <button class="btn btn-sm ${isInProgress ? 'btn-warning' : 'btn-primary'}" onclick="Seller.startTraining('${ss.clientId}', '${ss.id}')" style="padding: 8px 16px;">
+                    <button class="btn btn-sm ${isInProgress ? 'btn-warning' : 'btn-primary'}" onclick="Seller.startTraining('${ssClientId}', '${ss.id}')" style="padding: 8px 16px;">
                       ${isInProgress ? 'Continuar' : 'Iniciar'}
                     </button>
                   </div>

@@ -40,10 +40,15 @@ const API = (() => {
   }
 
   function buildHeaders() {
-    const h = { 'Content-Type': 'application/json' };
+    const headers = {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    };
     const token = getToken();
-    if (token) h['Authorization'] = `Bearer ${token}`;
-    return h;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
   }
 
   async function fetchWithTimeout(url, options) {

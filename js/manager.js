@@ -74,7 +74,7 @@ const Manager = (() => {
       sellers:   { title: 'Vendedores', sub: 'Gerencie a equipe e acompanhe o cadastro', render: renderSellersSection },
       products:  { title: 'Produtos', sub: 'Cadastre produtos e atribua-os a clientes e vendedores', render: renderProductsSection },
       sessoes:   { title: 'Sess\u00f5es Agendadas', sub: 'Crie sess\u00f5es de treinamento individuais para cada vendedor', render: (c) => Sessoes.render(c) },
-      reports:   { title: 'Relat\u00f3rios & Analytics', sub: 'Desempenho da equipe e hist\u00f3rico de sess\u00f5es', render: renderReportsSection },
+
       settings:  { title: 'Configura\u00e7\u00f5es', sub: 'API, conta e prefer\u00eancias do sistema', render: renderSettingsSection },
     };
 
