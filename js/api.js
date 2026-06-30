@@ -95,12 +95,20 @@ const API = (() => {
     throw lastError;
   }
 
+  // Acrescenta um parâmetro único para forçar o navegador a buscar dados
+  // frescos em toda requisição GET (impede cache de listas desatualizadas).
+  function cacheBust(path) {
+    const sep = path.includes('?') ? '&' : '?';
+    return `${path}${sep}_=${Date.now()}`;
+  }
+
   async function get(path) {
     const base = getBaseUrl();
     if (base === null) return null;
-    const res = await fetchWithTimeout(`${base}${path}`, {
+    const res = await fetchWithTimeout(`${base}${cacheBust(path)}`, {
       method: 'GET',
       headers: buildHeaders(),
+      cache: 'no-store',
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -236,8 +244,11 @@ const API = (() => {
   async function request(path, options = {}) {
     const base = getBaseUrl();
     if (base === null) throw new Error('Backend não configurado');
-    const res = await fetchWithTimeout(`${base}${path}`, {
+    const method = (options.method || 'GET').toUpperCase();
+    const url = method === 'GET' ? cacheBust(path) : path;
+    const res = await fetchWithTimeout(`${base}${url}`, {
       ...options,
+      cache: method === 'GET' ? 'no-store' : (options.cache || 'default'),
       headers: { ...buildHeaders(), ...(options.headers || {}) },
     });
     if (!res.ok) {

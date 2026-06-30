@@ -9,8 +9,23 @@ const { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter,
 
 const app = express();
 
+// Desabilita ETag: respostas da API mudam a cada criação/edição e ETags
+// faziam o navegador servir listas antigas (clientes/sessões "fantasmas").
+app.set('etag', false);
+
 app.use(cors());
 app.use(express.json());
+
+// Garante que NENHUMA resposta de API seja cacheada pelo navegador/CDN.
+// Sem isso, criar um cliente em um dispositivo não refletia em outro até
+// limpar o cache, e vendedores viam "Cliente Desconhecido" em sessões novas.
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.set('Surrogate-Control', 'no-store');
+  next();
+});
 
 // Routes
 app.use('/api/sync', syncRouter);
