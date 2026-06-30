@@ -305,7 +305,7 @@ const Sessoes = (() => {
     if (!clientId) { UI.toast('Selecione o cliente.', 'error'); return; }
 
     try {
-      await Storage.addScheduledSession({
+      const created = await Storage.addScheduledSession({
         sellerId,
         clientId,
         responseTimeSec,
@@ -315,8 +315,8 @@ const Sessoes = (() => {
         showReport
       });
 
-      // Auto-notify
-      notifySeller_internal(sellerId, clientId, notes);
+      // Auto-notify (pass the created session ID so the notification links to the right session)
+      notifySeller_internal(sellerId, clientId, notes, created?.id);
 
       closeModal();
       UI.toast('Sessão agendada com sucesso! 📅', 'success');
@@ -333,18 +333,24 @@ const Sessoes = (() => {
   function notifySeller(sessionId) {
     const s = Storage.getScheduledSessions().find(x => x.id === sessionId);
     if (!s) return;
-    notifySeller_internal(s.sellerId, s.clientId, s.notes);
+    notifySeller_internal(s.sellerId, s.clientId, s.notes, sessionId);
     Storage.updateScheduledSession(sessionId, { notified: true, notifiedAt: new Date().toISOString() });
     UI.toast('Notificação enviada ao vendedor! 🔔', 'success');
   }
 
-  function notifySeller_internal(sellerId, clientId, notes) {
+  function notifySeller_internal(sellerId, clientId, notes, scheduledSessionId) {
     // Store notification in a seller-readable key
     const notifKey = 'sbp_notif_' + sellerId;
     const client = Storage.getClients().find(c => c.id === clientId);
     const notifs = JSON.parse(localStorage.getItem(notifKey) || '[]');
+
+    // Resolve sessionId: use the one passed in, or find the latest pending one
+    const resolvedSessionId = scheduledSessionId ||
+      Storage.getScheduledSessions().find(s => s.sellerId === sellerId && s.clientId === clientId && s.status === 'pending')?.id;
+
     notifs.unshift({
       id:        'n_' + Date.now(),
+      sessionId: resolvedSessionId,  // Link to the actual scheduled session
       clientId,
       clientName: client ? client.name : '(cliente)',
       clientEmoji: client ? (client.emoji || '👤') : '👤',
@@ -353,10 +359,9 @@ const Sessoes = (() => {
       read:      false,
     });
     localStorage.setItem(notifKey, JSON.stringify(notifs.slice(0, 20)));
-    Storage.updateScheduledSession(
-      Storage.getScheduledSessions().find(s => s.sellerId === sellerId && s.clientId === clientId && s.status === 'pending')?.id,
-      { notified: true }
-    );
+    if (resolvedSessionId) {
+      Storage.updateScheduledSession(resolvedSessionId, { notified: true });
+    }
   }
 
   function markDone(sessionId) {
@@ -421,7 +426,7 @@ const Sessoes = (() => {
             Você vai treinar com <strong>${n.clientEmoji} ${escHtml(n.clientName)}</strong>
             ${n.notes ? `· <em>${escHtml(n.notes)}</em>` : ''}
           </div>
-          <button class="btn btn-sm btn-primary" onclick="Sessoes.dismissNotif('${sellerId}','${n.id}');Seller.startTraining('${n.clientId}', '${n.id}')" style="font-size:0.75rem;padding:4px 10px">
+          <button class="btn btn-sm btn-primary" onclick="Sessoes.dismissNotif('${sellerId}','${n.id}');Seller.startTraining('${n.clientId}', '${n.sessionId || n.id}')" style="font-size:0.75rem;padding:4px 10px">
             ▶ Iniciar esta sessão
           </button>
         </div>

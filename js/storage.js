@@ -225,7 +225,7 @@ const Storage = (() => {
   function getScheduledSessions() { return _cache.scheduled_sessions; }
   
   function getScheduledSessionsForSeller(sellerId) {
-    return _cache.scheduled_sessions.filter(s => s.sellerId === sellerId && s.status !== 'cancelled');
+    return _cache.scheduled_sessions.filter(s => String(s.sellerId) === String(sellerId) && s.status !== 'cancelled');
   }
 
   async function addScheduledSession(data) {
