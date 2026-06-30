@@ -27,6 +27,8 @@ const UI = (() => {
   return { toast, showLoading };
 })();
 
+window.UI = UI;
+
 // ══════════════════════════════════════════════════
 // APP ROUTER
 // ══════════════════════════════════════════════════
@@ -205,6 +207,8 @@ const App = (() => {
 
   return { init, navigate, showResults };
 })();
+
+window.App = App;
 
 // Boot
 document.addEventListener('DOMContentLoaded', () => {

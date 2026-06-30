@@ -337,3 +337,9 @@ const Storage = (() => {
   };
 
 })();
+
+// `const` no topo do arquivo NÃO vira propriedade de `window` — só uma
+// variável global lexical. Várias partes do app checam `window.Storage`
+// antes de chamar hydrate(), e essa checagem sempre falhava silenciosamente,
+// fazendo o cache nunca recarregar do backend (F5 sempre voltava vazio).
+window.Storage = Storage;

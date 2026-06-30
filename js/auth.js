@@ -184,3 +184,5 @@ const Auth = (() => {
 
   return { init, loginManager, loginSeller, loginUnified, logout, getUser, isAuthenticated, isManager, isSeller, requireAuth };
 })();
+
+window.Auth = Auth;

@@ -486,3 +486,5 @@ const Sessoes = (() => {
     dismissNotif,
   };
 })();
+
+window.Sessoes = Sessoes;

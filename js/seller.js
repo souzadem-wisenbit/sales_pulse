@@ -1931,3 +1931,5 @@ const Seller = (() => {
     _forceExit,
   };
 })();
+
+window.Seller = Seller;

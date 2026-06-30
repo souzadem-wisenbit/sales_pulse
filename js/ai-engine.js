@@ -643,3 +643,5 @@ Retorne EXCLUSIVAMENTE este JSON (sem markdown, sem explicação extra):
     HIDDEN_AGENDAS,
   };
 })();
+
+window.AIEngine = AIEngine;

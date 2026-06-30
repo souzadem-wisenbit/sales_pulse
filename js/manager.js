@@ -2379,3 +2379,5 @@ const Manager = (() => {
     viewSessionReport, generateFakeReports,
   };
 })();
+
+window.Manager = Manager;

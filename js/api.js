@@ -340,3 +340,6 @@ const API = (() => {
   };
 
 })();
+
+// Mesma observação de storage.js: `const API` não é `window.API` por padrão.
+window.API = API;
