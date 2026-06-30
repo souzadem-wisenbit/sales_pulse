@@ -1,0 +1,1 @@
+ALTER TABLE scheduled_sessions ADD COLUMN started_at TIMESTAMP WITH TIME ZONE; ALTER TABLE scheduled_sessions ADD COLUMN state JSONB DEFAULT '{}'::jsonb;

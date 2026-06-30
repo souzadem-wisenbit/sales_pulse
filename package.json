@@ -1,0 +1,22 @@
+{
+  "name": "salespulse-app",
+  "version": "1.0.0",
+  "description": "SalesPulse App (Frontend + API)",
+  "main": "api/src/server.js",
+  "scripts": {
+    "start": "node api/src/server.js",
+    "dev": "node api/src/server.js",
+    "dev:watch": "npx --yes nodemon api/src/server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "joi": "^17.13.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.2.0",
+    "openai": "^6.45.0",
+    "pg": "^8.11.5"
+  }
+}

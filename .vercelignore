@@ -1,0 +1,6 @@
+api/
+node_modules/
+.env
+*.pdf
+*.md
+descricao_ferramenta.txt

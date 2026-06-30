@@ -1,0 +1,105 @@
+'use strict';
+const db = require('../db/pool');
+
+async function listScheduledSessions(req, res) {
+  try {
+    const { rows } = await db.query('SELECT * FROM scheduled_sessions ORDER BY created_at DESC');
+    const formatted = rows.map(r => ({
+      ...r,
+      sellerId: r.seller_id,
+      clientId: r.client_id,
+      showRealtime: r.show_realtime,
+      showReport: r.show_report,
+      scheduledAt: r.scheduled_at,
+      doneAt: r.done_at,
+      startedAt: r.started_at,
+      messages: r.state?.messages || [],
+      conviction: r.state?.conviction || 0,
+      tricks: r.state?.tricks || 0,
+      criteriaScores: r.state?.criteriaScores || null
+    }));
+    return res.json(formatted);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao listar sessoes agendadas' });
+  }
+}
+
+async function createScheduledSession(req, res) {
+  try {
+    const data = req.body;
+    const id = data.id || 'sched_' + Date.now();
+    await db.query(`
+      INSERT INTO scheduled_sessions (
+        id, seller_id, client_id, status, show_realtime, show_report
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6
+      )
+    `, [
+      id, data.sellerId, data.clientId, data.status || 'pending',
+      data.showRealtime ?? true, data.showReport ?? true
+    ]);
+    res.status(201).json({ ...data, id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao criar sessao agendada' });
+  }
+}
+
+async function updateScheduledSession(req, res) {
+  try {
+    const { id } = req.params;
+    const data = req.body;
+    
+    // Allow partial updates
+    const fields = [];
+    const values = [];
+    let counter = 1;
+    
+    if (data.status !== undefined) { fields.push(`status = $${counter++}`); values.push(data.status); }
+    if (data.doneAt !== undefined) { fields.push(`done_at = $${counter++}`); values.push(data.doneAt); }
+    if (data.startedAt !== undefined) { fields.push(`started_at = $${counter++}`); values.push(data.startedAt); }
+    if (data.showRealtime !== undefined) { fields.push(`show_realtime = $${counter++}`); values.push(data.showRealtime); }
+    if (data.showReport !== undefined) { fields.push(`show_report = $${counter++}`); values.push(data.showReport); }
+    
+    // Save state containing messages, conviction, etc.
+    if (data.messages || data.conviction !== undefined) {
+      const stateObj = {
+        messages: data.messages,
+        conviction: data.conviction,
+        tricks: data.tricks,
+        criteriaScores: data.criteriaScores
+      };
+      fields.push(`state = $${counter++}`); values.push(stateObj);
+    }
+
+    if (fields.length === 0) return res.json({ success: true });
+    
+    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(id);
+    
+    await db.query(`
+      UPDATE scheduled_sessions SET
+        ${fields.join(', ')}
+      WHERE id = $${counter}
+    `, values);
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao atualizar sessao agendada' });
+  }
+}
+
+async function deleteScheduledSession(req, res) {
+  try {
+    const { id } = req.params;
+    await db.query('DELETE FROM scheduled_sessions WHERE id = $1', [id]);
+    res.status(204).end();
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao excluir sessao agendada' });
+  }
+}
+
+module.exports = { listScheduledSessions, createScheduledSession, updateScheduledSession, deleteScheduledSession };

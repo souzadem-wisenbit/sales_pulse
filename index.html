@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description"
+    content="SalesPulse — Plataforma de Treinamento de Vendas com Inteligência Artificial. Treine sua equipe de vendas com simulações realistas de clientes.">
+  <meta name="theme-color" content="#07070f">
+  <title>SalesPulse — Treinamento de Vendas com IA</title>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/main.css?v=11">
+  <link rel="stylesheet" href="css/animations.css?v=11">
+  <link rel="stylesheet" href="css/components.css?v=11">
+
+  <!-- Favicon emoji -->
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+</head>
+
+<body class="bg-grid">
+
+  <!-- ══════════════════════════════════════
+     GLOBAL LOADER
+══════════════════════════════════════ -->
+  <div id="global-loader"
+    style="display:none;position:fixed;inset:0;background:rgba(7,7,15,0.8);z-index:999;align-items:center;justify-content:center">
+    <div style="text-align:center">
+      <div style="font-size:2.5rem;margin-bottom:16px;animation:spin 1s linear infinite">⚙️</div>
+      <div style="color:var(--text-secondary)">Carregando...</div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <!-- ══════════════════════════════════════
+     APP ROOT
+══════════════════════════════════════ -->
+  <div id="app">
+
+    <!-- ══════════════════════════════════
+       PAGE: LANDING
+  ══════════════════════════════════ -->
+    <div id="page-landing" class="page">
+      <!-- Navbar / Header -->
+      <header
+        style="display:flex;justify-content:space-between;align-items:center;padding:1.5rem 3%;border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(7,7,15,0.7);backdrop-filter:blur(12px);position:sticky;top:0;z-index:100;">
+        <div style="display:flex;align-items:center;gap:1px;">
+          <img src="img/salespulse_logo.png" alt="SalesPulse Logo" style="width:90px;height:auto;object-fit:contain;">
+          <div style="font-weight:700;font-size:1.2rem;letter-spacing:-0.5px;"><span
+              style="background:linear-gradient(135deg, #6c63ff 0%, #00e5ff 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;"></span>
+          </div>
+        </div>
+        <div>
+          <button class="btn btn-primary" onclick="App.navigate('login')">Login</button>
+        </div>
+      </header>
+
+      <!-- 1. HERO PRINCIPAL -->
+      <section style="padding:6rem 2rem;text-align:center;max-width:1200px;margin:0 auto;position:relative;">
+        <div class="orb orb-1"
+          style="width:600px;height:600px;background:rgba(108,99,255,0.15);top:-10%;left:50%;transform:translateX(-50%);filter:blur(100px);z-index:-1;">
+        </div>
+
+        <div
+          style="display:inline-flex;align-items:center;gap:8px;padding:6px 16px;background:rgba(108,99,255,0.1);border:1px solid rgba(108,99,255,0.2);border-radius:100px;font-size:0.85rem;color:var(--accent-light);margin-bottom:2rem;font-weight:600;box-shadow:0 0 20px rgba(108,99,255,0.15);">
+          <span class="glow-dot" style="background:var(--accent-light);"></span> Simulador de Vendas com Inteligência
+          Artificial
+        </div>
+
+        <h1
+          style="font-size:clamp(2.5rem, 6vw, 4.5rem);line-height:1.1;letter-spacing:-1.5px;margin-bottom:1.5rem;font-weight:800;">
+          Treine seu time de vendas antes <br><span
+            style="background:linear-gradient(135deg, #fff 0%, var(--accent-light) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">de
+            falar com o cliente.</span>
+        </h1>
+        <p style="font-size:1.15rem;color:var(--text-secondary);max-width:680px;margin:0 auto 3rem;line-height:1.6;">
+          Uma ferramenta inteligente onde seus vendedores treinam, são avaliados e corrigidos por uma
+          Inteligência Artificial realista. Tudo isso antes de arriscar contatos caros da sua empresa. <br><strong
+            style="color:var(--text-base);font-weight:600;">Menos perda de vendas. Mais fechamentos. Mais
+            resultado.</strong>
+        </p>
+
+        <div style="display:flex;gap:16px;justify-content:center;margin-bottom:5rem;">
+        </div>
+
+        <!-- UI Mockup Hero -->
+        <div
+          style="position:relative;margin:0 auto;max-width:960px;border-radius:16px;background:rgba(20,20,30,0.6);border:1px solid rgba(255,255,255,0.05);padding:1.5rem;box-shadow:0 25px 50px -12px rgba(0,0,0,1);backdrop-filter:blur(20px);transform:perspective(1200px) rotateX(4deg);">
+          <!-- Window controls -->
+          <div style="display:flex;gap:8px;margin-bottom:1.5rem;">
+            <div style="width:12px;height:12px;border-radius:50%;background:#ef4444;"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#f59e0b;"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#10b981;"></div>
+          </div>
+
+          <!-- Fake dashboard -->
+          <div style="display:grid;grid-template-columns:1fr 2fr;gap:1.5rem;text-align:left;">
+            <div
+              style="background:rgba(255,255,255,0.03);border-radius:12px;padding:1.5rem;border:1px solid rgba(255,255,255,0.02);">
+              <div
+                style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:1px;font-weight:700;">
+                Análise do Vendedor: João S.</div>
+              <div style="font-size:2.5rem;font-weight:800;margin-bottom:1rem;color:var(--success);">88<span
+                  style="font-size:1rem;color:var(--text-muted);">/100</span></div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem;font-size:0.85rem;"><span
+                  style="color:var(--text-secondary);">Quebra-Gelo (Conexão)</span><span
+                  style="color:var(--success);">95%</span>
+              </div>
+              <div style="width:100%;height:6px;background:rgba(255,255,255,0.1);border-radius:4px;margin-bottom:1rem;">
+                <div style="width:95%;height:100%;background:var(--success);border-radius:4px;"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:0.5rem;font-size:0.85rem;"><span
+                  style="color:var(--text-secondary);">Lidou com as Objeções?</span><span
+                  style="color:var(--warning);">65%</span></div>
+              <div style="width:100%;height:6px;background:rgba(255,255,255,0.1);border-radius:4px;">
+                <div style="width:65%;height:100%;background:var(--warning);border-radius:4px;"></div>
+              </div>
+            </div>
+
+            <div
+              style="background:rgba(255,255,255,0.03);border-radius:12px;padding:1.5rem;position:relative;border:1px solid rgba(255,255,255,0.02);">
+              <div
+                style="position:absolute;top:1rem;right:1rem;padding:4px 12px;background:rgba(255,71,87,0.1);color:var(--danger);border-radius:100px;font-size:0.75rem;font-weight:700;">
+                💔 Erro Fatal na Venda</div>
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:1rem;">
+                <div
+                  style="width:40px;height:40px;background:var(--bg-base);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;">
+                  👨‍💼</div>
+                <div>
+                  <div style="font-weight:700;font-size:0.9rem;">Simulação com Cliente Hostil</div>
+                  <div style="font-size:0.75rem;color:var(--text-muted);">Dificuldade: Alta · Segmento: Indústria</div>
+                </div>
+              </div>
+              <div
+                style="background:rgba(0,0,0,0.4);padding:1rem;border-radius:8px;margin-bottom:1rem;border-left:3px solid var(--danger);font-size:0.9rem;color:var(--text-secondary);">
+                "Seu preço está 30% acima da empresa Y e não vejo valor que justifique pagar a mais. Me dê um motivo
+                prático agora."
+              </div>
+              <div
+                style="background:rgba(108,99,255,0.1);padding:1rem;border-radius:8px;border-left:3px solid var(--accent-light);font-size:0.9rem;margin-left:2rem;color:var(--text-base);">
+                "Entendo, a empresa Y é ótima em opções de entrada. Porém, para a complexidade da sua operação, só a
+                nossa SLA de 99.9% evitaria paradas..."
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. BLOCO DE DOR -->
+      <section style="padding:6rem 2rem;background:var(--bg-elevated);border-top:1px solid rgba(255,255,255,0.05);">
+        <div class="container" style="max-width:1000px;text-align:center;">
+          <h2 style="font-size:2.5rem;margin-bottom:1.5rem;font-weight:800;">O prejuízo silencioso do <span
+              style="color:var(--danger);">treinamento improvisado</span>.</h2>
+          <p style="font-size:1.1rem;color:var(--text-secondary);max-width:800px;margin:0 auto 4rem;line-height:1.6;">
+            Vendedores novos demoram meses para dar lucro. Consultores experientes criam vícios ou esquecem os processos
+            da empresa.
+            Resultado: você perde clientes que custaram caro tentar treiná-los na vida real.
+          </p>
+
+          <div
+            style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:2rem;text-align:left;">
+            <div
+              style="background:var(--bg-surface);padding:2rem;border-radius:16px;border:1px solid rgba(255,71,87,0.15);box-shadow:0 10px 30px rgba(0,0,0,0.3);">
+              <div style="font-size:2.5rem;margin-bottom:1rem;">⏳</div>
+              <h3 style="font-size:1.2rem;margin-bottom:1rem;font-weight:700;">Demora para Dar Lucro</h3>
+              <p style="color:var(--text-muted);line-height:1.5;font-size:0.9rem;">Semanas lendo manuais chatos ou
+                ouvindo ligações de terceiros não deixam ninguém pronto. A teoria nunca prepara um vendedor para ouvir
+                um "não" afiado na hora de cobrar o cliente.</p>
+            </div>
+            <div
+              style="background:var(--bg-surface);padding:2rem;border-radius:16px;border:1px solid rgba(255,165,2,0.15);box-shadow:0 10px 30px rgba(0,0,0,0.3);">
+              <div style="font-size:2.5rem;margin-bottom:1rem;">📉</div>
+              <h3 style="font-size:1.2rem;margin-bottom:1rem;font-weight:700;">Desperdício de Contatos Caros</h3>
+              <p style="color:var(--text-muted);line-height:1.5;font-size:0.9rem;">Deixar um funcionário errar
+                conversando com clientes que o seu Marketing pagou caro para atrair é jogar dinheiro no lixo. A venda
+                perdida não volta mais.</p>
+            </div>
+            <div
+              style="background:var(--bg-surface);padding:2rem;border-radius:16px;border:1px solid rgba(108,99,255,0.15);box-shadow:0 10px 30px rgba(0,0,0,0.3);">
+              <div style="font-size:2.5rem;margin-bottom:1rem;">🔗</div>
+              <h3 style="font-size:1.2rem;margin-bottom:1rem;font-weight:700;">Liderança Sem Tempo Livre</h3>
+              <p style="color:var(--text-muted);line-height:1.5;font-size:0.9rem;">Líderes e empresários perdem horas
+                preciosas ouvindo ligações gravadas só para dar um simples conselho. Fazer isso manualmente nunca vai
+                escalar suas vendas para a empresa toda.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. COMO FUNCIONA -->
+      <section id="como-funciona" style="padding:8rem 2rem;position:relative;">
+        <div style="max-width:1100px;margin:0 auto;">
+          <div style="text-align:center;margin-bottom:5rem;">
+            <h2 style="font-size:2.5rem;font-weight:800;max-width:800px;margin:0 auto;">Como transformar conhecimento
+              comercial em <span
+                style="background:linear-gradient(135deg, #6c63ff 0%, #00e5ff 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">padrão
+                de execução</span></h2>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:5rem;">
+            <!-- Step 1 -->
+            <div style="display:flex;flex-wrap:wrap;gap:4rem;align-items:center;">
+              <div style="flex:1;min-width:300px;">
+                <div
+                  style="font-size:0.85rem;color:var(--accent-light);font-weight:800;margin-bottom:0.5rem;letter-spacing:1px;">
+                  01. CRIE O CLIENTE FALSO</div>
+                <h3 style="font-size:1.8rem;margin-bottom:1rem;font-weight:700;line-height:1.3;">O Diretor desenha o
+                  desafio</h3>
+                <p style="color:var(--text-secondary);font-size:1.05rem;line-height:1.6;">O treinamento nunca é
+                  genérico. O líder cadastra o produto exato que sua empresa vende, as principais dores do mercado e
+                  configura o mau humor do robô comprador. Crie seu "cliente insatisfeito" sob medida.</p>
+              </div>
+              <div
+                style="flex:1;min-width:300px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:2rem;border-radius:16px;">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:1.5rem;">
+                  <div style="font-size:1.5rem;">🎚️</div>
+                  <div style="font-weight:700;">Parâmetros de Simulação</div>
+                </div>
+                <div style="margin-bottom:1rem;">
+                  <div
+                    style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:4px;color:var(--text-muted);">
+                    <span>Resistência Inicial</span><span>Dificuldade Expert</span>
+                  </div>
+                  <div style="background:rgba(0,0,0,0.5);height:6px;border-radius:3px;">
+                    <div style="width:85%;height:100%;background:var(--danger);border-radius:3px;"></div>
+                  </div>
+                </div>
+                <div style="margin-bottom:1rem;">
+                  <div
+                    style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:4px;color:var(--text-muted);">
+                    <span>Sensibilidade a Preço</span><span>Altíssima</span>
+                  </div>
+                  <div style="background:rgba(0,0,0,0.5);height:6px;border-radius:3px;">
+                    <div style="width:90%;height:100%;background:var(--warning);border-radius:3px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div style="display:flex;flex-wrap:wrap-reverse;gap:4rem;align-items:center;">
+              <div
+                style="flex:1;min-width:300px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:2rem;border-radius:16px;position:relative;">
+                <div
+                  style="position:absolute;top:1rem;right:1rem;font-size:0.75rem;padding:4px 10px;background:rgba(108,99,255,0.15);color:var(--accent-light);border-radius:100px;font-weight:600;">
+                  Ambiente de Risco Zero</div>
+                <div style="display:flex;flex-direction:column;gap:1.5rem;margin-top:1rem;">
+                  <div style="display:flex;gap:12px;">
+                    <div
+                      style="width:36px;height:36px;border-radius:50%;background:var(--bg-base);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">
+                      👨‍💼</div>
+                    <div
+                      style="background:var(--bg-base);padding:12px 16px;border-radius:0 12px 12px 12px;font-size:0.9rem;border-left:2px solid var(--accent);color:var(--text-secondary);">
+                      "Legal o sistema de vocês. Mas a solução que usamos hoje é gratuita. Por que eu pagaria esse
+                      absurdo?"</div>
+                  </div>
+                  <!-- Seller -->
+                  <div style="display:flex;gap:12px;flex-direction:row-reverse;">
+                    <div
+                      style="background:var(--accent-dark);padding:12px 16px;border-radius:12px 0 12px 12px;font-size:0.9rem;color:var(--text-base);">
+                      "O gratuito custa o dobro em retrabalho, Sr. Mendes. A nossa ferramenta recupera 4h de operação
+                      por dia. Sabe quanto isso vale?"</div>
+                  </div>
+                </div>
+              </div>
+              <div style="flex:1;min-width:300px;">
+                <div
+                  style="font-size:0.85rem;color:var(--accent-light);font-weight:800;margin-bottom:0.5rem;letter-spacing:1px;">
+                  02. A HORA DA PRÁTICA</div>
+                <h3 style="font-size:1.8rem;margin-bottom:1rem;font-weight:700;line-height:1.3;">Conversa Imersiva e
+                  Realista</h3>
+                <p style="color:var(--text-secondary);font-size:1.05rem;line-height:1.6;">O vendedor precisa argumentar
+                  para tentar "vender" para a Inteligência Artificial. O robô faz perguntas duras, muda de humor e
+                  descarta vendedores inseguros. A pressão é 100% real, mas o risco de manchar sua marca é zero.</p>
+              </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div style="display:flex;flex-wrap:wrap;gap:4rem;align-items:center;">
+              <div style="flex:1;min-width:300px;">
+                <div
+                  style="font-size:0.85rem;color:var(--accent-light);font-weight:800;margin-bottom:0.5rem;letter-spacing:1px;">
+                  03. CORREÇÃO IMEDIATA</div>
+                <h3 style="font-size:1.8rem;margin-bottom:1rem;font-weight:700;line-height:1.3;">Feedback em 5 Segundos
+                </h3>
+                <p style="color:var(--text-secondary);font-size:1.05rem;line-height:1.6;">Assim que a conversa acaba, o
+                  sistema avalia toda a postura do vendedor: Faltou empatia no início? Gaguejou na hora do preço? Fez
+                  discurso decorado e chato? A dica de como melhorar aparece na tela sem você ter que mover uma palha.
+                </p>
+              </div>
+              <div
+                style="flex:1;min-width:300px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);padding:2rem;border-radius:16px;">
+                <div
+                  style="display:flex;justify-content:space-between;margin-bottom:1rem;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:1rem;">
+                  <span style="color:var(--text-muted);font-weight:700;font-size:0.75rem;">SESSÃO COMPLETADA · SCORE
+                    55/100</span>
+                  <span style="color:var(--warning);font-weight:700;font-size:0.75rem;">NECESSITA FOCO</span>
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:0.8rem;flex-wrap:wrap;">
+                  <span
+                    style="background:rgba(108,99,255,0.1);color:var(--accent-light);border-radius:4px;padding:4px 8px;font-size:0.75rem;font-weight:700;">✅
+                    Gatilho Social Usado (+20)</span>
+                  <span
+                    style="background:rgba(255,71,87,0.1);color:var(--danger);border-radius:4px;padding:4px 8px;font-size:0.75rem;font-weight:700;">❌
+                    Vício de Linguagem: "Tipo assim" (5x)</span>
+                  <span
+                    style="background:rgba(255,165,2,0.1);color:var(--warning);border-radius:4px;padding:4px 8px;font-size:0.75rem;font-weight:700;">⚠️
+                    Empurrou Produto cedo</span>
+                </div>
+                <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:1.5rem;line-height:1.5;">
+                  <strong>Dica do Mentor:</strong> Você iniciou com o produto muito rápido. O cliente sinalizou na 3ª
+                  mensagem que queria foco no processo, e você ignorou as dores subjacentes dele.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. BLOCO DE DIFERENCIAIS -->
+      <section style="padding:6rem 2rem;background:var(--bg-elevated);">
+        <div style="max-width:1100px;margin:0 auto;text-align:center;">
+          <h2 style="font-size:2.5rem;font-weight:800;margin-bottom:1rem;">Não é curso. Não é CRM.</h2>
+          <p style="font-size:1.1rem;color:var(--text-secondary);margin-bottom:4rem;">SalesBot Pro se encaixa na lacuna
+            exata onde os cursos não ensinam e o CRM apenas registra.</p>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:2rem;">
+            <div
+              style="padding:2.5rem 2rem;border-radius:16px;background:var(--bg-surface);border:1px solid rgba(255,255,255,0.03);text-align:left;">
+              <div style="font-size:2rem;margin-bottom:1rem;color:var(--danger);">❌</div>
+              <h4 style="font-size:1.15rem;margin-bottom:0.5rem;font-weight:700;">Não é um Curso Gigante</h4>
+              <p style="font-size:0.95rem;color:var(--text-muted);line-height:1.5;">Chega de obrigar funcionários a ler
+                dezenas de páginas ou assistir aulas de 3 horas. Eles só aprendem a vender errando e suando no
+                simulador, sem arriscar dinheiro da empresa.</p>
+            </div>
+            <div
+              style="padding:2.5rem 2rem;border-radius:16px;background:var(--bg-surface);border:1px solid rgba(255,255,255,0.03);text-align:left;">
+              <div style="font-size:2rem;margin-bottom:1rem;color:var(--danger);">❌</div>
+              <h4 style="font-size:1.15rem;margin-bottom:0.5rem;font-weight:700;">Não é um Robô Limitado</h4>
+              <p style="font-size:0.95rem;color:var(--text-muted);line-height:1.5;">A maioria das Inteligências é
+                "fofinha". O nosso sistema foi treinado para ser um comprador difícil, que exige argumentos reais,
+                compara com empresas concorrentes e encerra se a conversa ficar chata.</p>
+            </div>
+            <div
+              style="padding:2.5rem 2rem;border-radius:16px;background:var(--bg-surface);border:1px solid rgba(108,99,255,0.4);transform:translateY(-10px);box-shadow:0 15px 40px rgba(108,99,255,0.15);text-align:left;">
+              <div style="font-size:2rem;margin-bottom:1rem;color:var(--success);">✅</div>
+              <h4 style="font-size:1.15rem;margin-bottom:0.5rem;font-weight:700;color:var(--accent-light);">É uma
+                Máquina de Criar Bons Vendedores</h4>
+              <p style="font-size:0.95rem;color:var(--text-secondary);line-height:1.5;">O tempo entre contratar alguém e
+                ela começar a vender diminui pela metade. Você garante que todos irão falar o mesmo discurso lá na rua,
+                com segurança.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. BLOCO DE BENEFÍCIOS REAIS -->
+      <section style="padding:8rem 2rem;">
+        <div style="max-width:1100px;margin:0 auto;">
+          <h2 style="font-size:2.5rem;font-weight:800;text-align:center;margin-bottom:4rem;">Resultados Imediatos para a
+            sua Operação</h2>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));gap:2.5rem;">
+            <div
+              style="display:flex;gap:20px;background:rgba(255,255,255,0.02);padding:1.5rem;border-radius:12px;border:1px solid rgba(255,255,255,0.05);">
+              <div
+                style="flex-shrink:0;width:54px;height:54px;border-radius:12px;background:rgba(108,99,255,0.1);color:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:1.5rem;">
+                🚀</div>
+              <div>
+                <h4 style="font-size:1.2rem;font-weight:700;margin-bottom:0.5rem;color:var(--text-base);">Treinamento
+                  Rápido de Novatos</h4>
+                <p style="font-size:0.95rem;color:var(--text-muted);line-height:1.5;">Obrigue os novatos a fazerem 50
+                  simulações com a IA. Quando falarem com o primeiro cliente real, eles já terão ouvido todos os motivos
+                  de "NÃO" possíveis.</p>
+              </div>
+            </div>
+            <div
+              style="display:flex;gap:20px;background:rgba(255,255,255,0.02);padding:1.5rem;border-radius:12px;border:1px solid rgba(255,255,255,0.05);">
+              <div
+                style="flex-shrink:0;width:54px;height:54px;border-radius:12px;background:rgba(108,99,255,0.1);color:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:1.5rem;">
+                🛡️</div>
+              <div>
+                <h4 style="font-size:1.2rem;font-weight:700;margin-bottom:0.5rem;color:var(--text-base);">Padronização
+                  do Time</h4>
+                <p style="font-size:0.95rem;color:var(--text-muted);line-height:1.5;">Ocorreu uma mudança profunda de
+                  preços? Construa um cenário no painel e obrigue todos a testarem sua argumentação antes de aplicarem
+                  na vida real.</p>
+              </div>
+            </div>
+            <div
+              style="display:flex;gap:20px;background:rgba(255,255,255,0.02);padding:1.5rem;border-radius:12px;border:1px solid rgba(255,255,255,0.05);">
+              <div
+                style="flex-shrink:0;width:54px;height:54px;border-radius:12px;background:rgba(108,99,255,0.1);color:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:1.5rem;">
+                🎯</div>
+              <div>
+                <h4 style="font-size:1.2rem;font-weight:700;margin-bottom:0.5rem;color:var(--text-base);">Aquecimento
+                  para Reuniões Importantes</h4>
+                <p style="font-size:0.95rem;color:var(--text-muted);line-height:1.5;">Vai ter uma reunião que pode
+                  salvar o seu semestre? Em apenas 15 min no simulador, o vendedor alinha a postura, retira o nervosismo
+                  e aumenta a chance de fechar a grande venda.</p>
+              </div>
+            </div>
+            <div
+              style="display:flex;gap:20px;background:rgba(255,255,255,0.02);padding:1.5rem;border-radius:12px;border:1px solid rgba(255,255,255,0.05);">
+              <div
+                style="flex-shrink:0;width:54px;height:54px;border-radius:12px;background:rgba(108,99,255,0.1);color:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:1.5rem;">
+                📈</div>
+              <div>
+                <h4 style="font-size:1.2rem;font-weight:700;margin-bottom:0.5rem;color:var(--text-base);">Fim do Gestor
+                  Sobrecarregado</h4>
+                <p style="font-size:0.95rem;color:var(--text-muted);line-height:1.5;">Ninguém cresce sozinho, exceto
+                  quando o robô ensina. Libere horas preciosas da sua liderança eliminando a necessidade escutar
+                  ligações antigas para dar dicas.</p>
+              </div>
+            </div>
+            <div
+              style="display:flex;gap:20px;background:rgba(255,255,255,0.02);padding:1.5rem;border-radius:12px;border:1px solid rgba(255,255,255,0.05);">
+              <div
+                style="flex-shrink:0;width:54px;height:54px;border-radius:12px;background:rgba(108,99,255,0.1);color:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:1.5rem;">
+                🤝</div>
+              <div>
+                <h4 style="font-size:1.2rem;font-weight:700;margin-bottom:0.5rem;color:var(--text-base);">Correção Sem
+                  Pressão</h4>
+                <p style="font-size:0.95rem;color:var(--text-muted);line-height:1.5;">O vendedor recebe dicas
+                  particulares do que melhorar diretamente do robô, sem o trauma ou o constrangimento de errar na frente
+                  do chefe e dos colegas.</p>
+              </div>
+            </div>
+            <div
+              style="display:flex;gap:20px;background:rgba(255,255,255,0.02);padding:1.5rem;border-radius:12px;border:1px solid rgba(255,255,255,0.05);">
+              <div
+                style="flex-shrink:0;width:54px;height:54px;border-radius:12px;background:rgba(108,99,255,0.1);color:var(--accent-light);display:flex;align-items:center;justify-content:center;font-size:1.5rem;">
+                📦</div>
+              <div>
+                <h4 style="font-size:1.2rem;font-weight:700;margin-bottom:0.5rem;color:var(--text-base);">Teste de Novos
+                  Produtos</h4>
+                <p style="font-size:0.95rem;color:var(--text-muted);line-height:1.5;">Vai lançar um serviço novo? Faça o
+                  time experimentar o discurso de venda primeiro com a IA para garantir que todos realmente entenderam o
+                  valor dele.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6.5. DASHBOARD PRO (C-LEVEL) -->
+      <section
+        style="padding:6rem 2rem;position:relative;background:var(--bg-base);border-top:1px solid rgba(255,255,255,0.05);">
+        <div class="orb orb-2"
+          style="width:800px;height:800px;background:rgba(0,212,170,0.1);top:50%;left:50%;transform:translate(-50%,-50%);filter:blur(120px);z-index:-1;">
+        </div>
+        <div style="max-width:1200px;margin:0 auto;">
+          <div style="text-align:center;margin-bottom:4rem;">
+            <div
+              style="display:inline-flex;align-items:center;gap:8px;padding:6px 16px;background:rgba(0,212,170,0.1);border:1px solid rgba(0,212,170,0.2);border-radius:100px;font-size:0.85rem;color:var(--teal);margin-bottom:1.5rem;font-weight:700;">
+              <span class="glow-dot" style="background:var(--teal);"></span> Visibilidade Absoluta
+            </div>
+            <h2 style="font-size:clamp(2rem, 5vw, 3rem);font-weight:800;margin-bottom:1.5rem;line-height:1.2;">
+              Seu CRM apenas mostra o passado.<br>
+              <span
+                style="background:linear-gradient(135deg, #00e5ff 0%, #2ed573 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">Nós
+                antecipamos as falhas do futuro.</span>
+            </h2>
+            <p style="font-size:1.15rem;color:var(--text-secondary);max-width:700px;margin:0 auto;line-height:1.6;">
+              Tome decisões baseadas em dados. Descubra exatamente em qual momento da conversa sua equipe está errando,
+              o motivo pelo qual estão perdendo a venda e o que deviam estar falando.
+            </p>
+          </div>
+
+          <!-- Dashboard Mockup -->
+          <div
+            style="position:relative;margin:0 auto;background:rgba(15,15,22,0.7);border:1px solid rgba(255,255,255,0.08);border-radius:24px;padding:2rem;box-shadow:0 30px 60px -15px rgba(0,0,0,0.8), 0 0 40px rgba(0,212,170,0.1);backdrop-filter:blur(20px);">
+            <!-- Window controls -->
+            <div
+              style="display:flex;gap:8px;margin-bottom:2rem;border-bottom:1px solid rgba(255,255,255,0.05);padding-bottom:1.5rem;align-items:center;">
+              <div style="width:12px;height:12px;border-radius:50%;background:#ef4444;"></div>
+              <div style="width:12px;height:12px;border-radius:50%;background:#f59e0b;"></div>
+              <div style="width:12px;height:12px;border-radius:50%;background:#10b981;"></div>
+              <div
+                style="margin-left:1rem;font-size:0.85rem;color:var(--text-muted);font-family:var(--font-mono);letter-spacing:1px;text-transform:uppercase;">
+                SalesPulse — C-Level Analytics</div>
+            </div>
+
+            <!-- Top Cards -->
+            <div
+              style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:1.5rem;margin-bottom:1.5rem;">
+              <div
+                style="background:var(--bg-surface);padding:1.5rem;border-radius:16px;border:1px solid rgba(255,255,255,0.03);position:relative;overflow:hidden;">
+                <div
+                  style="position:absolute;top:0;right:0;width:60px;height:60px;background:rgba(46,213,115,0.1);filter:blur(20px);">
+                </div>
+                <div
+                  style="font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:0.5rem;font-weight:700;">
+                  Seguiu o Roteiro?</div>
+                <div
+                  style="font-size:2.5rem;font-weight:800;font-family:var(--font-heading);color:var(--text-primary);margin-bottom:0.5rem;">
+                  84<span style="font-size:1.2rem;color:var(--text-muted)"> %</span></div>
+                <div style="font-size:0.8rem;color:var(--success);display:flex;align-items:center;gap:4px;">
+                  <span>↗</span> +12% evolução este mês
+                </div>
+              </div>
+              <div
+                style="background:var(--bg-surface);padding:1.5rem;border-radius:16px;border:1px solid rgba(255,255,255,0.03);position:relative;overflow:hidden;">
+                <div
+                  style="position:absolute;top:0;right:0;width:60px;height:60px;background:rgba(0,212,170,0.1);filter:blur(20px);">
+                </div>
+                <div
+                  style="font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:0.5rem;font-weight:700;">
+                  Tempo de Treinamento</div>
+                <div
+                  style="font-size:2.5rem;font-weight:800;font-family:var(--font-heading);color:var(--text-primary);margin-bottom:0.5rem;">
+                  21<span style="font-size:1.2rem;color:var(--text-muted)"> dias</span></div>
+                <div style="font-size:0.8rem;color:var(--success);display:flex;align-items:center;gap:4px;">
+                  <span>↘</span> 3x mais rápido que o normal
+                </div>
+              </div>
+              <div
+                style="background:var(--bg-surface);padding:1.5rem;border-radius:16px;border:1px solid rgba(255,255,255,0.03);position:relative;overflow:hidden;">
+                <div
+                  style="position:absolute;top:0;right:0;width:60px;height:60px;background:rgba(255,71,87,0.1);filter:blur(20px);">
+                </div>
+                <div
+                  style="font-size:0.8rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:0.5rem;font-weight:700;">
+                  Taxa de Erros Críticos</div>
+                <div
+                  style="font-size:2.5rem;font-weight:800;font-family:var(--font-heading);color:var(--text-primary);margin-bottom:0.5rem;">
+                  42<span style="font-size:1.2rem;color:var(--text-muted)"> %</span></div>
+                <div style="font-size:0.8rem;color:var(--warning);display:flex;align-items:center;gap:4px;">⚠️
+                  Vendedores
+                  perdendo oportunidades fáceis</div>
+              </div>
+            </div>
+
+            <!-- Dashboard Top Specific Styles for Animations -->
+            <style>
+              @keyframes dash-pulse {
+                0% {
+                  stroke-dashoffset: 1000;
+                  opacity: 0.2;
+                }
+
+                50% {
+                  opacity: 1;
+                }
+
+                100% {
+                  stroke-dashoffset: 0;
+                  opacity: 0.2;
+                }
+              }
+
+              @keyframes node-pulse {
+                0% {
+                  r: 3;
+                  fill: var(--teal);
+                  filter: drop-shadow(0 0 2px var(--teal));
+                }
+
+                50% {
+                  r: 5;
+                  fill: #fff;
+                  filter: drop-shadow(0 0 10px var(--teal));
+                }
+
+                100% {
+                  r: 3;
+                  fill: var(--teal);
+                  filter: drop-shadow(0 0 2px var(--teal));
+                }
+              }
+
+              @keyframes fade-in-up {
+                0% {
+                  opacity: 0;
+                  transform: translateY(10px);
+                }
+
+                100% {
+                  opacity: 1;
+                  transform: translateY(0);
+                }
+              }
+
+              @keyframes reveal-line {
+                0% {
+                  stroke-dasharray: 0 1000;
+                }
+
+                100% {
+                  stroke-dasharray: 1000 1000;
+                }
+              }
+
+              @keyframes heartbeat {
+                0% {
+                  transform: scale(1);
+                  opacity: 0.5;
+                }
+
+                50% {
+                  transform: scale(1.05);
+                  opacity: 1;
+                }
+
+                100% {
+                  transform: scale(1);
+                  opacity: 0.5;
+                }
+              }
+
+              .dash-poly-ideal {
+                fill: rgba(0, 212, 170, 0.1);
+                stroke: var(--teal);
+                stroke-width: 1.5;
+                stroke-dasharray: 4 4;
+                opacity: 0.6;
+              }
+
+              .dash-poly-real {
+                fill: rgba(108, 99, 255, 0.25);
+                stroke: var(--accent);
+                stroke-width: 2.5;
+                filter: drop-shadow(0 0 8px rgba(108, 99, 255, 0.5));
+                animation: heartbeat 4s infinite ease-in-out;
+                transform-origin: center;
+              }
+
+              .radar-axis {
+                stroke: rgba(255, 255, 255, 0.1);
+                stroke-width: 1;
+              }
+
+              .dash-heatmap-cell {
+                border-radius: 4px;
+                transition: all 0.3s ease;
+                cursor: pointer;
+              }
+
+              .dash-heatmap-cell:hover {
+                transform: scale(1.3);
+                z-index: 10;
+                border: 1px solid #fff;
+                box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+              }
+
+              .dash-spline {
+                fill: none;
+                stroke: url(#gradient-spline);
+                stroke-width: 3;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+                animation: reveal-line 3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+              }
+            </style>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));gap:1.5rem;">
+
+              <!-- 1. Radar Chart: Arquétipo de Fechamento -->
+              <div
+                style="background:var(--bg-surface);padding:2rem;border-radius:16px;border:1px solid rgba(255,255,255,0.03);position:relative;">
+                <h4
+                  style="font-size:1.1rem;font-weight:700;margin-bottom:0.5rem;display:flex;align-items:center;gap:8px;">
+                  🕸️ Perfil da Equipe vs Padrão Ideal <div
+                    style="width:8px;height:8px;border-radius:50%;background:var(--danger);box-shadow:0 0 8px var(--danger);animation:heartbeat 1.5s infinite;">
+                  </div>
+                </h4>
+                <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1.5rem;">Análise de 342 Vendedores
+                  vs Vendedor Campeão</div>
+
+                <div style="display:flex;justify-content:center;position:relative;margin:2rem 0;">
+                  <svg width="240" height="240" viewBox="0 0 200 200">
+                    <!-- Background Grid (Hexagons) -->
+                    <polygon points="100,10 178,55 178,145 100,190 22,145 22,55" fill="none" class="radar-axis" />
+                    <polygon points="100,30 160,65 160,135 100,170 40,135 40,65" fill="none" class="radar-axis" />
+                    <polygon points="100,50 143,75 143,125 100,150 57,125 57,75" fill="none" class="radar-axis" />
+                    <polygon points="100,70 126,85 126,115 100,130 74,115 74,85" fill="none" class="radar-axis" />
+
+                    <!-- Axes Lines -->
+                    <line x1="100" y1="100" x2="100" y2="10" class="radar-axis" />
+                    <line x1="100" y1="100" x2="178" y2="55" class="radar-axis" />
+                    <line x1="100" y1="100" x2="178" y2="145" class="radar-axis" />
+                    <line x1="100" y1="100" x2="100" y2="190" class="radar-axis" />
+                    <line x1="100" y1="100" x2="22" y2="145" class="radar-axis" />
+                    <line x1="100" y1="100" x2="22" y2="55" class="radar-axis" />
+
+                    <!-- Ideal Matrix Polygon -->
+                    <polygon points="100,20 165,60 165,135 100,180 35,135 35,60" class="dash-poly-ideal" />
+
+                    <!-- Live Team Polygon (Slightly smaller, shows gap) -->
+                    <polygon points="100,40 145,55 130,120 100,165 40,145 50,75" class="dash-poly-real" />
+
+                    <!-- Nodes -->
+                    <circle cx="100" cy="40" r="3" fill="var(--accent)">
+                      <animate attributeName="r" values="2;4;2" dur="2s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="145" cy="55" r="3" fill="var(--accent)"></circle>
+                    <circle cx="130" cy="120" r="3" fill="var(--accent)"></circle>
+                    <circle cx="100" cy="165" r="3" fill="var(--accent)"></circle>
+                    <circle cx="40" cy="145" r="3" fill="var(--accent)"></circle>
+                    <circle cx="50" cy="75" r="3" fill="var(--accent)"></circle>
+                  </svg>
+
+                  <!-- Labels overlay -->
+                  <div
+                    style="position:absolute;top:-5px;left:50%;transform:translateX(-50%);font-size:0.65rem;font-weight:700;color:var(--text-secondary);white-space:nowrap;">
+                    Lidar com Objeção</div>
+                  <div
+                    style="position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);font-size:0.65rem;font-weight:700;color:var(--text-secondary);white-space:nowrap;">
+                    Saber Fechar</div>
+                  <div
+                    style="position:absolute;top:40px;right:-15px;font-size:0.65rem;font-weight:700;color:var(--text-secondary);">
+                    Sabe Ouvir</div>
+                  <div
+                    style="position:absolute;bottom:40px;right:-15px;font-size:0.65rem;font-weight:700;color:var(--text-secondary);">
+                    Achar a Dor</div>
+                  <div
+                    style="position:absolute;top:40px;left:-25px;font-size:0.65rem;font-weight:700;color:var(--text-secondary);">
+                    Gera Conexão</div>
+                  <div
+                    style="position:absolute;bottom:40px;left:-25px;font-size:0.65rem;font-weight:700;color:var(--text-secondary);">
+                    Segurança</div>
+                </div>
+
+                <div style="display:flex;gap:1.5rem;justify-content:center;font-size:0.75rem;margin-top:1rem;">
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <div style="width:12px;height:4px;background:var(--accent);box-shadow:0 0 5px var(--accent);"></div>
+                    Força de Vendas (342)
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <div style="width:12px;height:4px;border-top:1px dashed var(--teal);"></div> Playbook Ideal
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2. Resistance Heatmap -->
+              <div
+                style="background:var(--bg-surface);padding:2rem;border-radius:16px;border:1px solid rgba(255,255,255,0.03);position:relative;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+                  <div>
+                    <h4 style="font-size:1.1rem;font-weight:700;margin-bottom:4px;">🌡️ Mapa de Desistência</h4>
+                    <span style="font-size:0.75rem;color:var(--text-muted);">Mapeando o minuto exato em que desligam e
+                      perdem a venda</span>
+                  </div>
+                </div>
+
+                <!-- Heatmap Grid -->
+                <!-- Eixo Y: Fases -->
+                <div style="display:flex;margin-bottom:0.5rem;padding-bottom:0.5rem;">
+                  <div
+                    style="display:flex;flex-direction:column;gap:13px;margin-right:1rem;color:var(--text-muted);font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;text-align:right;">
+                    <div style="height:14px;display:flex;align-items:center;justify-content:flex-end;">Abertura</div>
+                    <div style="height:14px;display:flex;align-items:center;justify-content:flex-end;">Perguntas</div>
+                    <div style="height:14px;display:flex;align-items:center;justify-content:flex-end;">Apresentação
+                    </div>
+                    <div style="height:14px;display:flex;align-items:center;justify-content:flex-end;">Objeções</div>
+                    <div style="height:14px;display:flex;align-items:center;justify-content:flex-end;">Fechamento</div>
+                  </div>
+                  <div style="flex:1;display:grid;grid-template-columns:repeat(15, 1fr);gap:4px;">
+                    <!-- Rows (Fases) and Cols (Minutes) -->
+                    <!-- Abertura -->
+                    <div class="dash-heatmap-cell" style="background:rgba(46,213,115,0.8);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(46,213,115,0.9);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(46,213,115,0.6);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(46,213,115,0.5);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <!-- Validação -->
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(46,213,115,0.4);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(255,165,2,0.8);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(255,165,2,0.9);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(255,165,2,0.6);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(46,213,115,0.8);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <!-- Apresentação -->
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(46,213,115,0.6);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(46,213,115,0.8);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(46,213,115,0.9);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(255,71,87,0.8);"></div>
+                    <div class="dash-heatmap-cell"
+                      style="background:rgba(255,71,87,1);box-shadow:0 0 10px rgba(255,71,87,0.8);animation:heartbeat 1s infinite;cursor:crosshair;"
+                      title="Ponto Crítico: Dealbreaker alto no min 22"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(255,165,2,0.6);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <!-- Objeções -->
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(255,165,2,0.5);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(255,71,87,0.9);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(255,71,87,0.8);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(255,165,2,0.7);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(46,213,115,0.5);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <!-- Fechamento -->
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(0,0,0,0.3);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(255,71,87,0.7);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(46,213,115,0.7);"></div>
+                    <div class="dash-heatmap-cell" style="background:rgba(46,213,115,0.9);"></div>
+                  </div>
+                </div>
+
+                <!-- Eixo X alinhado perfeitamente com o grid -->
+                <div style="display:flex;margin-top:2px;">
+                  <!-- Spacer invisível com a mesma largura do eixo Y -->
+                  <div
+                    style="display:flex;flex-direction:column;gap:13px;margin-right:1rem;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;text-align:right;visibility:hidden;white-space:nowrap;">
+                    <div style="height:14px;">Apresentação</div>
+                  </div>
+                  <!-- Labels no mesmo grid de 15 colunas -->
+                  <div
+                    style="flex:1;display:grid;grid-template-columns:repeat(15, 1fr);gap:4px;font-size:0.6rem;color:var(--text-muted);font-weight:700;text-align:center;">
+                    <span>0m</span><span></span><span></span>
+                    <span>10m</span><span></span><span></span>
+                    <span>20m</span><span></span><span></span>
+                    <span>30m</span><span></span><span></span>
+                    <span>40m</span><span></span><span>45m</span>
+                  </div>
+                </div>
+                <div
+                  style="text-align:center;font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:2px;margin-top:4px;margin-bottom:1.5rem;color:var(--accent-light);">
+                  Minutos de Conversa
+                </div>
+
+                <div
+                  style="background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.2);padding:1.25rem;border-radius:12px;">
+                  <div
+                    style="font-size:0.85rem;font-weight:700;color:var(--danger);margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:1.1rem;">🚨</span> Alerta: Perda de Atenção no Minuto 22
+                  </div>
+                  <div style="font-size:0.8rem;color:var(--text-secondary);line-height:1.6;">
+                    <strong>73% dos vendedores (250 pessoas)</strong> travam e perdem a venda na hora de apresentar o
+                    Produto por causa do Preço.
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3. AI NLP Trigger Analysis (Gatilhos de Conversão) -->
+              <div
+                style="background:var(--bg-surface);padding:2rem;border-radius:16px;border:1px solid rgba(255,255,255,0.03);position:relative;overflow:hidden;display:flex;flex-direction:column;">
+                <!-- Decorative background elements -->
+                <div
+                  style="position:absolute;top:-40px;right:-40px;width:150px;height:150px;background:radial-gradient(circle, rgba(108,99,255,0.15) 0%, transparent 70%);border-radius:50%;">
+                </div>
+
+                <h4
+                  style="font-size:1.1rem;font-weight:700;margin-bottom:0.5rem;display:flex;align-items:center;gap:8px;">
+                  🧠 Análise de Vocabulário da Equipe</h4>
+                <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1.5rem;">Descubra se seus vendedores
+                  usam os argumentos certos na hora certa.</div>
+
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex:1;">
+                  <!-- Progress Gauge / AI Match Core -->
+                  <div style="position:relative;width:130px;height:130px;flex-shrink:0;">
+                    <!-- Circular Progress -->
+                    <svg viewBox="0 0 100 100"
+                      style="width:100%;height:100%;transform:rotate(-90deg);overflow:visible;">
+                      <defs>
+                        <linearGradient id="gradient-organic" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <animateTransform attributeName="gradientTransform" type="rotate" from="0 0.5 0.5"
+                            to="360 0.5 0.5" dur="3s" repeatCount="indefinite" />
+                          <stop offset="0%" stop-color="#f903ff" />
+                          <stop offset="50%" stop-color="#7971ee" />
+                          <stop offset="100%" stop-color="#00faff" />
+                        </linearGradient>
+                      </defs>
+                      <!-- Track -->
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="8">
+                      </circle>
+                      <!-- Trail Fill -->
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="url(#gradient-organic)" stroke-width="8"
+                        stroke-dasharray="251.3" stroke-dashoffset="20.1" stroke-linecap="round"
+                        style="filter:drop-shadow(0 0 6px rgba(0,229,255,0.4));"></circle>
+                    </svg>
+                    <div
+                      style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                      <div
+                        style="font-size:2rem;font-weight:800;color:var(--text-primary);line-height:1;margin-bottom:2px;">
+                        92<span style="font-size:1rem;color:var(--text-muted)">%</span></div>
+                      <div
+                        style="font-size:0.6rem;text-transform:uppercase;letter-spacing:1px;color:var(--accent-light);font-weight:700;">
+                        Match</div>
+                    </div>
+                  </div>
+
+                  <!-- Bar Charts side -->
+                  <div style="flex:1;display:flex;flex-direction:column;gap:12px;">
+                    <!-- Autoridade -->
+                    <div>
+                      <div
+                        style="display:flex;justify-content:space-between;font-size:0.75rem;font-weight:700;margin-bottom:4px;color:var(--text-secondary);white-space:nowrap;">
+                        <span>Autoridade</span> <span style="color:var(--success);">88% efetivo</span>
+                      </div>
+                      <div
+                        style="height:6px;width:100%;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden;">
+                        <div style="height:100%;width:88%;background:var(--success);border-radius:3px;"></div>
+                      </div>
+                    </div>
+                    <!-- Prova Social -->
+                    <div>
+                      <div
+                        style="display:flex;justify-content:space-between;font-size:0.75rem;font-weight:700;margin-bottom:4px;color:var(--text-secondary);white-space:nowrap;">
+                        <span>Escassez</span> <span style="color:var(--teal);">71% efetivo</span>
+                      </div>
+                      <div
+                        style="height:6px;width:100%;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden;">
+                        <div style="height:100%;width:71%;background:var(--teal);border-radius:3px;"></div>
+                      </div>
+                    </div>
+                    <!-- Urgência -->
+                    <div>
+                      <div
+                        style="display:flex;justify-content:space-between;font-size:0.75rem;font-weight:700;margin-bottom:4px;color:var(--text-secondary);white-space:nowrap;">
+                        <span>Urgência</span> <span style="color:var(--danger);">-40% efetivo</span>
+                      </div>
+                      <div
+                        style="height:6px;width:100%;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden;">
+                        <div
+                          style="height:100%;width:40%;background:var(--danger);border-radius:3px;box-shadow:0 0 5px var(--danger);">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  style="margin-top:1.5rem;padding:1.25rem;background:linear-gradient(135deg, rgba(108,99,255,0.08), transparent);border-left:3px solid var(--accent);border-radius:8px;font-size:0.8rem;line-height:1.6;color:var(--text-secondary);">
+                  <strong style="color:var(--text-primary);display:block;margin-bottom:4px;">💡 Conselho da
+                    Inteligência:</strong>
+                  Vendedores tentam usar pressões falsas de "Urgência" com clientes que são analíticos e desconfiados.
+                  Isso
+                  <strong>destrói 40% das vendas possíveis</strong>. A Inteligência recomenda mudar a abordagem e focar
+                  em gerar "Autoridade" real.
+                </div>
+              </div>
+
+              <!-- 3. Pipeline Pulse (Spline Chart) -->
+              <div
+                style="grid-column: 1 / -1;background:linear-gradient(to bottom right, rgba(108,99,255,0.05), rgba(0,0,0,0.4));padding:2rem;border-radius:16px;border:1px solid rgba(108,99,255,0.2);display:flex;flex-direction:column;position:relative;overflow:hidden;">
+                <!-- Glowing Orb Behind Graph -->
+                <div
+                  style="position:absolute;bottom:-50px;left:40%;width:300px;height:100px;background:rgba(108,99,255,0.3);filter:blur(60px);z-index:0;">
+                </div>
+
+                <div
+                  style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:2rem;position:relative;z-index:1;">
+                  <div>
+                    <h4 style="font-size:1.3rem;font-weight:800;color:var(--text-primary);">Impacto do Robô nas Vendas
+                      Reais</h4>
+                    <span style="font-size:0.85rem;color:var(--text-muted);">Equipe treinada pela IA contra Equipe sem
+                      treinamento (último trimestre)</span>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:2.5rem;font-weight:800;color:var(--accent-light);">+41<span
+                        style="font-size:1.5rem;">%</span></div>
+                    <div style="font-size:0.8rem;color:var(--success);">▲ Incremento de Receita Projetada</div>
+                  </div>
+                </div>
+
+                <!-- Spline Graph SVG -->
+                <div style="position:relative;height:180px;width:100%;z-index:1;">
+                  <svg width="100%" height="100%" viewBox="0 0 1000 180" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="gradient-spline" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="var(--accent-light)" />
+                        <stop offset="50%" stop-color="#a29bff" />
+                        <stop offset="100%" stop-color="var(--teal)" />
+                      </linearGradient>
+                      <linearGradient id="area-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stop-color="rgba(108,99,255,0.4)" />
+                        <stop offset="100%" stop-color="rgba(108,99,255,0)" />
+                      </linearGradient>
+                    </defs>
+
+                    <!-- Background Grid -->
+                    <path d="M0,45 L1000,45 M0,90 L1000,90 M0,135 L1000,135" stroke="rgba(255,255,255,0.05)"
+                      stroke-width="1" fill="none" stroke-dasharray="4 4" />
+
+                    <!-- Smooth Spline Path (Cubic Bezier curve) -->
+                    <!-- M = move to, C = cubic bezier (x1, y1, x2, y2, x_end, y_end) -->
+                    <path
+                      d="M 0 150 C 150 150, 200 130, 300 120 C 400 110, 450 140, 550 90 C 650 40, 750 60, 850 30 C 950 0, 980 10, 1000 15"
+                      class="dash-spline" />
+
+                    <!-- Area under curve (Using exact same path but closing it at bottom) -->
+                    <path
+                      d="M 0 150 C 150 150, 200 130, 300 120 C 400 110, 450 140, 550 90 C 650 40, 750 60, 850 30 C 950 0, 980 10, 1000 15 L 1000 180 L 0 180 Z"
+                      fill="url(#area-gradient)" style="opacity:0; animation: fade-in-up 1.5s 1s ease forwards;" />
+
+                    <!-- Live Data Points (Circles) -->
+                    <circle cx="300" cy="120" r="4" fill="#151515" stroke="var(--accent-light)" stroke-width="2">
+                      <animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="550" cy="90" r="4" fill="#151515" stroke="#a29bff" stroke-width="2">
+                      <animate attributeName="r" values="3;5;3" dur="2s" begin="0.5s" repeatCount="indefinite" />
+                    </circle>
+                    <circle cx="850" cy="30" r="6" fill="#151515" stroke="var(--teal)" stroke-width="3">
+                      <animate attributeName="r" values="5;8;5" dur="1.5s" repeatCount="indefinite" />
+                    </circle>
+                  </svg>
+
+                  <!-- Floating Tooltips on SVG -->
+                  <div
+                    style="position:absolute;left:530px;top:45px;background:rgba(0,0,0,0.8);border:1px solid rgba(255,255,255,0.1);padding:8px 12px;border-radius:8px;font-size:0.75rem;backdrop-filter:blur(10px);animation:fade-in-up 0.5s 2s both;">
+                    <div style="font-weight:700;color:#a29bff;margin-bottom:2px;">Semana 6</div>
+                    <div style="color:var(--text-muted);">+18% Conversão</div>
+                  </div>
+
+                  <div
+                    style="position:absolute;left:770px;top:-10px;background:rgba(0,0,0,0.8);border:1px solid var(--teal);padding:8px 12px;border-radius:8px;font-size:0.75rem;backdrop-filter:blur(10px);box-shadow:0 0 15px rgba(0,212,170,0.2);animation:fade-in-up 0.5s 3s both;">
+                    <div style="font-weight:700;color:var(--teal);margin-bottom:2px;">Equipe Seniorizada</div>
+                    <div style="color:var(--text-muted);"><span style="color:#fff;">142 reps</span> atingindo cota</div>
+                  </div>
+                </div>
+
+                <div
+                  style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-top:10px;">
+                  <span>Lançamento</span>
+                  <span>Mês 1</span>
+                  <span>Mês 2</span>
+                  <span>Mês 3 (Hoje)</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- 6. FAQ CURTO -->
+      <section style="padding:6rem 2rem;background:var(--bg-elevated);border-top:1px solid rgba(255,255,255,0.05);">
+        <div style="max-width:800px;margin:0 auto;">
+          <h2 style="font-size:2rem;font-weight:800;text-align:center;margin-bottom:3rem;">FAQ Estratégico</h2>
+          <div style="display:flex;flex-direction:column;gap:1.5rem;">
+            <div
+              style="background:var(--bg-surface);padding:1.5rem 2rem;border-radius:12px;border:1px solid rgba(255,255,255,0.03);">
+              <h4 style="font-weight:700;margin-bottom:0.8rem;color:var(--text-base);">Para qual tipo de operação o
+                SalesBot foi desenvolvido?</h4>
+              <p style="font-size:0.95rem;color:var(--text-muted);line-height:1.5;">Operações que requerem tempo de
+                rampa reduzido e vendas consultivas robustas. Perfeito para Head of Sales, B2B Tech, SaaS, Imóveis ou
+                Finanças. Qualquer local onde a performance comercial dependa de contorno complexo.</p>
+            </div>
+            <div
+              style="background:var(--bg-surface);padding:1.5rem 2rem;border-radius:12px;border:1px solid rgba(255,255,255,0.03);">
+              <h4 style="font-weight:700;margin-bottom:0.8rem;color:var(--text-base);">Os vendedores sentem que treinam
+                com respostas "decoradas" da IA?</h4>
+              <p style="font-size:0.95rem;color:var(--text-muted);line-height:1.5;">Não há respostas decoradas. O engine
+                de Inteligência muda dinamicamente o estado conversacional, simulando agendas ocultas e resistência, com
+                base pesada em GPT-4. Cada simulação atinge trajetórias de atrito inteiramente únicas.</p>
+            </div>
+            <div
+              style="background:var(--bg-surface);padding:1.5rem 2rem;border-radius:12px;border:1px solid rgba(255,255,255,0.03);">
+              <h4 style="font-weight:700;margin-bottom:0.8rem;color:var(--text-base);">A plataforma substitui minha
+                gestão humana?</h4>
+              <p style="font-size:0.95rem;color:var(--text-muted);line-height:1.5;">De forma alguma. Ela liberta seu
+                gerente do fardo operacional. Em vez dele escutar longas reuniões por amostragem para treinar juniores,
+                ele verifica Dashboards gerados via IA baseando as orientações 1 a 1 de forma assertiva onde a ferida
+                está exposta.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. CTA FINAL -->
+      <section style="padding:8rem 2rem;text-align:center;position:relative;overflow:hidden;">
+        <div
+          style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:700px;height:700px;background:radial-gradient(circle, rgba(108,99,255,0.2) 0%, transparent 70%);filter:blur(80px);z-index:-1;pointer-events:none;">
+        </div>
+        <div style="max-width:700px;margin:0 auto;position:relative;z-index:10;">
+          <h2 style="font-size:clamp(2rem, 5vw, 3.5rem);font-weight:800;margin-bottom:1.5rem;line-height:1.2;">
+            O erro que lhe custa contratos já está acontecendo. <br><span
+              style="background:linear-gradient(135deg, #6c63ff 0%, #00e5ff 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">Descubra
+              onde.</span>
+          </h2>
+          <p style="font-size:1.15rem;color:var(--text-muted);margin-bottom:3rem;line-height:1.6;">Chega de pagar o
+            custo do treinamento na frente de clientes reais valiosos. Use a plataforma para preparar, corrigir e
+            acelerar consistência orgânica hoje mesmo.</p>
+          <button class="btn btn-primary btn-lg" onclick="App.navigate('login')"
+            style="padding:0 3rem;height:60px;font-size:1.15rem;box-shadow:0 10px 30px rgba(108,99,255,0.4);letter-spacing:0.5px;font-weight:700;">
+            Login →
+          </button>
+        </div>
+      </section>
+
+      <!-- Footer Corporativo -->
+      <footer
+        style="border-top:1px solid rgba(255,255,255,0.05);padding:3rem 2rem 4rem;text-align:center;background:var(--bg-base);">
+        <div
+          style="display:flex;justify-content:center;gap:32px;align-items:center;flex-wrap:wrap;color:var(--text-muted);font-size:0.9rem;">
+          <div style="font-weight:700;color:var(--text-secondary);display:flex;align-items:center;gap:8px;">
+            <span>🤖</span> SalesBot Pro
+          </div>
+          <span>·</span>
+          <span>Aceleração de Receita B2B</span>
+          <span>·</span>
+          <span>Governança Comercial Inteligente</span>
+          <span>·</span>
+          <span>© 2026</span>
+        </div>
+      </footer>
+    </div>
+
+    <!-- ══════════════════════════════════
+       PAGE: LOGIN
+  ══════════════════════════════════ -->
+    <div id="page-login" class="page">
+      <!-- Background -->
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+
+      <div
+        style="position:relative;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--sp-6)">
+        <!-- Back button -->
+        <button class="btn btn-ghost btn-sm" onclick="App.navigate('landing')"
+          style="position:absolute;top:var(--sp-6);left:var(--sp-6)">
+          ← Voltar
+        </button>
+
+        <div class="login-card">
+          <!-- Logo -->
+          <div class="login-logo">
+            <img src="img/salespulse_logo.png" alt="SalesPulse Logo"
+              style="width:180px;height:auto;margin-bottom:0rem;">
+            <p style="font-size:0.82rem;color:var(--text-muted)">Inteligência em Treinamento B2B</p>
+          </div>
+
+          <!-- Unified Login Form -->
+          <div class="login-form-content" id="form-unified">
+            <p class="login-form-title">Acesse sua conta</p>
+            <form class="login-form" id="login-form">
+              <div class="form-group">
+                <label class="form-label">E-mail</label>
+                <input type="email" class="form-input" id="login-email" placeholder="seu@email.com" autocomplete="email">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Senha</label>
+                <input type="password" class="form-input" id="login-password" placeholder="••••••••"
+                  autocomplete="current-password">
+              </div>
+              <button type="submit" class="btn btn-primary" style="width:100%;margin-top:4px" id="login-btn">
+                Entrar →
+              </button>
+            </form>
+          </div>
+
+          <!-- Helper text -->
+          <div
+            style="margin-top:var(--sp-6);padding:var(--sp-4);background:rgba(108,99,255,0.06);border-radius:var(--r-md);border:1px solid rgba(108,99,255,0.15)">
+            <div style="font-size:0.75rem;color:var(--text-muted);line-height:1.6">
+              <strong style="color:var(--accent-light)">💡 Primeiros passos:</strong><br>
+              1. Entre como <strong>Gestor</strong> e acesse Configurações → API para inserir sua chave OpenAI.<br>
+              2. Configure o cenário de treinamento em <strong>Configuração</strong>.<br>
+              3. Cadastre vendedores e peça para eles acessarem como <strong>Vendedor</strong>.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════
+       PAGE: MANAGER DASHBOARD
+  ══════════════════════════════════ -->
+    <div id="page-manager" class="page">
+      <div class="app-layout">
+        <div class="sidebar-backdrop" id="manager-sidebar-backdrop" onclick="document.getElementById('manager-sidebar').classList.remove('open'); this.classList.remove('active');"></div>
+        <!-- Sidebar -->
+        <aside class="sidebar" id="manager-sidebar">
+          <div class="sidebar-logo" onclick="App.navigate('landing')" title="Voltar para Home">
+            <img src="img/salespulse_logo.png" style="width:90px;height:auto;object-fit:contain;">
+          </div>
+
+          <nav class="sidebar-nav">
+            <div class="nav-section-label">Treinamento</div>
+            <div class="nav-item active" data-section="clients">
+              <span class="nav-icon">🎭</span> Clientes
+            </div>
+            <div class="nav-item" data-section="products">
+              <span class="nav-icon">📦</span> Produtos
+            </div>
+
+            <div class="nav-section-label">Equipe</div>
+            <div class="nav-item superadmin-only" data-section="managers" style="display:none">
+              <span class="nav-icon">👑</span> Gestores
+            </div>
+            <div class="nav-item" data-section="sellers">
+              <span class="nav-icon">👥</span> Vendedores
+            </div>
+            <div class="nav-item" data-section="sessoes">
+              <span class="nav-icon">📅</span> Sessões
+              <span class="nav-badge" id="mgr-sessoes-badge" style="display:none">0</span>
+            </div>
+            <div class="nav-item" data-section="reports">
+              <span class="nav-icon">📊</span> Relatórios
+              <span class="nav-badge" id="mgr-sessions-badge">0</span>
+            </div>
+
+
+            <div class="nav-section-label">Sistema</div>
+            <div class="nav-item" data-section="settings">
+              <span class="nav-icon">🔑</span> Configurações
+            </div>
+          </nav>
+
+          <div class="sidebar-user">
+            <div class="avatar" id="mgr-user-avatar-text" style="width:36px;height:36px;font-size:0.9rem">A</div>
+            <div class="sidebar-user-info">
+              <div class="sidebar-user-name" id="mgr-user-name">Gestor</div>
+              <div class="sidebar-user-role" id="mgr-user-role">Administrador</div>
+            </div>
+            <button class="btn btn-ghost btn-icon" onclick="Auth.logout()" title="Sair"
+              style="color:var(--text-muted);font-size:1rem">↩</button>
+          </div>
+        </aside>
+
+        <!-- Main content -->
+        <main class="app-content">
+          <header class="app-header flex align-items-center justify-content-between">
+            <div class="flex align-items-center gap-3">
+              <button class="btn btn-ghost btn-icon mobile-menu-btn" onclick="document.getElementById('manager-sidebar').classList.add('open'); document.getElementById('manager-sidebar-backdrop').classList.add('active');">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+              </button>
+              <div>
+                <div class="app-header-title" id="mgr-page-title">Configuração</div>
+                <div class="app-header-sub" id="mgr-page-sub">Configure o ambiente de treinamento</div>
+              </div>
+            </div>
+            <div class="flex gap-3 align-items-center desktop-only">
+              <span class="badge badge-teal" style="padding:6px 14px">
+                <span class="glow-dot" style="width:6px;height:6px;background:var(--teal)"></span>
+                Sistema Online
+              </span>
+            </div>
+          </header>
+
+          <div class="app-main" id="manager-content">
+            <!-- Content rendered by Manager.js -->
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════
+       PAGE: SELLER CHAT
+  ══════════════════════════════════ -->
+    <div id="page-seller" class="page">
+      <!-- Seller.init() renders this page dynamically -->
+    </div>
+
+    <!-- ══════════════════════════════════
+       PAGE: RESULTS
+  ══════════════════════════════════ -->
+    <div id="page-results" class="page">
+      <!-- Results.render() populates this page -->
+    </div>
+
+  </div><!-- #app -->
+
+  <!-- ══════════════════════════════════════
+     SCRIPTS (order matters)
+══════════════════════════════════════ -->
+  <script src="js/storage.js?v=20"></script>
+  <script src="js/api.js?v=20"></script>
+  <script src="js/auth.js?v=20"></script>
+  <script src="js/ai-engine.js?v=20"></script>
+  <script src="js/scoring.js?v=20"></script>
+  <script src="js/badges.js?v=20"></script>
+  <script src="js/sessoes.js?v=20"></script>
+  <script src="js/manager.js?v=20"></script>
+  <script src="js/seller.js?v=20"></script>
+  <script src="js/reports.js?v=20"></script>
+  <script src="js/app.js?v=20"></script>
+
+</body>
+
+</html>

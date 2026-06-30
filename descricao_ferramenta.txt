@@ -1,0 +1,68 @@
+# SalesPulse (SalesBot Pro) - Documentação Técnica Detalhada
+
+## 1. Visão Geral do Sistema
+O **SalesPulse** (também referenciado no código como SalesBot Pro) é uma plataforma avançada de simulação e treinamento de vendas. Seu objetivo principal é fornecer um ambiente seguro e realista onde vendedores possam praticar abordagens, contorno de objeções e técnicas de fechamento com "clientes" controlados por Inteligência Artificial (OpenAI). 
+
+O sistema é dividido em duas interfaces principais:
+*   **Painel do Gerente (Manager):** Onde os gestores configuram as "personas" dos clientes, definem níveis de dificuldade, objeções específicas e critérios de avaliação.
+*   **Interface do Vendedor (Seller):** O ambiente de chat simulado onde o vendedor interage com o cliente de IA, sob restrições de tempo e comportamento.
+
+---
+
+## 2. Arquitetura e Stack Tecnológico
+A ferramenta adota uma arquitetura focada em performance e independência de frameworks pesados, garantindo carregamento rápido e fácil manutenção.
+
+*   **Frontend Core:** Construído inteiramente em **Vanilla JavaScript (ES6+)**, HTML5 semântico e **CSS3 modularizado**. Não utiliza React, Vue ou Angular, favorecendo a manipulação direta e eficiente do DOM (Vanilla DOM APIs).
+*   **Roteamento SPA (Single Page Application):** O roteamento entre telas (Login, Dashboard do Gerente, Setup do Vendedor, Tela de Chat e Tela de Resultados) é feito localmente através da manipulação de classes CSS (ex: `.hidden`, `.active`) orquestradas pelo módulo `js/app.js`.
+*   **Armazenamento e Persistência:** A aplicação implementa um sistema robusto baseado em **localStorage** como banco de dados de fallback. Isso permite que a ferramenta funcione inteiramente no navegador do cliente sem depender de um backend para salvar configurações de cenários, resultados e perfis.
+*   **Inteligência Artificial:** Integração via API REST com modelos da **OpenAI (GPT-3.5-turbo / GPT-4)**, utilizando engenharia de prompt avançada para personificar o cliente.
+*   **Camada de Dados (API Proxy):** O módulo `js/api.js` atua como uma camada de abstração (Adapter Pattern). Ele tenta se comunicar com um backend real, mas possui uma lógica de *fallback* transparente que intercepta as chamadas e lê/grava no `localStorage` caso o backend não esteja disponível.
+
+---
+
+## 3. Módulos Principais e Lógica Interna
+
+A aplicação é dividida em módulos lógicos, implementando o padrão de *Revealing Module* (ou IIFE) para evitar poluição do escopo global e manter as responsabilidades separadas.
+
+### 3.1. Motor de Inteligência Artificial (`js/ai-engine.js`)
+Este é o cérebro da simulação. Ele não apenas faz a chamada à API da OpenAI, mas é responsável pela **Engenharia de Prompt Dinâmica**.
+*   **Construção do System Prompt:** A função `buildSystemPrompt()` compila dinamicamente um prompt gigantesco baseado nas configurações ativas.
+*   **Injeção de Arquétipos:** O sistema injeta o "Humor", "Nível de Pressa", "Nível de Dificuldade" e "Restrições" no prompt.
+*   **Gatilhos de Comportamento:** A IA é instruída a agir de formas específicas (ex: "Seja impaciente se o vendedor demorar mais de 30 segundos", "Demonstre desinteresse se o vendedor usar jargões excessivos").
+*   **Memória de Contexto:** O motor mantém o histórico da conversa (`messages array`) limitando o token count, enviando o contexto das interações anteriores para que o cliente da IA tenha "memória" de curto prazo durante a negociação.
+
+### 3.2. Motor de Avaliação e Scoring (`js/scoring.js`)
+Módulo responsável por analisar a performance do vendedor. Opera em duas vias: qualitativa e quantitativa.
+*   **Cálculo de Score Ponderado:** Ao final da sessão, calcula uma nota de 0 a 100 com base em métricas configuradas pelo gerente (ex: 40% Empatia, 40% Contorno de Objeções, 20% Fechamento).
+*   **Análise Linguística (Raio-X):** Utiliza um motor baseado em **Expressões Regulares (Regex)** para analisar o texto digitado pelo vendedor em tempo real ou ao final da sessão.
+    *   *Detecção de Vícios de Linguagem:* Identifica padrões como "né", "tipo assim", "então", "cara", penalizando a nota de profissionalismo.
+    *   *Análise de Sentimento Básica:* Detecta palavras-chave de "venda agressiva" (pushy) ou "subserviência".
+*   **Geração de Feedback:** Com base na pontuação atingida em cada pilar, gera um relatório textual para o vendedor indicando pontos fortes e pontos de melhoria.
+
+### 3.3. Orquestrador de Sessão de Vendas (`js/seller.js`)
+Controla a interface de chat e a dinâmica da simulação em tempo real.
+*   **Loop de Interação:** Gerencia o fluxo de envio de mensagens do vendedor, exibe o estado de "Cliente digitando..." e renderiza a resposta da IA.
+*   **Lógica de Interrupções:** Um dos recursos mais avançados. Dependendo da configuração de "Pressa" do cliente (ex: *Extreme Haste*), o módulo agenda funções `setTimeout` que disparam mensagens do cliente cortando o vendedor se ele demorar muito para responder.
+*   **Gerenciamento de Tempo:** Controla o cronômetro da sessão. Se o tempo limite (ex: 5 minutos) expirar, a sessão é encerrada abruptamente, simulando que o cliente "precisou sair".
+
+### 3.4. Painel de Controle e Configuração (`js/manager.js`)
+A interface administrativa para desenhar os cenários.
+*   **Controles Granulares:** Utiliza sliders e formulários para definir as variáveis do cliente de IA (Agressividade, Conhecimento Técnico, Urgência).
+*   **Gestão de Cenários (CRUD):** Permite criar, ler, atualizar e deletar "Arquétipos de Clientes" (ex: "Diretor de TI cético", "Comprador de Varejo focado em preço"). Tudo é salvo via camada `api.js` (geralmente no `localStorage`).
+*   **Dashboard Analítico:** Renderiza o histórico de sessões executadas pelos vendedores, calculando médias de pontuação e exibindo gráficos simples de evolução.
+
+---
+
+## 4. Padrões de Projeto e Metodologias Empregadas
+
+1.  **Adapter Pattern:** Implementado no `api.js` para padronizar a forma como os dados são consumidos, independentemente se vêm de uma API HTTP Real (`fetch`) ou do banco de dados local (`localStorage`).
+2.  **State Management Local:** O estado do usuário atual, configurações de sessão em andamento e preferências são gerenciadas centralmente, evitando que componentes precisem passar dados complexos via parâmetros da URL ou variáveis globais soltas.
+3.  **Event-Driven UI (Simulado):** A interface reage a eventos (cliques, timeouts, respostas da API) atualizando o DOM diretamente, mantendo as funções de manipulação de UI separadas da lógica de negócios (Separação de Preocupações).
+4.  **Prompt Stacking:** Método usado no `ai-engine.js` onde o prompt final é empilhado em camadas: Camada Base (Você é um cliente), Camada de Personalidade (Você está impaciente), Camada de Cenário (Você está comprando software ERP) e Camada de Regras (Não diga que é uma IA).
+
+## 5. Resumo do Fluxo de Uso
+1. O **Gerente** faz login e cria um cenário de treinamento (ex: "Venda de Software B2B - Cliente Difícil").
+2. O **Vendedor** acessa a plataforma, seleciona o cenário criado e inicia a simulação.
+3. O cronômetro inicia. O Vendedor interage via chat. O **AI-Engine** processa o histórico e gera respostas mantendo o personagem. O **Seller.js** injeta pressão psicológica (tempo, interrupções).
+4. O Vendedor "fecha" a venda ou o tempo acaba.
+5. O **Scoring.js** faz o Raio-X linguístico das falas do vendedor, avalia o sucesso baseando-se no desfecho da IA, e exibe o dashboard de feedback com a nota final e os vícios encontrados.

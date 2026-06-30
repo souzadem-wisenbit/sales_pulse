@@ -1,0 +1,316 @@
+/* ================================================
+   SALESBOT PRO — Animations & Keyframes
+   ================================================ */
+
+/* ── Keyframes ── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInLeft {
+  from { opacity: 0; transform: translateX(-24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fadeInRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.88); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(100%); }
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.9) translateY(20px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(0.92); }
+}
+
+@keyframes pulseSlow {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-10px); }
+}
+
+@keyframes shimmer {
+  from { background-position: -200% center; }
+  to   { background-position: 200% center; }
+}
+
+@keyframes gradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes orbFloat {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(30px, -20px) scale(1.05); }
+  66%  { transform: translate(-20px, 15px) scale(0.95); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes typingBounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40%            { transform: translateY(-6px); opacity: 1; }
+}
+
+@keyframes convincedGrow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 20px var(--accent-glow); }
+  50%       { box-shadow: 0 0 40px var(--accent-glow), 0 0 80px var(--accent-glow); }
+}
+
+@keyframes scoreCount {
+  from { transform: scale(0.5); opacity: 0; }
+  60%  { transform: scale(1.15); }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+@keyframes messageSlideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes borderGlow {
+  0%, 100% { border-color: var(--border); }
+  50%       { border-color: var(--accent); box-shadow: 0 0 24px var(--accent-glow); }
+}
+
+@keyframes trickAlert {
+  0%   { transform: scale(1) rotate(0deg); }
+  20%  { transform: scale(1.1) rotate(-3deg); }
+  40%  { transform: scale(1.15) rotate(3deg); }
+  60%  { transform: scale(1.1) rotate(-2deg); }
+  80%  { transform: scale(1.05) rotate(1deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* ── Animation Utility Classes ── */
+.animate-fadeIn     { animation: fadeIn     var(--t-slow) var(--ease-out) forwards; }
+.animate-fadeInUp   { animation: fadeInUp   var(--t-slow) var(--ease-out) forwards; }
+.animate-fadeInDown { animation: fadeInDown var(--t-slow) var(--ease-out) forwards; }
+.animate-scaleIn    { animation: scaleIn    var(--t-slow) var(--ease-out) forwards; }
+.animate-spin       { animation: spin 1s linear infinite; }
+.animate-float      { animation: float 4s ease-in-out infinite; }
+.animate-pulse      { animation: pulse 2s ease infinite; }
+.animate-glowPulse  { animation: glowPulse 2s ease infinite; }
+
+/* Stagger delays */
+.delay-1 { animation-delay: 100ms; }
+.delay-2 { animation-delay: 200ms; }
+.delay-3 { animation-delay: 300ms; }
+.delay-4 { animation-delay: 400ms; }
+.delay-5 { animation-delay: 500ms; }
+
+/* Shimmer loading */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-elevated) 25%,
+    var(--bg-overlay) 50%,
+    var(--bg-elevated) 75%
+  );
+  background-size: 200% auto;
+  animation: shimmer 1.5s linear infinite;
+}
+
+/* Hero gradient orbs */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  animation: orbFloat 8s ease-in-out infinite;
+}
+
+.orb-1 {
+  width: 500px; height: 500px;
+  background: rgba(108, 99, 255, 0.15);
+  top: -150px; left: -100px;
+  animation-delay: 0s;
+}
+
+.orb-2 {
+  width: 400px; height: 400px;
+  background: rgba(0, 212, 170, 0.1);
+  top: 50px; right: -80px;
+  animation-delay: -3s;
+}
+
+.orb-3 {
+  width: 300px; height: 300px;
+  background: rgba(108, 99, 255, 0.08);
+  bottom: 0; left: 40%;
+  animation-delay: -5s;
+}
+
+/* Typing indicator */
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: var(--sp-2);
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: typingBounce 1.2s ease infinite;
+}
+
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* Score ring animation */
+.score-ring {
+  transition: stroke-dashoffset 1.2s var(--ease-out);
+}
+
+/* Chat message animation */
+.chat-message {
+  animation: messageSlideIn 0.3s var(--ease-out) forwards;
+}
+
+/* Trick shake */
+.trick-shake {
+  animation: trickAlert 0.6s var(--ease-io);
+}
+
+/* ── Real-time panel micro-animations ── */
+
+@keyframes moodPop {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.35) rotate(-8deg); }
+  50%  { transform: scale(0.9) rotate(4deg); }
+  70%  { transform: scale(1.15) rotate(-2deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes convictionPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(108,99,255,0.5); }
+  50%  { box-shadow: 0 0 12px 4px rgba(108,99,255,0.35); }
+  100% { box-shadow: 0 0 0 0 rgba(108,99,255,0); }
+}
+
+@keyframes convictionValuePop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+@keyframes trickFlash {
+  0%   { background: rgba(255,165,2,0.25); color: #ffa502; transform: scale(1.1); }
+  100% { background: transparent; color: inherit; transform: scale(1); }
+}
+
+@keyframes scoreBump {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.35); color: #00d4aa; }
+  100% { transform: scale(1); }
+}
+
+@keyframes criteriaBarGlow {
+  0%   { box-shadow: 0 0 0 0 var(--bar-glow-color, rgba(108,99,255,0.4)); }
+  50%  { box-shadow: 0 0 8px 2px var(--bar-glow-color, rgba(108,99,255,0.3)); }
+  100% { box-shadow: 0 0 0 0 var(--bar-glow-color, rgba(108,99,255,0)); }
+}
+
+@keyframes moodTextFade {
+  0%   { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+/* Mood transition class */
+.mood-transitioning .mood-emoji {
+  animation: moodPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.mood-transitioning .mood-label,
+.mood-transitioning .mood-text {
+  animation: moodTextFade 0.35s ease-out 0.15s both;
+}
+
+/* Conviction pulse class */
+.conviction-pulse .conviction-fill {
+  animation: convictionPulse 0.7s ease-out;
+}
+
+.conviction-pulse .conviction-value {
+  animation: convictionValuePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Trick flash class */
+.trick-flash {
+  animation: trickFlash 0.6s ease-out forwards;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+/* Criteria score bump class */
+.criteria-score-bump {
+  animation: scoreBump 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Criteria bar glow on update */
+.criteria-bar-glow {
+  animation: criteriaBarGlow 0.8s ease-out;
+  border-radius: var(--r-full);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Animated gradient background */
+.animated-gradient {
+  background: linear-gradient(270deg, #6c63ff, #00d4aa, #6c63ff);
+  background-size: 200% 200%;
+  animation: gradientShift 4s ease infinite;
+}
