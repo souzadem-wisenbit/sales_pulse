@@ -27,12 +27,12 @@ const Seller = (() => {
   function buildConfigForSession(session, user) {
     const globalConfig = Storage.getConfig();
     const allClients = Storage.getClients ? Storage.getClients() : [];
-    const client = allClients.find(c => c.id === session.clientId);
+    const client = allClients.find(c => String(c.id) === String(session.clientId));
     if (!client) return null;
 
     const allProducts = Storage.getProducts ? Storage.getProducts() : [];
-    const clientProds = allProducts.filter(p => (p.clientesAtribuidos||[]).includes(client.id));
-    const sellerProds = allProducts.filter(p => (p.vendedoresAtribuidos||[]).includes(user.id));
+    const clientProds = allProducts.filter(p => (p.clientesAtribuidos||[]).map(String).includes(String(client.id)));
+    const sellerProds = allProducts.filter(p => (p.vendedoresAtribuidos||[]).map(String).includes(String(user.id)));
     let intersectedProducts = clientProds.filter(cp => sellerProds.some(sp => sp.id === cp.id));
     if (intersectedProducts.length === 0) intersectedProducts = clientProds;
     if (intersectedProducts.length === 0) intersectedProducts = sellerProds;

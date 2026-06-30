@@ -422,13 +422,11 @@ const Sessoes = (() => {
         <span style="font-size:1.3rem">🔔</span>
         <div style="flex:1">
           <div style="font-weight:700;font-size:0.9rem">Sessão agendada pelo seu gestor!</div>
-          <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:2px;margin-bottom:var(--sp-2)">
+          <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:2px">
             Você vai treinar com <strong>${n.clientEmoji} ${escHtml(n.clientName)}</strong>
             ${n.notes ? `· <em>${escHtml(n.notes)}</em>` : ''}
+            — Inicie pelo card abaixo.
           </div>
-          <button class="btn btn-sm btn-primary" onclick="Sessoes.dismissNotif('${sellerId}','${n.id}');Seller.startTraining('${n.clientId}', '${n.sessionId || n.id}')" style="font-size:0.75rem;padding:4px 10px">
-            ▶ Iniciar esta sessão
-          </button>
         </div>
         <button class="btn btn-sm btn-ghost" onclick="Sessoes.dismissNotif('${sellerId}','${n.id}')" style="align-self:flex-start">✕</button>
       </div>
