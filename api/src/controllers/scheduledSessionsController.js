@@ -11,6 +11,7 @@ async function listScheduledSessions(req, res) {
       showRealtime: r.show_realtime,
       showReport: r.show_report,
       salesApproach: r.sales_approach || 'active',
+      productIds: r.product_ids || [],
       scheduledAt: r.scheduled_at,
       doneAt: r.done_at,
       startedAt: r.started_at,
@@ -32,13 +33,14 @@ async function createScheduledSession(req, res) {
     const id = data.id || 'sched_' + Date.now();
     await db.query(`
       INSERT INTO scheduled_sessions (
-        id, seller_id, client_id, status, show_realtime, show_report, sales_approach
+        id, seller_id, client_id, status, show_realtime, show_report, sales_approach, product_ids
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7
+        $1, $2, $3, $4, $5, $6, $7, $8
       )
     `, [
       id, data.sellerId, data.clientId, data.status || 'pending',
-      data.showRealtime ?? true, data.showReport ?? true, data.salesApproach || 'active'
+      data.showRealtime ?? true, data.showReport ?? true, data.salesApproach || 'active',
+      JSON.stringify(data.productIds || [])
     ]);
     res.status(201).json({ ...data, id });
   } catch (err) {
@@ -62,6 +64,7 @@ async function updateScheduledSession(req, res) {
     if (data.startedAt !== undefined) { fields.push(`started_at = $${counter++}`); values.push(data.startedAt); }
     if (data.showRealtime !== undefined) { fields.push(`show_realtime = $${counter++}`); values.push(data.showRealtime); }
     if (data.showReport !== undefined) { fields.push(`show_report = $${counter++}`); values.push(data.showReport); }
+    if (data.productIds !== undefined) { fields.push(`product_ids = $${counter++}`); values.push(JSON.stringify(data.productIds)); }
     
     // Save state containing messages, conviction, etc.
     if (data.messages || data.conviction !== undefined) {

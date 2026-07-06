@@ -32,11 +32,18 @@ const Seller = (() => {
     if (!client) return null;
 
     const allProducts = Storage.getProducts ? Storage.getProducts() : [];
-    const clientProds = allProducts.filter(p => (p.clientesAtribuidos||[]).map(String).includes(String(client.id)));
-    const sellerProds = allProducts.filter(p => (p.vendedoresAtribuidos||[]).map(String).includes(String(user.id)));
-    let intersectedProducts = clientProds.filter(cp => sellerProds.some(sp => String(sp.id) === String(cp.id)));
-    if (intersectedProducts.length === 0) intersectedProducts = clientProds;
-    if (intersectedProducts.length === 0) intersectedProducts = sellerProds;
+    // Produtos escolhidos explicitamente pelo gestor para esta sessão têm prioridade.
+    const sessionProductIds = (session.productIds || []).map(String);
+    let intersectedProducts;
+    if (sessionProductIds.length > 0) {
+      intersectedProducts = allProducts.filter(p => sessionProductIds.includes(String(p.id)));
+    } else {
+      const clientProds = allProducts.filter(p => (p.clientesAtribuidos||[]).map(String).includes(String(client.id)));
+      const sellerProds = allProducts.filter(p => (p.vendedoresAtribuidos||[]).map(String).includes(String(user.id)));
+      intersectedProducts = clientProds.filter(cp => sellerProds.some(sp => String(sp.id) === String(cp.id)));
+      if (intersectedProducts.length === 0) intersectedProducts = clientProds;
+      if (intersectedProducts.length === 0) intersectedProducts = sellerProds;
+    }
     const firstProd = intersectedProducts[0];
 
     const pendingSessions = (typeof Storage.getScheduledSessionsForSeller === 'function') ? Storage.getScheduledSessionsForSeller(user.id) : [];

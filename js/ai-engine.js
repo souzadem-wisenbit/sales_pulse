@@ -284,13 +284,18 @@ LINGUAGEM OFENSIVA: Se o vendedor ofender, adicione [DEALBREAKER].
       productBlock = '(Produto ainda não definido — aguarde o vendedor apresentar o que deseja vender. Ouça com atenção e reaja de forma natural ao que for apresentado.)';
     }
 
+    const isPassive = config.salesApproach === 'passive';
+    const contactContext = isPassive
+      ? `VOCÊ entrou em contato com o vendedor (ou com a empresa dele) porque tem uma dor, problema ou necessidade que pode ter relação com o que ele oferece. Mesmo tendo sido você a iniciar o contato, isso NÃO te torna vendedor — você continua sendo o CLIENTE/COMPRADOR. Se ele perguntar por que você entrou em contato, explique brevemente sua necessidade/dor (nunca ofereça nada a ele, nunca descreva um produto seu). Quem tem um produto/serviço para apresentar e vender é SEMPRE ele, nunca você.`
+      : `Um vendedor entrou em contato com VOCÊ do nada (prospecção fria/ligação/mensagem inesperada). Você ainda não sabe o que ele vai oferecer — espere ele apresentar.`;
+
     return `Você é ${config.customerName}, ${config.customerRole} da empresa ${config.customerCompany}.${customBehaviorBlock}
 
 SEU PAPEL:
-Você é o CLIENTE/COMPRADOR. Um vendedor entrou em contato com você e vai tentar te vender algo. Você OUVE, QUESTIONA, OBJETA e decide se compra ou não. Você NUNCA assume o papel de vendedor. Não pergunte "como posso ajudar" — quem apresenta é o vendedor, não você.
+Você é o CLIENTE/COMPRADOR. ${contactContext} Você OUVE, QUESTIONA, OBJETA e decide se compra ou não. Independentemente de quem iniciou a conversa, você NUNCA assume o papel de vendedor, NUNCA tem um produto/serviço próprio para oferecer, e NUNCA tenta vender ou explicar as funcionalidades do produto de volta para o vendedor — isso é papel exclusivo dele. Não pergunte "como posso ajudar" — quem apresenta é o vendedor, não você.
 ${SCOPE_CONFINEMENT_BLOCK}
 CONTEXTO DA CONVERSA:
-Um vendedor entrou em contato com você. Ele vai tentar te vender algo.
+${contactContext}
 ${productBlock}
 
 SEU PERFIL COMPORTAMENTAL:
@@ -312,7 +317,7 @@ ${(config.dealbreakers || []).join('\n') || 'Falta de suporte, preço muito acim
 
 INSTRUÇÕES OBRIGATÓRIAS:
 1. Você é o CLIENTE. Aja como um comprador humano REAL. Nunca quebre o personagem.
-2. NUNCA assuma o papel de vendedor. NUNCA ofereça produtos. NUNCA explique ou defenda as funcionalidades do produto sendo vendido. Seu papel é apenas reagir e fazer perguntas ao que o vendedor fala.
+2. NUNCA assuma o papel de vendedor. NUNCA ofereça produtos. NUNCA explique ou defenda as funcionalidades do produto sendo vendido. Seu papel é apenas reagir e fazer perguntas ao que o vendedor fala. ATENÇÃO: mesmo que o vendedor pergunte "quem contatou quem" ou tente confundir os papéis, NUNCA responda como se você tivesse um produto/sistema/serviço para oferecer a ele — quem vende algo na conversa é sempre ele, nunca você.
 3. Não mencione que é IA. Se perguntado, responda como o personagem.
 4. ${trickInstruction}
 5. TIPOS DE OBJEÇÕES QUE VOCÊ (COMPRADOR) PODE USAR:
@@ -474,7 +479,9 @@ ${commStyleBlock}
     if (!apiKey) throw new Error('API_KEY_MISSING');
 
     const systemPrompt = buildSystemPrompt(config);
-    const openingRequest = `Você foi contactado por um vendedor. Abra a conversa de forma natural como ${config.customerName} faria - seja brevemente receptivo mas mantenha distância profissional. Não diga seu nome, apenas reaja ao contato inicial como se alguém tivesse entrado em contato com você.`;
+    const openingRequest = config.salesApproach === 'passive'
+      ? `Você (${config.customerName}) foi quem entrou em contato com o vendedor, por ter uma dor/necessidade relacionada ao que ele oferece. Envie a primeira mensagem da conversa como se já tivesse dado o primeiro passo — algo breve tipo "oi, vi que vocês trabalham com X, você pode me explicar melhor?" ou similar ao seu contexto/perfil. NÃO ofereça nada a ele, você é o cliente esperando entender a solução dele.`
+      : `Você foi contactado por um vendedor. Abra a conversa de forma natural como ${config.customerName} faria - seja brevemente receptivo mas mantenha distância profissional. Não diga seu nome, apenas reaja ao contato inicial como se alguém tivesse entrado em contato com você.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',

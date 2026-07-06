@@ -177,7 +177,8 @@ const Sessoes = (() => {
   async function openCreateModal() {
     let sellers = [];
     let clients = [];
-    
+    let products = [];
+
     if (API.isBackendEnabled()) {
       try {
         const users = await API.request('/api/users');
@@ -187,13 +188,20 @@ const Sessoes = (() => {
         } catch(e) {
           clients = Storage.getClients();
         }
+        try {
+          products = await API.request('/api/products');
+        } catch(e) {
+          products = Storage.getProducts();
+        }
       } catch (err) {
         sellers = Storage.getSellers();
         clients = Storage.getClients();
+        products = Storage.getProducts();
       }
     } else {
       sellers = Storage.getSellers();
       clients = Storage.getClients();
+      products = Storage.getProducts();
     }
 
     const currentUser = Auth.getUser();
@@ -248,6 +256,27 @@ const Sessoes = (() => {
               </div>
             </label>
           </div>
+        </div>
+
+        <!-- Produtos para esta sessão -->
+        <div class="form-group">
+          <label class="form-label">📦 Produtos para o Vendedor Oferecer</label>
+          ${products.length === 0 ? `
+            <div class="form-hint">Nenhum produto cadastrado. O vendedor poderá apresentar livremente na sessão.</div>
+          ` : `
+            <div style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;padding:4px">
+              ${products.map(p => `
+                <label class="toggle-group" style="padding:var(--sp-2) var(--sp-3);background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--border-subtle);gap:var(--sp-3)">
+                  <input type="checkbox" class="ss-product-check" value="${p.id}" style="width:16px;height:16px;flex-shrink:0">
+                  <div>
+                    <div style="font-size:0.85rem;font-weight:600">${escHtml(p.name)}</div>
+                    <div class="text-muted fs-xs">${escHtml(p.price || '')}</div>
+                  </div>
+                </label>
+              `).join('')}
+            </div>
+            <span class="form-hint">Se nenhum for marcado, o vendedor verá todos os produtos cadastrados. Marcando específicos, só esses aparecerão no chat dele para esta sessão.</span>
+          `}
         </div>
 
         <!-- Tempo para responder -->
@@ -322,6 +351,7 @@ const Sessoes = (() => {
     const sellerId       = document.getElementById('ss-seller')?.value;
     const clientId       = document.getElementById('ss-client')?.value;
     const salesApproach  = document.querySelector('input[name="ss-approach"]:checked')?.value || 'active';
+    const productIds     = Array.from(document.querySelectorAll('.ss-product-check:checked')).map(c => c.value);
     const responseTimeSec= parseInt(document.getElementById('ss-response-time')?.value || '0');
     const dueAt          = document.getElementById('ss-due-at')?.value;
     const notes          = document.getElementById('ss-notes')?.value?.trim();
@@ -336,6 +366,7 @@ const Sessoes = (() => {
         sellerId,
         clientId,
         salesApproach,
+        productIds,
         responseTimeSec,
         dueAt: dueAt || null,
         notes,
