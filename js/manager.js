@@ -2189,10 +2189,32 @@ const Manager = (() => {
       `;
     };
 
+    const isSuper = currentUser?.role === 'superadmin';
+
     container.innerHTML = `
       <div class="api-config-info mb-6">
         <strong>🎧 Live Coach:</strong> os vendedores iniciam o assistente no painel deles durante chamadas reais (Meet, Teams, Zoom). A IA transcreve a conversa, envia dicas em tempo real e aprende o perfil de cada vendedor a cada chamada. Os perfis aprendidos aparecem aqui.
       </div>
+      ${isSuper ? `
+      <div class="config-section" style="border-color:rgba(0,212,170,0.3)">
+        <div class="config-section-header">
+          <div class="config-section-icon purple">🧪</div>
+          <div>
+            <div class="config-section-title">Laboratório de Testes <span class="badge badge-teal" style="font-size:0.65rem;margin-left:6px">Gestor Master</span></div>
+            <div class="config-section-desc">Valide o Live Coach sozinho: um cliente-robô com voz neural realista lê um roteiro de vendas (objeções, sinais de compra, negociação) em outra aba enquanto você responde como vendedor no microfone.</div>
+          </div>
+        </div>
+        <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.8;margin-bottom:var(--sp-4)">
+          <strong>1.</strong> Clique em <strong>Abrir Simulador de Cliente</strong> — abre em nova aba, com roteiro de 18 falas, modo automático e falas customizadas.<br>
+          <strong>2.</strong> Volte aqui e clique em <strong>Iniciar Live Coach</strong> — compartilhe a <strong>aba do Simulador</strong> marcando "Compartilhar áudio da guia" e permita o microfone.<br>
+          <strong>3.</strong> Dê o play no Simulador e responda como vendedor. Valide: transcrição dos 2 canais, dicas, estágio, termômetro e o perfil aprendido ao encerrar.
+        </div>
+        <div class="flex gap-3 flex-wrap">
+          <button class="btn btn-teal" onclick="window.open('testlab.html','_blank')">🧪 Abrir Simulador de Cliente</button>
+          <button class="btn btn-primary" onclick="LiveCoach.open()">🎧 Iniciar Live Coach</button>
+        </div>
+      </div>
+      ` : ''}
       ${profiles.length === 0 ? `
         <div class="card empty-state" style="padding:var(--sp-16)">
           <div class="empty-state-icon" style="font-size:3rem">🎧</div>

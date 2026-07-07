@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🧪 Simulador de Cliente — SalesPulse Test Lab</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #07070f; color: #e8e8f0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; min-height: 100vh; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 1.5rem; }
+  .header { display: flex; align-items: center; gap: 12px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+  h1 { font-size: 1.25rem; font-weight: 800; }
+  .card { background: rgba(14,14,26,0.85); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 1.25rem; margin-bottom: 1.25rem; }
+  .card-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #5a5a7a; margin-bottom: 0.9rem; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 0.65rem 1.3rem; border-radius: 100px; border: none; cursor: pointer; font-weight: 700; font-size: 0.88rem; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-primary { background: linear-gradient(135deg, #6c63ff, #00d4aa); color: #fff; }
+  .btn-ghost { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: #b9b9d0; }
+  .btn-warning { background: rgba(255,165,2,0.15); border: 1px solid rgba(255,165,2,0.4); color: #ffa502; }
+  .muted { color: #5a5a7a; font-size: 0.8rem; }
+  .line { padding: 9px 12px; border-radius: 10px; font-size: 0.87rem; line-height: 1.5; margin-bottom: 6px; border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.03); display: flex; gap: 10px; align-items: flex-start; cursor: pointer; transition: all 0.15s; }
+  .line:hover { border-color: rgba(108,99,255,0.4); }
+  .line.done { opacity: 0.45; }
+  .line.current { border-color: rgba(0,212,170,0.55); background: rgba(0,212,170,0.08); }
+  .line.playing { border-color: #00d4aa; background: rgba(0,212,170,0.14); box-shadow: 0 0 14px rgba(0,212,170,0.15); }
+  .line-num { width: 24px; height: 24px; border-radius: 50%; background: rgba(108,99,255,0.18); color: #a8a2ff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.72rem; flex-shrink: 0; }
+  .line-tag { font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #5a5a7a; display: block; margin-top: 2px; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  select, input[type="text"], input[type="range"] { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); color: #e8e8f0; border-radius: 10px; padding: 0.55rem 0.8rem; font-size: 0.85rem; }
+  input[type="text"] { flex: 1; min-width: 200px; }
+  .status-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: rgba(108,99,255,0.08); border: 1px solid rgba(108,99,255,0.2); font-size: 0.85rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #5a5a7a; }
+  .dot.speaking { background: #00d4aa; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+  .steps { font-size: 0.86rem; color: #b9b9d0; line-height: 1.8; }
+  .steps strong { color: #e8e8f0; }
+  .err { background: rgba(255,71,87,0.1); border: 1px solid rgba(255,71,87,0.35); color: #ff8a94; border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; margin-top: 0.75rem; display: none; }
+  .gate { display: flex; align-items: center; justify-content: center; min-height: 100vh; text-align: center; padding: 2rem; }
+</style>
+</head>
+<body>
+<div id="gate" class="gate" style="display:none">
+  <div class="card" style="max-width:420px">
+    <div style="font-size:2.5rem;margin-bottom:0.75rem">🔒</div>
+    <h1 style="margin-bottom:0.5rem">Acesso restrito</h1>
+    <p class="muted">O Simulador de Cliente é exclusivo do Gestor Master. Faça login como superadmin no SalesPulse nesta mesma janela do navegador e recarregue esta página.</p>
+  </div>
+</div>
+
+<div id="app" class="wrap" style="display:none">
+  <div class="header">
+    <h1>🧪 Simulador de Cliente — Test Lab</h1>
+    <span class="muted" style="margin-left:auto">Ambiente de validação do Live Coach</span>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Como testar sozinho</div>
+    <div class="steps">
+      <strong>1.</strong> Deixe esta aba aberta (é ela que "fala" como cliente, com voz neural realista).<br>
+      <strong>2.</strong> Na aba do SalesPulse, vá em <strong>Live Coach → Iniciar</strong>, selecione <strong>ESTA ABA</strong> e marque <strong>"Compartilhar áudio da guia"</strong>. Permita o microfone.<br>
+      <strong>3.</strong> Clique em <strong>▶ Próxima fala</strong> abaixo (ou ative o modo automático). O "cliente" fala; você responde no seu microfone como vendedor.<br>
+      <strong>4.</strong> Acompanhe no Live Coach: transcrição com os dois canais, dicas, estágio e termômetro. Use a janela flutuante para ver tudo por cima desta aba.
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <span class="dot" id="speak-dot"></span>
+    <span id="status-text">Pronto. O cliente é "Ricardo, diretor de operações de uma distribuidora".</span>
+    <span class="muted" id="progress" style="margin-left:auto"></span>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Controles</div>
+    <div class="controls" style="margin-bottom:0.9rem">
+      <button class="btn btn-primary" id="btn-next" onclick="TestLab.next()">▶ Próxima fala</button>
+      <button class="btn btn-ghost" onclick="TestLab.repeat()">🔁 Repetir</button>
+      <button class="btn btn-ghost" id="btn-auto" onclick="TestLab.toggleAuto()">🤖 Modo automático: OFF</button>
+      <button class="btn btn-warning" onclick="TestLab.reset()">↺ Reiniciar roteiro</button>
+    </div>
+    <div class="controls">
+      <label class="muted">Voz:</label>
+      <select id="voice">
+        <option value="onyx" selected>Onyx (masculina grave)</option>
+        <option value="echo">Echo (masculina)</option>
+        <option value="alloy">Alloy (neutra)</option>
+        <option value="nova">Nova (feminina)</option>
+        <option value="shimmer">Shimmer (feminina suave)</option>
+      </select>
+      <label class="muted">Pausa no modo auto:</label>
+      <input type="range" id="auto-delay" min="5" max="25" value="12" style="width:120px" oninput="document.getElementById('delay-val').textContent=this.value+'s'">
+      <span class="muted" id="delay-val">12s</span>
+    </div>
+    <div class="controls" style="margin-top:0.9rem">
+      <input type="text" id="custom-line" placeholder='Fala customizada — ex: "E se eu quiser cancelar depois de 6 meses?"' onkeydown="if(event.key==='Enter')TestLab.speakCustom()">
+      <button class="btn btn-ghost" onclick="TestLab.speakCustom()">🗣 Falar</button>
+    </div>
+    <div class="err" id="err-box"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Roteiro do cliente (clique numa fala para pular até ela)</div>
+    <div id="script-list"></div>
+  </div>
+</div>
+
+<script>
+const TestLab = (() => {
+
+  // Roteiro: cliente B2B realista com rapport, descoberta, objeções e fechamento
+  const SCRIPT = [
+    { tag: 'abertura',   text: 'Alô, boa tarde! Quem fala?' },
+    { tag: 'abertura',   text: 'Ah sim, me falaram que você ligaria. Tô meio corrido hoje, mas pode falar rapidinho.' },
+    { tag: 'contexto',   text: 'A gente trabalha com distribuição de alimentos. Temos três filiais e uns oitenta funcionários.' },
+    { tag: 'dor',        text: 'Nosso maior problema hoje é controle de estoque, sinceramente. Perdemos muito produto com validade vencida.' },
+    { tag: 'dor',        text: 'Já tentamos usar planilha, mas o pessoal não preenche direito. Todo mês é a mesma dor de cabeça.' },
+    { tag: 'descoberta', text: 'Hm, e isso aí que você tá oferecendo funciona como, exatamente?' },
+    { tag: 'objeção',    text: 'Entendi... mas olha, já testamos um sistema parecido ano passado e foi um desastre. O pessoal não adotou.' },
+    { tag: 'preço',      text: 'E quanto custa isso? Porque orçamento tá apertado esse ano, vou ser sincero.' },
+    { tag: 'preço',      text: 'Nossa, achei caro. O concorrente de vocês me ofereceu uma coisa parecida por bem menos.' },
+    { tag: 'autoridade', text: 'Não sei... eu teria que falar com meu sócio antes de decidir qualquer coisa desse valor.' },
+    { tag: 'desafio',    text: 'O que exatamente ele resolve que a minha planilha não resolve? Me convence.' },
+    { tag: 'suporte',    text: 'Tá, e o suporte de vocês funciona como? Porque se der problema no sábado, eu preciso de resposta na hora.' },
+    { tag: 'interesse',  text: 'Interessante isso que você falou agora. Como funciona essa parte na prática?' },
+    { tag: 'negociação', text: 'E se eu fechar ainda esse mês, você consegue melhorar essa condição pra mim?' },
+    { tag: 'implantação',text: 'Quanto tempo leva pra implantar? Eu não posso parar a operação de jeito nenhum.' },
+    { tag: 'sinal',      text: 'Olha, gostei do que ouvi. Você me manda uma proposta formal por e-mail?' },
+    { tag: 'sinal',      text: 'Se o valor fechar com o que a gente conversou, dá pra assinar ainda essa semana.' },
+    { tag: 'fechamento', text: 'Perfeito. Pode marcar uma reunião com meu sócio na quinta-feira então. Fechado.' },
+  ];
+
+  let idx = -1;              // última fala reproduzida
+  let playing = false;
+  let autoMode = false;
+  let autoTimer = null;
+  const audioCache = new Map();
+  let ttsModel = 'gpt-4o-mini-tts';
+
+  function getKey() {
+    try {
+      const cfg = JSON.parse(localStorage.getItem('sbp_config') || '{}');
+      const set = JSON.parse(localStorage.getItem('sbp_settings') || '{}');
+      return cfg.openaiKey || set.openaiKey || null;
+    } catch (e) { return null; }
+  }
+
+  function showErr(msg) {
+    const box = document.getElementById('err-box');
+    box.style.display = 'block';
+    box.textContent = msg;
+  }
+  function clearErr() { document.getElementById('err-box').style.display = 'none'; }
+
+  function setStatus(t, speaking) {
+    document.getElementById('status-text').textContent = t;
+    document.getElementById('speak-dot').className = 'dot' + (speaking ? ' speaking' : '');
+    document.getElementById('progress').textContent = `${Math.max(idx + 1, 0)}/${SCRIPT.length} falas`;
+  }
+
+  function renderList() {
+    const el = document.getElementById('script-list');
+    el.innerHTML = SCRIPT.map((l, i) => `
+      <div class="line ${i < idx ? 'done' : ''} ${i === idx ? (playing ? 'playing' : 'current') : ''}" id="line-${i}" onclick="TestLab.jumpTo(${i})">
+        <div class="line-num">${i + 1}</div>
+        <div>${l.text}<span class="line-tag">${l.tag}</span></div>
+      </div>
+    `).join('');
+    const cur = document.getElementById('line-' + idx);
+    if (cur) cur.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  // ── TTS via OpenAI (voz neural, tocada como áudio da página =
+  //    capturada com garantia pelo compartilhamento de aba) ──
+  async function fetchTts(text) {
+    const key = getKey();
+    if (!key) throw new Error('Chave da OpenAI não encontrada. Faça login no SalesPulse como gestor e salve a chave em Configurações.');
+    const cacheKey = ttsModel + '|' + document.getElementById('voice').value + '|' + text;
+    if (audioCache.has(cacheKey)) return audioCache.get(cacheKey);
+
+    const body = {
+      model: ttsModel,
+      voice: document.getElementById('voice').value,
+      input: text,
+      response_format: 'mp3',
+    };
+    if (ttsModel === 'gpt-4o-mini-tts') {
+      body.instructions = 'Fale em português brasileiro. Você é um diretor de empresa ocupado, num tom natural de conversa por videochamada — levemente cético, direto, humano.';
+    }
+
+    const res = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      // Modelo indisponível na conta → tenta o clássico tts-1 uma vez
+      if (ttsModel === 'gpt-4o-mini-tts' && [400, 403, 404].includes(res.status)) {
+        ttsModel = 'tts-1';
+        return fetchTts(text);
+      }
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || ('Erro TTS HTTP ' + res.status));
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    audioCache.set(cacheKey, url);
+    return url;
+  }
+
+  async function speak(text, onEnd) {
+    clearErr();
+    playing = true;
+    renderList();
+    setStatus('🗣 Cliente falando: "' + text.slice(0, 60) + (text.length > 60 ? '…"' : '"'), true);
+    document.getElementById('btn-next').disabled = true;
+    try {
+      const url = await fetchTts(text);
+      const audio = new Audio(url);
+      audio.onended = () => {
+        playing = false;
+        renderList();
+        setStatus('Sua vez — responda como vendedor no microfone.', false);
+        document.getElementById('btn-next').disabled = false;
+        if (onEnd) onEnd();
+      };
+      await audio.play();
+    } catch (e) {
+      playing = false;
+      document.getElementById('btn-next').disabled = false;
+      setStatus('Erro ao falar.', false);
+      showErr(e.message);
+      renderList();
+    }
+  }
+
+  function scheduleAuto() {
+    if (!autoMode) return;
+    const delay = parseInt(document.getElementById('auto-delay').value) * 1000;
+    autoTimer = setTimeout(() => { if (autoMode) next(); }, delay);
+  }
+
+  function next() {
+    if (playing) return;
+    if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+    if (idx >= SCRIPT.length - 1) {
+      setStatus('✅ Fim do roteiro! Encerre o Live Coach para ver a análise, ou reinicie aqui.', false);
+      autoMode = false;
+      updateAutoBtn();
+      return;
+    }
+    idx++;
+    speak(SCRIPT[idx].text, scheduleAuto);
+  }
+
+  function repeat() {
+    if (playing || idx < 0) return;
+    speak(SCRIPT[idx].text, scheduleAuto);
+  }
+
+  function jumpTo(i) {
+    if (playing) return;
+    idx = i;
+    speak(SCRIPT[idx].text, scheduleAuto);
+  }
+
+  function speakCustom() {
+    if (playing) return;
+    const input = document.getElementById('custom-line');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    speak(text, scheduleAuto);
+  }
+
+  function toggleAuto() {
+    autoMode = !autoMode;
+    updateAutoBtn();
+    if (autoMode && !playing) scheduleAuto();
+    if (!autoMode && autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+  }
+
+  function updateAutoBtn() {
+    const btn = document.getElementById('btn-auto');
+    btn.textContent = autoMode ? '🤖 Modo automático: ON' : '🤖 Modo automático: OFF';
+    btn.className = autoMode ? 'btn btn-primary' : 'btn btn-ghost';
+  }
+
+  function reset() {
+    if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+    idx = -1;
+    playing = false;
+    autoMode = false;
+    updateAutoBtn();
+    renderList();
+    setStatus('Roteiro reiniciado. Clique em ▶ Próxima fala para começar.', false);
+  }
+
+  function init() {
+    // Acesso: exclusivo do gestor master (superadmin)
+    let auth = null;
+    try { auth = JSON.parse(localStorage.getItem('sbp_auth') || 'null'); } catch (e) {}
+    const user = auth?.user || auth;
+    if (!user || user.role !== 'superadmin') {
+      document.getElementById('gate').style.display = 'flex';
+      return;
+    }
+    document.getElementById('app').style.display = 'block';
+    renderList();
+    setStatus('Pronto. O cliente é "Ricardo, diretor de operações de uma distribuidora".', false);
+    if (!getKey()) showErr('Chave da OpenAI não encontrada neste navegador. Abra o SalesPulse, faça login como gestor e salve a chave em Configurações — depois recarregue esta página.');
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+
+  return { next, repeat, jumpTo, speakCustom, toggleAuto, reset };
+})();
+</script>
+</body>
+</html>
