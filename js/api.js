@@ -277,6 +277,15 @@ const API = (() => {
   async function updateScheduledSession(id, data) { return await put(`/api/scheduled_sessions/${id}`, data); }
   async function deleteScheduledSession(id) { return await del(`/api/scheduled_sessions/${id}`); }
 
+  // Live Coach (chamadas reais)
+  async function createLiveCall() { return await post('/api/live_calls', {}, 0); }
+  async function updateLiveCall(id, data) { return await put(`/api/live_calls/${id}`, data); }
+  async function listLiveCalls() { return await get('/api/live_calls'); }
+  async function getLiveCall(id) { return await get(`/api/live_calls/${id}`); }
+  async function listLiveProfiles() { return await get('/api/live_profiles'); }
+  async function getLiveProfile(userId) { return await get(`/api/live_profiles/${userId}`); }
+  async function saveLiveProfile(userId, profile) { return await put(`/api/live_profiles/${userId}`, { profile }); }
+
   // AI Settings (OpenAI key shared across all devices/users via backend)
   async function getAiSettings() {
     if (!isBackendEnabled()) return null;
@@ -337,6 +346,13 @@ const API = (() => {
     getAiSettings,
     saveAiSettings,
     syncDown,
+    createLiveCall,
+    updateLiveCall,
+    listLiveCalls,
+    getLiveCall,
+    listLiveProfiles,
+    getLiveProfile,
+    saveLiveProfile,
   };
 
 })();

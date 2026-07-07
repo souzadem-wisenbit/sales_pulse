@@ -10,6 +10,7 @@ const syncCtrl = require('../controllers/syncController');
 const clientsCtrl = require('../controllers/clientsController');
 const productsCtrl = require('../controllers/productsController');
 const schedCtrl = require('../controllers/scheduledSessionsController');
+const liveCtrl = require('../controllers/liveCallsController');
 
 const syncRouter = express.Router();
 syncRouter.use(authenticate);
@@ -63,4 +64,17 @@ sessionsRouter.put('/:id/end', authorize('manager', 'seller'), sessionsCtrl.endS
 sessionsRouter.post('/:id/evaluate', authorize('manager', 'seller'), sessionsCtrl.evaluateSession);
 sessionsRouter.post('/:id/coach', authorize('manager', 'seller'), sessionsCtrl.getCoachTip);
 
-module.exports = { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter };
+const liveCallsRouter = express.Router();
+liveCallsRouter.use(authenticate);
+liveCallsRouter.get('/', authorize('manager', 'seller'), liveCtrl.listLiveCalls);
+liveCallsRouter.post('/', authorize('manager', 'seller'), liveCtrl.createLiveCall);
+liveCallsRouter.get('/:id', authorize('manager', 'seller'), liveCtrl.getLiveCall);
+liveCallsRouter.put('/:id', authorize('manager', 'seller'), liveCtrl.updateLiveCall);
+
+const liveProfilesRouter = express.Router();
+liveProfilesRouter.use(authenticate);
+liveProfilesRouter.get('/', authorize('manager'), liveCtrl.listProfiles);
+liveProfilesRouter.get('/:userId', authorize('manager', 'seller'), liveCtrl.getProfile);
+liveProfilesRouter.put('/:userId', authorize('manager', 'seller'), liveCtrl.upsertProfile);
+
+module.exports = { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter, liveCallsRouter, liveProfilesRouter };

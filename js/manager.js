@@ -129,7 +129,7 @@ const Manager = (() => {
       sellers:   { title: 'Vendedores', sub: 'Gerencie a equipe e acompanhe o cadastro', render: renderSellersSection },
       products:  { title: 'Produtos', sub: 'Cadastre produtos e atribua-os a clientes e vendedores', render: renderProductsSection },
       sessoes:   { title: 'Sess\u00f5es Agendadas', sub: 'Crie sess\u00f5es de treinamento individuais para cada vendedor', render: (c) => Sessoes.render(c) },
-
+      livecoach: { title: 'Live Coach \u2014 Chamadas Reais', sub: 'Perfis aprendidos pela IA e hist\u00f3rico de chamadas reais dos vendedores', render: renderLiveCoachSection },
       settings:  { title: 'Configura\u00e7\u00f5es', sub: 'API, conta e prefer\u00eancias do sistema', render: renderSettingsSection },
     };
 
@@ -2133,6 +2133,76 @@ const Manager = (() => {
   // ══════════════════════════════════════
   // SETTINGS SECTION
   // ══════════════════════════════════════
+  // ══════════════════════════════════════
+  // LIVE COACH SECTION (perfis aprendidos + chamadas reais)
+  // ══════════════════════════════════════
+  async function renderLiveCoachSection(container) {
+    container.innerHTML = `<div class="flex" style="justify-content:center;padding:3rem"><div class="spinner"></div></div>`;
+
+    let profiles = [];
+    let calls = [];
+    try { profiles = (await API.listLiveProfiles()) || []; } catch (e) { console.warn(e); }
+    try { calls = (await API.listLiveCalls()) || []; } catch (e) { console.warn(e); }
+
+    // Gestor comum vê apenas seus vendedores; superadmin vê todos
+    const currentUser = Auth.getUser();
+    if (currentUser?.role === 'manager') {
+      const myIds = Storage.getSellers().map(s => String(s.id));
+      profiles = profiles.filter(p => myIds.includes(String(p.user_id)));
+      calls = calls.filter(c => myIds.includes(String(c.user_id)));
+    }
+
+    const callsByUser = {};
+    calls.forEach(c => {
+      (callsByUser[c.user_id] = callsByUser[c.user_id] || []).push(c);
+    });
+
+    const profileCard = (p) => {
+      const prof = p.profile || {};
+      const userCalls = (callsByUser[p.user_id] || []).slice(0, 5);
+      return `
+        <div class="config-section">
+          <div class="config-section-header">
+            <div class="config-section-icon teal">🧠</div>
+            <div style="flex:1">
+              <div class="config-section-title">${escHtml(p.name || 'Vendedor')}</div>
+              <div class="config-section-desc">${escHtml(p.email || '')} · ${p.calls_analyzed || 0} chamada${(p.calls_analyzed || 0) !== 1 ? 's' : ''} analisada${(p.calls_analyzed || 0) !== 1 ? 's' : ''} · atualizado ${p.updated_at ? new Date(p.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</div>
+            </div>
+          </div>
+          ${prof.styleSummary ? `<p style="font-size:0.88rem;line-height:1.6;margin-bottom:var(--sp-4)">${escHtml(prof.styleSummary)}</p>` : '<p class="text-muted fs-sm">Perfil ainda em construção.</p>'}
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--sp-4)">
+            ${(prof.strengths || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--success)">💪 Pontos fortes</div>${prof.strengths.map(s => `<div class="fs-xs text-secondary" style="padding:2px 0">• ${escHtml(s)}</div>`).join('')}</div>` : ''}
+            ${(prof.weaknesses || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--warning)">🎯 A melhorar</div>${prof.weaknesses.map(s => `<div class="fs-xs text-secondary" style="padding:2px 0">• ${escHtml(s)}</div>`).join('')}</div>` : ''}
+            ${(prof.recommendations || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--accent-light)">💡 Recomendações</div>${prof.recommendations.map(s => `<div class="fs-xs text-secondary" style="padding:2px 0">• ${escHtml(s)}</div>`).join('')}</div>` : ''}
+            ${(prof.languageVices || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--danger)">🗣 Vícios de linguagem</div>${prof.languageVices.map(s => `<div class="fs-xs text-secondary" style="padding:2px 0">• ${escHtml(s)}</div>`).join('')}</div>` : ''}
+          </div>
+          ${userCalls.length ? `
+            <div class="fw-600 fs-sm" style="margin:var(--sp-4) 0 var(--sp-2)">📞 Últimas chamadas</div>
+            ${userCalls.map(c => `
+              <div style="padding:var(--sp-2) var(--sp-3);background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--border-subtle);margin-bottom:6px">
+                <div class="fs-xs text-muted">${new Date(c.started_at).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${c.segments || 0} falas · ${c.tip_count || 0} dicas${c.ended_at ? '' : ' · ⏳ em andamento'}</div>
+                ${c.summary ? `<div class="fs-xs text-secondary" style="margin-top:3px;line-height:1.5">${escHtml(c.summary)}</div>` : ''}
+              </div>
+            `).join('')}
+          ` : ''}
+        </div>
+      `;
+    };
+
+    container.innerHTML = `
+      <div class="api-config-info mb-6">
+        <strong>🎧 Live Coach:</strong> os vendedores iniciam o assistente no painel deles durante chamadas reais (Meet, Teams, Zoom). A IA transcreve a conversa, envia dicas em tempo real e aprende o perfil de cada vendedor a cada chamada. Os perfis aprendidos aparecem aqui.
+      </div>
+      ${profiles.length === 0 ? `
+        <div class="card empty-state" style="padding:var(--sp-16)">
+          <div class="empty-state-icon" style="font-size:3rem">🎧</div>
+          <div class="empty-state-title">Nenhum perfil aprendido ainda</div>
+          <div class="empty-state-desc">Quando um vendedor usar o Live Coach em uma chamada real, a IA analisará a conversa e construirá o perfil dele aqui — atualizado a cada nova chamada.</div>
+        </div>
+      ` : profiles.map(profileCard).join('')}
+    `;
+  }
+
   function renderSettingsSection(container) {
     const settings = Storage.getSettings();
     const config = Storage.getConfig();

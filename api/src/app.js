@@ -5,7 +5,7 @@ const express = require('express');
 const cors = require('cors');
 
 const authRoutes = require('./routes/auth');
-const { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter } = require('./routes/index');
+const { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter, liveCallsRouter, liveProfilesRouter } = require('./routes/index');
 
 const app = express();
 
@@ -36,6 +36,8 @@ app.use('/api/sessions', sessionsRouter);
 app.use('/api/clients', clientsRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/scheduled_sessions', scheduledRouter);
+app.use('/api/live_calls', liveCallsRouter);
+app.use('/api/live_profiles', liveProfilesRouter);
 
 // Basic health check
 app.get('/api/health', (req, res) => {

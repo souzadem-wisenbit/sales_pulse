@@ -440,6 +440,18 @@ const Seller = (() => {
           </div>
         </div>
 
+        <!-- Live Coach banner -->
+        <div style="position:relative;z-index:1;padding:1.5rem 2.5rem 0;max-width:1100px;margin:0 auto;">
+          <div style="background:linear-gradient(135deg, rgba(0,212,170,0.10), rgba(108,99,255,0.10));border:1px solid rgba(0,212,170,0.25);border-radius:16px;padding:1.25rem 1.5rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+            <div style="font-size:2rem">🎧</div>
+            <div style="flex:1;min-width:220px">
+              <div style="font-weight:800;color:#e8e8f0;">Live Coach — Chamadas Reais</div>
+              <div style="font-size:0.82rem;color:#9494b8;">Dicas de IA em tempo real durante suas reuniões no Meet, Teams ou Zoom, com transcrição automática e aprendizado do seu perfil.</div>
+            </div>
+            <button class="btn btn-teal" onclick="LiveCoach.open()">🎙 Iniciar Live Coach</button>
+          </div>
+        </div>
+
         <!-- Body -->
         <div class="seller-body">
 
