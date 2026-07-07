@@ -3,27 +3,27 @@
 // Assistente de IA para chamadas de vendas REAIS
 // (Google Meet, Teams, Zoom ou qualquer app no navegador)
 //
-// Como funciona:
-//  - O vendedor compartilha a ABA da reunião (com áudio) + microfone.
+// Arquitetura:
 //  - Canal do microfone  = fala do VENDEDOR.
-//  - Canal do áudio da aba = fala do CLIENTE (outro lado).
-//  - Cada canal é transcrito separadamente via Whisper → identificação
-//    de quem fala é por canal físico, não por adivinhação de IA.
-//  - O vídeo da aba compartilhada é exibido dentro do SalesPulse
-//    (com opção de picture-in-picture).
-//  - A cada intervalo, a IA analisa o trecho recente e envia dicas
-//    (painel + notificação do navegador se a aba estiver em segundo plano).
-//  - Ao encerrar, a IA analisa a chamada inteira e ATUALIZA O PERFIL
-//    APRENDIDO do vendedor (consolidando com chamadas anteriores).
+//  - Canal do áudio da aba compartilhada = fala do CLIENTE.
+//  - Transcrição: gpt-4o-mini-transcribe (fallback whisper-1 com filtro
+//    estatístico de alucinação via no_speech_prob/avg_logprob), com
+//    prompt de contexto contínuo por canal e gate de voz sustentada.
+//  - Vídeo da reunião exibido dentro do SalesPulse (modo teatro) e em
+//    janela flutuante (Document Picture-in-Picture) com controles:
+//    mute do microfone, última dica, estágio e temperatura da venda.
+//  - Coach de IA: dica acionável + estágio da venda + temperatura
+//    (0-100) a cada intervalo, personalizado pelo perfil aprendido.
+//  - Ao encerrar: análise completa + consolidação do perfil do vendedor.
 // ================================================
 
 const LiveCoach = (() => {
 
-  const CHUNK_MS = 8000;           // duração de cada bloco de áudio transcrito
+  const CHUNK_MS = 10000;          // duração de cada bloco de áudio transcrito
   const COACH_INTERVAL_MS = 20000; // frequência das dicas
   const SAVE_INTERVAL_MS = 12000;  // frequência de persistência no backend
   const RMS_THRESHOLD = 0.025;     // energia mínima para considerar "voz"
-  const MIN_VOICED_TICKS = 2;      // ticks de 250ms com voz exigidos por bloco (~0,5s de fala)
+  const MIN_VOICED_TICKS = 3;      // ticks de 250ms com voz exigidos por bloco (~0,75s de fala)
 
   let running = false;
   let callId = null;
@@ -32,19 +32,32 @@ const LiveCoach = (() => {
   let displayStream = null;
   let activeRecorders = [];
   let audioCtx = null;
-  let voicedInChunk = { seller: 0, client: 0 };  // ticks com voz no bloco atual
-  let lastSoundAt = { seller: 0, client: 0 };    // último instante com voz por canal
+  let voicedInChunk = { seller: 0, client: 0 };
+  let lastSoundAt = { seller: 0, client: 0 };
   let micPaused = false;
-  let sharedSurface = null;                       // 'browser' (aba) | 'monitor' | 'window'
-  let transcript = [];   // { t, speaker: 'seller'|'client', text }
-  let tips = [];         // { t, tip, priority, icon }
+  let sharedSurface = null;        // 'browser' (aba) | 'monitor' | 'window'
+  let theaterMode = false;
+  let pipWin = null;               // janela Document Picture-in-Picture
+  let transcript = [];             // { t, speaker: 'seller'|'client', text }
+  let tips = [];                   // { t, tip, priority, icon }
+  let latestStage = null;          // rapport|descoberta|apresentacao|objecoes|fechamento
+  let latestTemp = null;           // 0-100 temperatura da negociação
   let coachTimer = null;
   let saveTimer = null;
   let clockTimer = null;
   let healthTimer = null;
   let lastCoachedCount = 0;
-  let profile = null;    // perfil aprendido (chamadas anteriores)
+  let profile = null;
   let coachBusy = false;
+  let transcribeModelOk = true;    // gpt-4o-mini-transcribe disponível?
+
+  const STAGE_LABELS = {
+    rapport:      { label: 'Rapport',      icon: '🤝' },
+    descoberta:   { label: 'Descoberta',   icon: '🔍' },
+    apresentacao: { label: 'Apresentação', icon: '🎯' },
+    objecoes:     { label: 'Objeções',     icon: '🛡' },
+    fechamento:   { label: 'Fechamento',   icon: '✍️' },
+  };
 
   function getApiKey() {
     return Storage.getConfig().openaiKey || (Storage.getSettings() || {}).openaiKey || null;
@@ -58,6 +71,13 @@ const LiveCoach = (() => {
   function fmtClock(ms) {
     const s = Math.floor(ms / 1000);
     return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  }
+
+  function tempColor(t) {
+    if (t === null || t === undefined) return '#5a5a7a';
+    if (t >= 70) return '#2ed573';
+    if (t >= 40) return '#ffa502';
+    return '#ff4757';
   }
 
   // ══════════════════════════════════════
@@ -76,18 +96,20 @@ const LiveCoach = (() => {
     return `
       <style>
         #livecoach-overlay { position: fixed; inset: 0; z-index: 99990; background: #07070f; overflow-y: auto; color: #e8e8f0; font-family: inherit; }
-        .lc-wrap { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+        .lc-wrap { max-width: 1280px; margin: 0 auto; padding: 1.5rem; }
         .lc-header { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
         .lc-title { font-size: 1.3rem; font-weight: 800; }
         .lc-live-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff4757; animation: lcPulse 1.2s infinite; display: inline-block; margin-right: 6px; }
         @keyframes lcPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-        .lc-grid { display: grid; grid-template-columns: 1fr 360px; gap: 1.25rem; align-items: start; }
+        .lc-grid { display: grid; grid-template-columns: minmax(0,1fr) 350px; gap: 1.25rem; align-items: start; }
+        .lc-grid.lc-theater { grid-template-columns: 1fr; }
         @media (max-width: 900px) { .lc-grid { grid-template-columns: 1fr; } }
         .lc-card { background: rgba(14,14,26,0.85); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 1.25rem; }
         .lc-card + .lc-card { margin-top: 1.25rem; }
         .lc-card-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #5a5a7a; margin-bottom: 0.9rem; }
-        .lc-video { width: 100%; max-height: 340px; border-radius: 10px; background: #000; display: block; }
-        .lc-transcript { max-height: 44vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .lc-video { width: 100%; max-height: 56vh; border-radius: 10px; background: #000; display: block; object-fit: contain; }
+        .lc-theater .lc-video { max-height: 74vh; }
+        .lc-transcript { max-height: 40vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
         .lc-seg { padding: 8px 12px; border-radius: 10px; font-size: 0.86rem; line-height: 1.45; max-width: 92%; }
         .lc-seg.seller { background: rgba(108,99,255,0.14); border: 1px solid rgba(108,99,255,0.25); align-self: flex-end; }
         .lc-seg.client { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); align-self: flex-start; }
@@ -116,6 +138,9 @@ const LiveCoach = (() => {
         .lc-health-dot.off { background: #5a5a7a; }
         .lc-health-dot.warn { background: #ff4757; animation: lcPulse 1.2s infinite; }
         .lc-warn-banner { background: rgba(255,165,2,0.10); border: 1px solid rgba(255,165,2,0.35); border-radius: 10px; padding: 10px 12px; font-size: 0.8rem; line-height: 1.5; color: #ffd28a; margin-bottom: 0.9rem; }
+        .lc-stage-row { display: flex; align-items: center; gap: 10px; margin-bottom: 0.75rem; flex-wrap: wrap; }
+        .lc-temp-track { flex: 1; min-width: 110px; height: 8px; border-radius: 100px; background: rgba(255,255,255,0.07); overflow: hidden; }
+        .lc-temp-fill { height: 100%; border-radius: 100px; transition: width 0.6s ease, background 0.6s ease; }
       </style>
     `;
   }
@@ -147,15 +172,15 @@ const LiveCoach = (() => {
           <div class="lc-card">
             <div class="lc-card-title">Como funciona</div>
             <div class="lc-setup-step"><div class="lc-step-num">1</div><div>Abra sua reunião (Google Meet, Teams, Zoom Web...) em <strong>outra aba deste navegador</strong>.</div></div>
-            <div class="lc-setup-step"><div class="lc-step-num">2</div><div>Clique em <strong>Iniciar</strong> e selecione a <strong>ABA da reunião</strong> (não a tela inteira!), marcando <strong>"Compartilhar áudio da guia"</strong>. Compartilhando a aba, o áudio do cliente é captado direto — mesmo com o som do PC baixo ou mudo.</div></div>
+            <div class="lc-setup-step"><div class="lc-step-num">2</div><div>Clique em <strong>Iniciar</strong> e selecione a <strong>ABA da reunião</strong> (não a tela inteira!), marcando <strong>"Compartilhar áudio da guia"</strong>. Assim o áudio do cliente é captado direto — mesmo com o som do PC baixo ou mudo.</div></div>
             <div class="lc-setup-step"><div class="lc-step-num">3</div><div>Permita o acesso ao <strong>microfone</strong>. Sua fala e a do cliente são identificadas automaticamente por canal.</div></div>
             <div class="lc-setup-step"><div class="lc-step-num">4</div><div>Use <strong>fones de ouvido</strong> para o microfone não captar a voz do cliente junto com a sua.</div></div>
-            <div class="lc-setup-step"><div class="lc-step-num">5</div><div>⚠️ O botão de mudo do Meet/Teams <strong>não silencia o Live Coach</strong> — o coach ouve seu microfone direto. Ao se mutar na reunião, use também o botão <strong>"Pausar minha captura"</strong> aqui.</div></div>
-            <div class="lc-setup-step"><div class="lc-step-num">6</div><div>O vídeo da reunião aparece <strong>dentro do SalesPulse</strong>, junto com a transcrição e as dicas. Se preferir ficar na aba da reunião, as dicas chegam como notificações do navegador.</div></div>
+            <div class="lc-setup-step"><div class="lc-step-num">5</div><div>Clique em <strong>🗔 Janela flutuante</strong>: uma mini-janela fica por cima de tudo com o vídeo, as dicas ao vivo, a temperatura da negociação e o botão de <strong>mute do coach</strong> — controle total sem sair da reunião.</div></div>
+            <div class="lc-setup-step"><div class="lc-step-num">6</div><div>⚠️ O mudo do Meet/Teams <strong>não silencia o Live Coach</strong> — use o botão de microfone daqui (na tela ou na janela flutuante).</div></div>
           </div>
           <div class="lc-card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:1rem">
             <div style="font-size:3rem">🎙</div>
-            <p class="lc-muted">Transcrição ao vivo, dicas de venda em tempo real e aprendizado do seu perfil a cada chamada.</p>
+            <p class="lc-muted">Transcrição ao vivo, dicas em tempo real, temperatura da negociação e aprendizado do seu perfil a cada chamada.</p>
             <button class="lc-btn lc-btn-primary" onclick="LiveCoach.start()" id="lc-start-btn">🚀 Iniciar Live Coach</button>
             <div class="lc-muted" id="lc-start-status"></div>
           </div>
@@ -193,7 +218,6 @@ const LiveCoach = (() => {
         return;
       }
 
-      // Detecta o tipo de superfície compartilhada (aba = ideal)
       try {
         sharedSurface = displayStream.getVideoTracks()[0]?.getSettings()?.displaySurface || null;
       } catch (e) { sharedSurface = null; }
@@ -204,29 +228,29 @@ const LiveCoach = (() => {
       setStatus('Preparando...');
       try { await Notification.requestPermission(); } catch (e) {}
 
-      // Cria a chamada no backend
       const created = await API.createLiveCall();
       callId = created?.id || ('call_' + Date.now());
 
-      // Carrega o perfil aprendido (chamadas anteriores) para personalizar dicas
       const user = Auth.getUser();
       try {
         const p = await API.getLiveProfile(user.id);
         profile = (p && p.profile && Object.keys(p.profile).length > 0) ? p.profile : null;
       } catch (e) { profile = null; }
 
-      // Estado
       running = true;
       startedAt = Date.now();
       transcript = [];
       tips = [];
+      latestStage = null;
+      latestTemp = null;
       lastCoachedCount = 0;
       voicedInChunk = { seller: 0, client: 0 };
       lastSoundAt = { seller: 0, client: 0 };
       micPaused = false;
+      theaterMode = false;
+      transcribeModelOk = true;
       activeRecorders = [];
 
-      // Monitor de voz (para pular blocos de silêncio/ruído) + gravação por canal
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const tabAudioStream = new MediaStream(displayStream.getAudioTracks());
       monitorSound(micStream, 'seller');
@@ -234,11 +258,9 @@ const LiveCoach = (() => {
       startChunkLoop(micStream, 'seller');
       startChunkLoop(tabAudioStream, 'client');
 
-      // Se o usuário parar o compartilhamento pela barra do navegador, encerra
       const vTrack = displayStream.getVideoTracks()[0];
       if (vTrack) vTrack.addEventListener('ended', () => { if (running) stop(); });
 
-      // Loops de coach, persistência e saúde do áudio
       coachTimer = setInterval(coachTick, COACH_INTERVAL_MS);
       saveTimer = setInterval(persist, SAVE_INTERVAL_MS);
       healthTimer = setInterval(renderHealth, 3000);
@@ -255,8 +277,8 @@ const LiveCoach = (() => {
     }
   }
 
-  // Conta "ticks" (250ms) com energia de voz — usado para descartar
-  // blocos de silêncio/ruído leve (que fazem o Whisper alucinar frases).
+  // Conta "ticks" (250ms) com energia de voz — descarta blocos de
+  // silêncio/ruído leve (que fazem o modelo alucinar frases).
   function monitorSound(stream, speaker) {
     try {
       const src = audioCtx.createMediaStreamSource(stream);
@@ -280,7 +302,7 @@ const LiveCoach = (() => {
   }
 
   // Grava em blocos independentes (recorder reiniciado a cada bloco para que
-  // cada blob seja um arquivo webm completo e válido para o Whisper).
+  // cada blob seja um arquivo webm completo e válido para transcrição).
   function startChunkLoop(stream, speaker) {
     const recordChunk = () => {
       if (!running) return;
@@ -295,7 +317,6 @@ const LiveCoach = (() => {
         const voiced = voicedInChunk[speaker];
         voicedInChunk[speaker] = 0;
         const blob = new Blob(chunks, { type: 'audio/webm' });
-        // Só transcreve se houve fala sustentada no bloco (>= ~0,5s de voz)
         if (voiced >= MIN_VOICED_TICKS && blob.size > 3000 && !(speaker === 'seller' && micPaused)) {
           transcribeChunk(blob, speaker);
         }
@@ -308,33 +329,95 @@ const LiveCoach = (() => {
     recordChunk();
   }
 
-  // Alucinações clássicas do Whisper em trechos de silêncio/ruído
+  // ══════════════════════════════════════
+  // TRANSCRIÇÃO — modelo novo + filtro estatístico + contexto contínuo
+  // ══════════════════════════════════════
   const JUNK_PATTERNS = [
     'amara.org', 'legendas pela comunidade', 'legendado por', 'transcrito por',
     'obrigado por assistir', 'não se esqueça de se inscrever', 'inscreva-se no canal',
     'se inscreva no canal', 'curta o vídeo', 'deixe seu like', 'até o próximo vídeo',
-    'obrigado por acompanhar', 'legenda', '[música]', '[aplausos]', '♪', '♫',
-    'tchau, tchau!', 'valeu, falou', 'www.', 'http',
+    'obrigado por acompanhar', '[música]', '[aplausos]', '♪', '♫',
+    'tchau, tchau!', 'valeu, falou', 'www.', 'http', 'legenda por',
   ];
 
   function isNoise(text) {
     const lower = text.toLowerCase().trim();
     if (JUNK_PATTERNS.some(j => lower.includes(j))) return true;
-    // Sem nenhuma letra/número real (só pontuação, símbolos, reticências)
     if (!/[a-zà-úçãõáéíóúâêôü0-9]/i.test(lower)) return true;
-    // Frases genéricas soltas típicas de alucinação em silêncio
-    if (['obrigado.', 'obrigada.', 'tchau.', 'tchau!', 'até mais.', 'é...', 'hã?', 'ok.'].includes(lower) ) return true;
+    if (['obrigado.', 'obrigada.', 'tchau.', 'tchau!', 'até mais.', 'é...', 'hã?', 'ok.'].includes(lower)) return true;
     return false;
+  }
+
+  // Prompt de contexto: informa o domínio e a "cauda" do que o mesmo canal
+  // já disse — melhora consistência de nomes/termos entre blocos.
+  function buildTranscribePrompt(speaker) {
+    const tail = transcript.filter(s => s.speaker === speaker).slice(-3).map(s => s.text).join(' ').slice(-220);
+    return `Reunião de vendas em português brasileiro por videochamada. Termos comuns: proposta, orçamento, contrato, desconto, prazo, reunião, cliente, produto. ${tail}`;
+  }
+
+  async function whisperTranscribe(blob, speaker) {
+    const key = getApiKey();
+
+    // 1ª opção: gpt-4o-mini-transcribe (mais preciso, menos alucinação)
+    if (transcribeModelOk) {
+      try {
+        const fd = new FormData();
+        fd.append('file', blob, 'chunk.webm');
+        fd.append('model', 'gpt-4o-mini-transcribe');
+        fd.append('language', 'pt');
+        fd.append('temperature', '0');
+        fd.append('prompt', buildTranscribePrompt(speaker));
+        const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+          method: 'POST', headers: { 'Authorization': `Bearer ${key}` }, body: fd,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return (data.text || '').trim();
+        }
+        // Modelo indisponível na conta → passa a usar whisper-1 direto
+        if (res.status === 404 || res.status === 400 || res.status === 403) transcribeModelOk = false;
+        else return '';
+      } catch (e) { /* cai para o fallback */ }
+    }
+
+    // Fallback: whisper-1 com verbose_json → filtro estatístico de alucinação
+    const fd = new FormData();
+    fd.append('file', blob, 'chunk.webm');
+    fd.append('model', 'whisper-1');
+    fd.append('language', 'pt');
+    fd.append('temperature', '0');
+    fd.append('response_format', 'verbose_json');
+    fd.append('prompt', buildTranscribePrompt(speaker));
+    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST', headers: { 'Authorization': `Bearer ${key}` }, body: fd,
+    });
+    if (!res.ok) return '';
+    const data = await res.json();
+    // Descarta segmentos que o próprio modelo considera prováveis alucinações
+    const segs = (data.segments || []).filter(s =>
+      (s.no_speech_prob === undefined || s.no_speech_prob < 0.5) &&
+      (s.avg_logprob === undefined || s.avg_logprob > -1.2)
+    );
+    return segs.map(s => s.text).join(' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function normalizeText(t) {
+    return t.toLowerCase().replace(/[^\wà-úçãõ ]/gi, '').replace(/\s+/g, ' ').trim();
   }
 
   async function transcribeChunk(blob, speaker) {
     try {
-      const result = await AIEngine.transcribeAudio(blob, { openaiKey: getApiKey() });
-      const text = (result?.text || '').trim();
+      const text = await whisperTranscribe(blob, speaker);
       if (!text || text.length < 3 || isNoise(text)) return;
-      // Descarta repetição idêntica consecutiva do mesmo canal (loop de alucinação)
+
+      // Anti-repetição: descarta se for igual (ou contido) na última fala do mesmo canal
       const lastSame = [...transcript].reverse().find(s => s.speaker === speaker);
-      if (lastSame && lastSame.text.toLowerCase() === text.toLowerCase()) return;
+      if (lastSame) {
+        const a = normalizeText(lastSame.text);
+        const b = normalizeText(text);
+        if (a === b || (b.length > 10 && a.includes(b)) || (a.length > 10 && b.includes(a) && (Date.now() - lastSame.t) < 30000)) return;
+      }
+
       transcript.push({ t: Date.now(), speaker, text });
       renderTranscript();
     } catch (e) {
@@ -343,7 +426,7 @@ const LiveCoach = (() => {
   }
 
   // ══════════════════════════════════════
-  // MIC PAUSE — espelha o mute da reunião
+  // MIC — controle total da captura
   // ══════════════════════════════════════
   function toggleMicPause() {
     micPaused = !micPaused;
@@ -352,22 +435,23 @@ const LiveCoach = (() => {
     const btn = document.getElementById('lc-mic-btn');
     if (btn) {
       btn.className = micPaused ? 'lc-btn lc-btn-warning lc-btn-block' : 'lc-btn lc-btn-ghost lc-btn-block';
-      btn.innerHTML = micPaused ? '🔇 Captura pausada — clique para retomar' : '🎤 Pausar minha captura (ao se mutar na reunião)';
+      btn.innerHTML = micPaused ? '🔇 Microfone do coach DESLIGADO — clique para ligar' : '🎤 Microfone do coach LIGADO — clique para desligar';
     }
     renderHealth();
+    updatePip();
   }
 
   // ══════════════════════════════════════
-  // COACH — dicas em tempo real
+  // COACH — dicas + estágio + temperatura
   // ══════════════════════════════════════
   async function coachTick() {
     if (!running || coachBusy) return;
-    if (transcript.length - lastCoachedCount < 2) return; // pouco material novo
+    if (transcript.length - lastCoachedCount < 2) return;
     coachBusy = true;
     const sinceCount = transcript.length;
 
     try {
-      const recent = transcript.slice(-14)
+      const recent = transcript.slice(-16)
         .map(s => `${s.speaker === 'seller' ? 'VENDEDOR' : 'CLIENTE'}: ${s.text}`)
         .join('\n');
 
@@ -375,16 +459,21 @@ const LiveCoach = (() => {
         ? `\nPERFIL CONHECIDO DO VENDEDOR (aprendido em chamadas anteriores — personalize a dica com base nele):\n${JSON.stringify(profile)}\n`
         : '';
 
-      const prompt = `Você é um coach de vendas invisível acompanhando uma chamada de vendas REAL em andamento (videochamada). O VENDEDOR é seu aluno; o CLIENTE é a pessoa do outro lado (pode haver mais de uma pessoa no canal do cliente).
+      const prompt = `Você é um coach de vendas de elite (formado em SPIN Selling, Challenger e Sandler) acompanhando em silêncio uma chamada de vendas REAL em videochamada. O VENDEDOR é seu aluno; o CLIENTE é o outro lado (pode haver mais de uma pessoa no canal do cliente).
 ${profileBlock}
-TRECHO MAIS RECENTE DA CONVERSA:
+TRECHO MAIS RECENTE DA CONVERSA (transcrição automática — pode conter pequenos erros; ignore fragmentos sem sentido):
 ${recent}
 
-Sua tarefa: dar UMA dica curta, específica e acionável para o vendedor usar AGORA (ou apontar como ele poderia ter falado melhor a última fala dele).
-Critérios: exploração de dor antes de pitch, escuta ativa, objeções mal respondidas, sinais de compra ignorados, linguagem fraca/vícios, hora de avançar para próximo passo.
-IMPORTANTE: a transcrição pode conter pequenos erros ou trechos soltos — ignore fragmentos sem sentido e só comente sobre o que claramente faz parte da conversa de vendas.
-Retorne EXCLUSIVAMENTE JSON: {"tip": "dica com no máximo 18 palavras", "priority": "urgent|normal|good", "icon": "um emoji"}
-Se realmente não houver nada útil a dizer agora (ou o material for só fragmentos), retorne {"tip": null}`;
+Retorne EXCLUSIVAMENTE JSON:
+{
+  "tip": "UMA dica curta, específica e acionável para o vendedor usar AGORA (máx 18 palavras). null se nada útil.",
+  "priority": "urgent|normal|good",
+  "icon": "um emoji",
+  "stage": "rapport|descoberta|apresentacao|objecoes|fechamento",
+  "temperature": <0-100, o quão quente a negociação está: interesse real, sinais de compra, engajamento do cliente>
+}
+
+Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção mal respondida? sinal de compra ignorado? linguagem fraca? hora de avançar? Se o vendedor acabou de mandar bem, use priority "good" e reforce.`;
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -392,7 +481,7 @@ Se realmente não houver nada útil a dizer agora (ou o material for só fragmen
         body: JSON.stringify({
           model: Storage.getConfig().openaiModel || 'gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 120,
+          max_tokens: 160,
           temperature: 0.4,
           response_format: { type: 'json_object' },
         }),
@@ -400,8 +489,14 @@ Se realmente não houver nada útil a dizer agora (ou o material for só fragmen
       if (!response.ok) return;
       const data = await response.json();
       const parsed = JSON.parse(data.choices[0]?.message?.content || 'null');
-      if (parsed && parsed.tip) {
-        addTip({ t: Date.now(), tip: parsed.tip, priority: parsed.priority || 'normal', icon: parsed.icon || '🎯' });
+      if (parsed) {
+        if (parsed.stage && STAGE_LABELS[parsed.stage]) latestStage = parsed.stage;
+        if (typeof parsed.temperature === 'number') latestTemp = Math.max(0, Math.min(100, Math.round(parsed.temperature)));
+        renderStage();
+        if (parsed.tip) {
+          addTip({ t: Date.now(), tip: parsed.tip, priority: parsed.priority || 'normal', icon: parsed.icon || '🎯' });
+        }
+        updatePip();
       }
       lastCoachedCount = sinceCount;
     } catch (e) {
@@ -414,7 +509,7 @@ Se realmente não houver nada útil a dizer agora (ou o material for só fragmen
   function addTip(tip) {
     tips.unshift(tip);
     renderTips();
-    // Notificação do navegador quando o vendedor está na aba da reunião
+    updatePip();
     try {
       if (document.hidden && Notification.permission === 'granted') {
         new Notification('🎧 Live Coach', { body: `${tip.icon} ${tip.tip}`, tag: 'livecoach-tip' });
@@ -425,10 +520,7 @@ Se realmente não houver nada útil a dizer agora (ou o material for só fragmen
   async function persist() {
     if (!callId) return;
     try {
-      await API.updateLiveCall(callId, {
-        transcript: transcript,
-        tips: tips,
-      });
+      await API.updateLiveCall(callId, { transcript, tips });
     } catch (e) { console.warn('[LiveCoach] persist fail', e?.message); }
   }
 
@@ -450,12 +542,15 @@ Se realmente não houver nada útil a dizer agora (ou o material for só fragmen
             <button class="lc-btn lc-btn-danger" onclick="LiveCoach.stop()">⏹ Encerrar e Analisar</button>
           </div>
         </div>
-        <div class="lc-grid">
+        <div class="lc-grid" id="lc-main-grid">
           <div>
             <div class="lc-card" style="padding:0.9rem">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;gap:8px;flex-wrap:wrap">
                 <div class="lc-card-title" style="margin:0">🖥 Sua reunião (ao vivo)</div>
-                <button class="lc-btn lc-btn-ghost" style="padding:0.35rem 0.9rem;font-size:0.75rem" onclick="LiveCoach.pip()">🗔 Janela flutuante</button>
+                <div style="display:flex;gap:6px">
+                  <button class="lc-btn lc-btn-ghost" style="padding:0.35rem 0.9rem;font-size:0.75rem" onclick="LiveCoach.toggleTheater()" id="lc-theater-btn">⛶ Ampliar</button>
+                  <button class="lc-btn lc-btn-ghost" style="padding:0.35rem 0.9rem;font-size:0.75rem" onclick="LiveCoach.pip()">🗔 Janela flutuante</button>
+                </div>
               </div>
               <video id="lc-video" class="lc-video" autoplay muted playsinline></video>
             </div>
@@ -468,9 +563,13 @@ Se realmente não houver nada útil a dizer agora (ou o material for só fragmen
           </div>
           <div>
             <div class="lc-card">
+              <div class="lc-card-title">🌡 Termômetro da negociação</div>
+              <div id="lc-stage"><div class="lc-muted">Analisando os primeiros minutos...</div></div>
+            </div>
+            <div class="lc-card">
               <div class="lc-card-title">🎛 Controles e áudio</div>
               ${surfaceWarning}
-              <button class="lc-btn lc-btn-ghost lc-btn-block" id="lc-mic-btn" onclick="LiveCoach.toggleMicPause()">🎤 Pausar minha captura (ao se mutar na reunião)</button>
+              <button class="lc-btn lc-btn-ghost lc-btn-block" id="lc-mic-btn" onclick="LiveCoach.toggleMicPause()">🎤 Microfone do coach LIGADO — clique para desligar</button>
               <div style="margin-top:0.75rem" id="lc-health"></div>
             </div>
             <div class="lc-card">
@@ -482,7 +581,6 @@ Se realmente não houver nada útil a dizer agora (ou o material for só fragmen
       </div>`;
     overlay.style.display = 'block';
 
-    // Vídeo da reunião dentro do SalesPulse (mudo para não duplicar o áudio)
     const video = document.getElementById('lc-video');
     if (video && displayStream) {
       video.srcObject = displayStream;
@@ -492,12 +590,43 @@ Se realmente não houver nada útil a dizer agora (ou o material for só fragmen
     clockTimer = setInterval(() => {
       const el = document.getElementById('lc-clock');
       if (el && startedAt) el.textContent = fmtClock(Date.now() - startedAt);
+      const pel = pipWin?.document?.getElementById('pip-clock');
+      if (pel && startedAt) pel.textContent = fmtClock(Date.now() - startedAt);
     }, 1000);
 
     renderHealth();
+    renderStage();
   }
 
-  // Indicadores de saúde: o coach está ouvindo cada canal?
+  function toggleTheater() {
+    theaterMode = !theaterMode;
+    const grid = document.getElementById('lc-main-grid');
+    const btn = document.getElementById('lc-theater-btn');
+    if (grid) grid.classList.toggle('lc-theater', theaterMode);
+    if (btn) btn.textContent = theaterMode ? '🗗 Reduzir' : '⛶ Ampliar';
+  }
+
+  function renderStage() {
+    const el = document.getElementById('lc-stage');
+    if (!el) return;
+    if (latestStage === null && latestTemp === null) {
+      el.innerHTML = '<div class="lc-muted">Analisando os primeiros minutos...</div>';
+      return;
+    }
+    const st = STAGE_LABELS[latestStage] || null;
+    el.innerHTML = `
+      ${st ? `<div class="lc-stage-row"><span class="lc-chip" style="border-color:rgba(108,99,255,0.4);background:rgba(108,99,255,0.12)">${st.icon} Estágio: <strong>&nbsp;${st.label}</strong></span></div>` : ''}
+      ${latestTemp !== null ? `
+        <div class="lc-stage-row">
+          <span style="font-size:0.82rem">🌡</span>
+          <div class="lc-temp-track"><div class="lc-temp-fill" style="width:${latestTemp}%;background:${tempColor(latestTemp)}"></div></div>
+          <strong style="color:${tempColor(latestTemp)};font-size:0.9rem">${latestTemp}%</strong>
+        </div>
+        <div class="lc-muted">${latestTemp >= 70 ? 'Negociação quente — considere avançar para o fechamento.' : latestTemp >= 40 ? 'Interesse moderado — continue explorando a dor e gerando valor.' : 'Cliente frio — foque em rapport e descoberta antes de vender.'}</div>
+      ` : ''}
+    `;
+  }
+
   function renderHealth() {
     const el = document.getElementById('lc-health');
     if (!el || !running) return;
@@ -509,7 +638,7 @@ Se realmente não houver nada útil a dizer agora (ou o material for só fragmen
 
     const sellerDot = micPaused ? 'off' : (sellerAgo !== null && sellerAgo < 10 ? 'on' : 'off');
     const sellerLabel = micPaused
-      ? '🎤 Você: captura pausada'
+      ? '🎤 Você: microfone desligado'
       : (sellerAgo === null ? '🎤 Você: aguardando sua primeira fala' : (sellerAgo < 10 ? '🎤 Você: ouvindo' : `🎤 Você: sem áudio há ${sellerAgo}s`));
 
     const clientWarn = clientAgo === null ? (now - startedAt > 30000) : clientAgo > 45;
@@ -523,18 +652,114 @@ Se realmente não houver nada útil a dizer agora (ou o material for só fragmen
       <div class="lc-health-row"><span class="lc-health-dot ${clientDot}"></span>${clientLabel}</div>
       ${clientWarn ? `<div class="lc-warn-banner" style="margin:6px 0 0">⚠️ Não estou ouvindo o cliente. Verifique: (1) você marcou "Compartilhar áudio da guia"? (2) se compartilhou a tela inteira, o som do PC precisa estar ligado; (3) o cliente está falando/desmutado?</div>` : ''}
     `;
+    updatePipHealth(sellerDot, clientDot);
   }
 
-  // Picture-in-picture: vídeo da reunião numa janela flutuante sempre visível
+  // ══════════════════════════════════════
+  // JANELA FLUTUANTE (Document Picture-in-Picture)
+  // Vídeo + dica ao vivo + termômetro + mute do coach, por cima de tudo.
+  // ══════════════════════════════════════
   async function pip() {
+    // Fecha se já aberta
+    if (pipWin) { try { pipWin.close(); } catch (e) {} pipWin = null; return; }
+
+    if ('documentPictureInPicture' in window) {
+      try {
+        pipWin = await documentPictureInPicture.requestWindow({ width: 400, height: 430 });
+        const d = pipWin.document;
+        d.body.style.cssText = 'margin:0;background:#07070f;color:#e8e8f0;font-family:system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;height:100vh;overflow:hidden;';
+        d.body.innerHTML = `
+          <style>
+            .p-row { display:flex; align-items:center; gap:8px; padding:8px 12px; }
+            .p-dot { width:8px; height:8px; border-radius:50%; }
+            .p-btn { border:none; border-radius:100px; padding:10px 14px; font-weight:700; font-size:0.85rem; cursor:pointer; width:calc(100% - 24px); margin:6px 12px 10px; }
+            .p-temp-track { flex:1; height:7px; border-radius:100px; background:rgba(255,255,255,0.1); overflow:hidden; }
+            .p-temp-fill { height:100%; border-radius:100px; transition:width 0.6s ease, background 0.6s ease; }
+          </style>
+          <video id="pip-video" autoplay muted playsinline style="width:100%;max-height:170px;background:#000;object-fit:contain;flex-shrink:0"></video>
+          <div class="p-row" style="justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.06)">
+            <span style="font-size:0.72rem;font-weight:700;color:#5a5a7a">🎧 LIVE COACH</span>
+            <span id="pip-clock" style="font-size:0.75rem;color:#9494b8">00:00</span>
+          </div>
+          <div class="p-row" id="pip-stage-row" style="display:none">
+            <span id="pip-stage" style="font-size:0.75rem;font-weight:700;color:#a8a2ff"></span>
+            <div class="p-temp-track"><div class="p-temp-fill" id="pip-temp-fill" style="width:0%"></div></div>
+            <strong id="pip-temp" style="font-size:0.8rem"></strong>
+          </div>
+          <div id="pip-tip" style="flex:1;padding:10px 14px;font-size:0.92rem;line-height:1.5;overflow-y:auto;color:#e8e8f0">Aguardando a primeira dica do coach...</div>
+          <div class="p-row" style="gap:12px;padding-top:0">
+            <span class="p-dot" id="pip-dot-seller" style="background:#5a5a7a"></span><span style="font-size:0.7rem;color:#9494b8">Você</span>
+            <span class="p-dot" id="pip-dot-client" style="background:#5a5a7a"></span><span style="font-size:0.7rem;color:#9494b8">Cliente</span>
+          </div>
+          <button class="p-btn" id="pip-mic"></button>
+        `;
+        const v = d.getElementById('pip-video');
+        if (displayStream) { v.srcObject = displayStream; v.play().catch(() => {}); }
+        d.getElementById('pip-mic').addEventListener('click', () => toggleMicPause());
+        pipWin.addEventListener('pagehide', () => { pipWin = null; });
+        updatePip();
+      } catch (e) {
+        console.warn('[LiveCoach] doc-pip fail', e);
+        pipWin = null;
+        fallbackVideoPip();
+      }
+    } else {
+      fallbackVideoPip();
+    }
+  }
+
+  async function fallbackVideoPip() {
     const v = document.getElementById('lc-video');
     if (!v) return;
     try {
       if (document.pictureInPictureElement) await document.exitPictureInPicture();
       else await v.requestPictureInPicture();
     } catch (e) {
-      try { UI.toast('Picture-in-picture não disponível neste navegador.', 'warning'); } catch (e2) {}
+      try { UI.toast('Janela flutuante não disponível neste navegador.', 'warning'); } catch (e2) {}
     }
+  }
+
+  function updatePip() {
+    if (!pipWin) return;
+    const d = pipWin.document;
+    try {
+      const micBtn = d.getElementById('pip-mic');
+      if (micBtn) {
+        micBtn.textContent = micPaused ? '🔇 Mic do coach DESLIGADO — ligar' : '🎤 Mic do coach LIGADO — desligar';
+        micBtn.style.background = micPaused ? 'rgba(255,165,2,0.2)' : 'rgba(255,255,255,0.08)';
+        micBtn.style.color = micPaused ? '#ffa502' : '#c9c9dd';
+        micBtn.style.border = micPaused ? '1px solid rgba(255,165,2,0.5)' : '1px solid rgba(255,255,255,0.15)';
+      }
+      const tipEl = d.getElementById('pip-tip');
+      if (tipEl && tips.length > 0) {
+        const t = tips[0];
+        const color = t.priority === 'urgent' ? '#ff8a94' : t.priority === 'good' ? '#7bedA6' : '#c3beff';
+        tipEl.innerHTML = `<span style="color:${color};font-weight:700">${t.icon || '🎯'} </span><span style="color:${color}">${esc(t.tip)}</span>`;
+      }
+      const stRow = d.getElementById('pip-stage-row');
+      if (stRow && (latestStage !== null || latestTemp !== null)) {
+        stRow.style.display = 'flex';
+        const st = STAGE_LABELS[latestStage];
+        const stEl = d.getElementById('pip-stage');
+        if (stEl && st) stEl.textContent = `${st.icon} ${st.label}`;
+        const tf = d.getElementById('pip-temp-fill');
+        const tv = d.getElementById('pip-temp');
+        if (tf && latestTemp !== null) { tf.style.width = latestTemp + '%'; tf.style.background = tempColor(latestTemp); }
+        if (tv && latestTemp !== null) { tv.textContent = latestTemp + '%'; tv.style.color = tempColor(latestTemp); }
+      }
+    } catch (e) {}
+  }
+
+  function updatePipHealth(sellerDot, clientDot) {
+    if (!pipWin) return;
+    try {
+      const d = pipWin.document;
+      const map = { on: '#2ed573', off: '#5a5a7a', warn: '#ff4757' };
+      const ds = d.getElementById('pip-dot-seller');
+      const dc = d.getElementById('pip-dot-client');
+      if (ds) ds.style.background = map[sellerDot] || '#5a5a7a';
+      if (dc) dc.style.background = map[clientDot] || '#5a5a7a';
+    } catch (e) {}
   }
 
   function renderTranscript() {
@@ -566,6 +791,7 @@ Se realmente não houver nada útil a dizer agora (ou o material for só fragmen
   function cleanupMedia() {
     activeRecorders.forEach(r => { try { if (r.state !== 'inactive') r.stop(); } catch (e) {} });
     activeRecorders = [];
+    if (pipWin) { try { pipWin.close(); } catch (e) {} pipWin = null; }
     try { if (document.pictureInPictureElement) document.exitPictureInPicture(); } catch (e) {}
     [micStream, displayStream].forEach(s => { if (s) s.getTracks().forEach(t => t.stop()); });
     micStream = null; displayStream = null;
@@ -696,7 +922,7 @@ Retorne EXCLUSIVAMENTE JSON:
       </div>`;
   }
 
-  return { open, close, start, stop, toggleMicPause, pip };
+  return { open, close, start, stop, toggleMicPause, pip, toggleTheater };
 })();
 
 window.LiveCoach = LiveCoach;
