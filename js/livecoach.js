@@ -21,18 +21,16 @@ const LiveCoach = (() => {
 
   const COACH_INTERVAL_MS = 20000; // frequência das dicas
   const SAVE_INTERVAL_MS = 12000;  // frequência de persistência no backend
-  const RMS_THRESHOLD = 0.025;     // energia mínima para considerar "voz"
-  const MIN_VOICED_TICKS = 2;      // ticks de 250ms com voz exigidos por trecho (~0,5s de fala)
-  const SILENCE_END_MS = 900;      // pausa que encerra uma fala (corte por VAD)
-  const MAX_UTTERANCE_MS = 25000;  // corte de segurança para falas muito longas
-  const IDLE_RECYCLE_MS = 15000;   // recicla gravação sem voz para limitar o tamanho do blob
+  const PREROLL_MS = 400;          // áudio guardado ANTES da voz começar (não corta a 1ª sílaba)
+  const MIN_SPEECH_MS = 350;       // fala mínima para valer uma transcrição
+  const MAX_UTTERANCE_MS = 30000;  // corte de segurança para monólogos sem pausa
+  const MERGE_WINDOW_MS = 8000;    // falas do mesmo locutor separadas por menos que isso viram um balão só
 
   let running = false;
   let callId = null;
   let startedAt = null;
   let micStream = null;
   let displayStream = null;
-  let activeRecorders = [];
   let audioCtx = null;
   let channels = { seller: null, client: null };  // motor de gravação por canal (VAD)
   let lastSoundAt = { seller: 0, client: 0 };
@@ -251,7 +249,6 @@ const LiveCoach = (() => {
       micPaused = false;
       theaterMode = false;
       transcribeModelOk = true;
-      activeRecorders = [];
 
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const tabAudioStream = new MediaStream(displayStream.getAudioTracks());
@@ -278,88 +275,160 @@ const LiveCoach = (() => {
   }
 
   // ══════════════════════════════════════
-  // MOTOR DE CANAL — gravação com corte por voz (VAD)
-  // A gravação só é cortada quando o locutor faz uma PAUSA (~0,9s),
-  // então cada trecho transcrito é uma frase/fala inteira — sem cortes
-  // no meio da frase (que aconteciam com blocos de tempo fixo).
+  // MOTOR DE CANAL — buffer PCM contínuo com VAD adaptativo
+  //
+  // O áudio bruto é capturado sem interrupção (nada de parar/reiniciar
+  // gravador — zero perda entre falas). Um detector de voz decide onde
+  // cada fala começa e termina:
+  //  - PRÉ-CAPTURA: 400ms anteriores ao início da voz entram no trecho
+  //    (a primeira sílaba nunca é cortada).
+  //  - PAUSA ADAPTATIVA: pausas breves de respiração/pensamento NÃO
+  //    encerram a fala — a tolerância varia com o contexto: início de
+  //    fala tolera até 1,8s de pausa; meio de fala 1,4s; monólogos
+  //    longos 1,0s.
+  //  - LIMIAR ADAPTATIVO: o piso de ruído de cada canal é medido
+  //    continuamente e o limiar de voz se ajusta sozinho ao ambiente.
+  // Cada fala completa vira um WAV 16kHz e vai para transcrição.
   // ══════════════════════════════════════
+  function adaptiveHang(speechDur) {
+    if (speechDur < 2500) return 1800;   // começo de fala: tolera pausa maior
+    if (speechDur > 15000) return 1000;  // monólogo longo: corta mais rápido
+    return 1400;                          // meio de fala: tolerância padrão
+  }
+
   function startChannel(stream, speaker) {
     const ch = {
-      recorder: null,
-      chunks: [],
-      recStartedAt: 0,
-      voicedTicks: 0,
+      state: 'idle',            // 'idle' | 'speaking'
+      preroll: [],              // buffers de pré-captura (áudio antes da voz)
+      prerollLen: 0,
+      utter: [],                // buffers da fala em andamento
+      utterLen: 0,
+      speechStartAt: 0,
       lastVoiceAt: 0,
-      analyser: null,
+      voicedMs: 0,
+      noiseFloor: 0.008,        // piso de ruído (EMA) → limiar adaptativo
+      nodes: [],
     };
     channels[speaker] = ch;
 
-    try {
-      const src = audioCtx.createMediaStreamSource(stream);
-      ch.analyser = audioCtx.createAnalyser();
-      ch.analyser.fftSize = 512;
-      src.connect(ch.analyser);
-    } catch (e) { console.warn('[LiveCoach] analyser fail', speaker, e); }
+    const srcNode = audioCtx.createMediaStreamSource(stream);
+    const proc = audioCtx.createScriptProcessor(4096, 1, 1);
+    const sink = audioCtx.createGain();
+    sink.gain.value = 0; // mantém o grafo ativo sem ecoar áudio
+    srcNode.connect(proc);
+    proc.connect(sink);
+    sink.connect(audioCtx.destination);
+    ch.nodes = [srcNode, proc, sink];
 
-    const beginRecording = () => {
+    const sampleRate = audioCtx.sampleRate;
+    const prerollMaxSamples = Math.round(PREROLL_MS / 1000 * sampleRate);
+
+    proc.onaudioprocess = (e) => {
       if (!running) return;
-      try { ch.recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' }); }
-      catch (e) { ch.recorder = new MediaRecorder(stream); }
-      ch.chunks = [];
-      ch.voicedTicks = 0;
-      ch.lastVoiceAt = 0;
-      ch.recStartedAt = Date.now();
-      ch.recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) ch.chunks.push(e.data); };
-      ch.recorder.onstop = () => {
-        const idx = activeRecorders.indexOf(ch.recorder);
-        if (idx >= 0) activeRecorders.splice(idx, 1);
-        const voiced = ch.voicedTicks;
-        const blob = new Blob(ch.chunks, { type: 'audio/webm' });
-        if (voiced >= MIN_VOICED_TICKS && blob.size > 3000 && !(speaker === 'seller' && micPaused)) {
-          transcribeChunk(blob, speaker);
-        }
-        if (running) beginRecording();
-      };
-      activeRecorders.push(ch.recorder);
-      ch.recorder.start();
-    };
+      const input = e.inputBuffer.getChannelData(0);
+      const frameMs = input.length / sampleRate * 1000;
 
-    const cut = () => {
-      if (ch.recorder && ch.recorder.state === 'recording') {
-        try { ch.recorder.stop(); } catch (e) {}
-      }
-    };
+      // Energia do frame
+      let sum = 0;
+      for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+      const rms = Math.sqrt(sum / input.length);
 
-    const data = new Uint8Array(512);
-    const tick = () => {
-      if (!running) return;
-      if (ch.analyser) {
-        ch.analyser.getByteTimeDomainData(data);
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
-        if (Math.sqrt(sum / data.length) > RMS_THRESHOLD) {
-          ch.voicedTicks++;
-          ch.lastVoiceAt = Date.now();
-          lastSoundAt[speaker] = ch.lastVoiceAt;
-        }
-      }
+      // Limiar adaptativo: piso de ruído aprendido + margem
+      const threshold = Math.max(0.015, Math.min(0.06, ch.noiseFloor * 3 + 0.007));
+      const voiced = rms > threshold;
+      if (!voiced) ch.noiseFloor = ch.noiseFloor * 0.97 + rms * 0.03;
+
       const now = Date.now();
-      const dur = now - ch.recStartedAt;
-      if (ch.voicedTicks >= MIN_VOICED_TICKS && ch.lastVoiceAt && (now - ch.lastVoiceAt) > SILENCE_END_MS) {
-        // Fim de fala: houve voz e agora há pausa → corta e transcreve a frase inteira
-        cut();
-      } else if (dur > MAX_UTTERANCE_MS) {
-        // Monólogo muito longo sem pausa: corte de segurança
-        cut();
-      } else if (ch.voicedTicks === 0 && dur > IDLE_RECYCLE_MS) {
-        // Silêncio prolongado: recicla a gravação (o onstop descarta por falta de voz)
-        cut();
+      if (voiced) {
+        ch.lastVoiceAt = now;
+        lastSoundAt[speaker] = now;
       }
-      setTimeout(tick, 250);
-    };
 
-    beginRecording();
-    tick();
+      if (ch.state === 'idle') {
+        // Mantém a janela de pré-captura girando
+        ch.preroll.push(new Float32Array(input));
+        ch.prerollLen += input.length;
+        while (ch.prerollLen > prerollMaxSamples && ch.preroll.length > 1) {
+          ch.prerollLen -= ch.preroll[0].length;
+          ch.preroll.shift();
+        }
+        if (voiced) {
+          // Voz começou: inicia a fala já incluindo a pré-captura
+          ch.state = 'speaking';
+          ch.speechStartAt = now;
+          ch.voicedMs = frameMs;
+          ch.utter = ch.preroll.slice();
+          ch.utterLen = ch.prerollLen;
+          ch.utter.push(new Float32Array(input));
+          ch.utterLen += input.length;
+        }
+      } else {
+        // speaking: acumula tudo (inclusive as pausas internas)
+        ch.utter.push(new Float32Array(input));
+        ch.utterLen += input.length;
+        if (voiced) ch.voicedMs += frameMs;
+
+        const silence = now - ch.lastVoiceAt;
+        const dur = now - ch.speechStartAt;
+        if (silence > adaptiveHang(dur) || dur > MAX_UTTERANCE_MS) {
+          closeUtterance(ch, speaker, sampleRate);
+        }
+      }
+    };
+  }
+
+  function closeUtterance(ch, speaker, sampleRate) {
+    const buffers = ch.utter;
+    const totalLen = ch.utterLen;
+    const voicedMs = ch.voicedMs;
+    ch.state = 'idle';
+    ch.utter = [];
+    ch.utterLen = 0;
+    ch.voicedMs = 0;
+    ch.preroll = [];
+    ch.prerollLen = 0;
+
+    if (voicedMs < MIN_SPEECH_MS) return;                      // só ruído/blip
+    if (speaker === 'seller' && micPaused) return;             // mic do coach desligado
+
+    try {
+      const pcm16k = downsampleTo16k(buffers, totalLen, sampleRate);
+      const wav = encodeWav(pcm16k, 16000);
+      transcribeChunk(wav, speaker);
+    } catch (e) { console.warn('[LiveCoach] encode fail', e); }
+  }
+
+  function downsampleTo16k(buffers, totalLen, fromRate) {
+    const input = new Float32Array(totalLen);
+    let o = 0;
+    for (const b of buffers) { input.set(b, o); o += b.length; }
+    const ratio = fromRate / 16000;
+    const outLen = Math.floor(totalLen / ratio);
+    const out = new Float32Array(outLen);
+    for (let i = 0; i < outLen; i++) {
+      const start = Math.floor(i * ratio);
+      const end = Math.min(Math.floor((i + 1) * ratio), totalLen);
+      let sum = 0, c = 0;
+      for (let j = start; j < end; j++) { sum += input[j]; c++; }
+      out[i] = c ? sum / c : 0;
+    }
+    return out;
+  }
+
+  function encodeWav(samples, rate) {
+    const buf = new ArrayBuffer(44 + samples.length * 2);
+    const v = new DataView(buf);
+    const ws = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+    ws(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true); ws(8, 'WAVE'); ws(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    ws(36, 'data'); v.setUint32(40, samples.length * 2, true);
+    let off = 44;
+    for (let i = 0; i < samples.length; i++, off += 2) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    return new Blob([buf], { type: 'audio/wav' });
   }
 
   // ══════════════════════════════════════
@@ -395,7 +464,7 @@ const LiveCoach = (() => {
     if (transcribeModelOk) {
       try {
         const fd = new FormData();
-        fd.append('file', blob, 'chunk.webm');
+        fd.append('file', blob, 'chunk.wav');
         fd.append('model', 'gpt-4o-mini-transcribe');
         fd.append('language', 'pt');
         fd.append('temperature', '0');
@@ -415,7 +484,7 @@ const LiveCoach = (() => {
 
     // Fallback: whisper-1 com verbose_json → filtro estatístico de alucinação
     const fd = new FormData();
-    fd.append('file', blob, 'chunk.webm');
+    fd.append('file', blob, 'chunk.wav');
     fd.append('model', 'whisper-1');
     fd.append('language', 'pt');
     fd.append('temperature', '0');
@@ -451,7 +520,15 @@ const LiveCoach = (() => {
         if (a === b || (b.length > 10 && a.includes(b)) || (a.length > 10 && b.includes(a) && (Date.now() - lastSame.t) < 30000)) return;
       }
 
-      transcript.push({ t: Date.now(), speaker, text });
+      // Continuidade: se a última fala do transcript é do MESMO locutor e
+      // recente, une no mesmo balão — pausas breves não quebram a frase.
+      const last = transcript[transcript.length - 1];
+      if (last && last.speaker === speaker && (Date.now() - last.t) < MERGE_WINDOW_MS) {
+        last.text = (last.text + ' ' + text).replace(/\s+/g, ' ').trim();
+        last.t = Date.now();
+      } else {
+        transcript.push({ t: Date.now(), speaker, text });
+      }
       renderTranscript();
     } catch (e) {
       console.warn('[LiveCoach] transcribe fail', e?.message);
@@ -464,7 +541,13 @@ const LiveCoach = (() => {
   function toggleMicPause() {
     micPaused = !micPaused;
     if (micStream) micStream.getAudioTracks().forEach(t => { t.enabled = !micPaused; });
-    if (micPaused && channels.seller) channels.seller.voicedTicks = 0;
+    if (micPaused && channels.seller) {
+      // Descarta qualquer fala em andamento do vendedor
+      channels.seller.state = 'idle';
+      channels.seller.utter = [];
+      channels.seller.utterLen = 0;
+      channels.seller.voicedMs = 0;
+    }
     const btn = document.getElementById('lc-mic-btn');
     if (btn) {
       btn.className = micPaused ? 'lc-btn lc-btn-warning lc-btn-block' : 'lc-btn lc-btn-ghost lc-btn-block';
@@ -822,8 +905,10 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
   // STOP — análise final + aprendizado de perfil
   // ══════════════════════════════════════
   function cleanupMedia() {
-    activeRecorders.forEach(r => { try { if (r.state !== 'inactive') r.stop(); } catch (e) {} });
-    activeRecorders = [];
+    Object.values(channels).forEach(ch => {
+      if (ch && ch.nodes) ch.nodes.forEach(n => { try { n.disconnect(); } catch (e) {} });
+    });
+    channels = { seller: null, client: null };
     if (pipWin) { try { pipWin.close(); } catch (e) {} pipWin = null; }
     try { if (document.pictureInPictureElement) document.exitPictureInPicture(); } catch (e) {}
     [micStream, displayStream].forEach(s => { if (s) s.getTracks().forEach(t => t.stop()); });
