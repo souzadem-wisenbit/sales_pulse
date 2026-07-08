@@ -19,7 +19,8 @@
 
 const LiveCoach = (() => {
 
-  const COACH_INTERVAL_MS = 20000; // frequência das dicas
+  const COACH_MIN_GAP_MS = 6000;   // intervalo mínimo entre dicas (anti-spam)
+  const COACH_FALLBACK_MS = 10000; // verificação periódica (rede de segurança)
   const SAVE_INTERVAL_MS = 12000;  // frequência de persistência no backend
   const PREROLL_MS = 400;          // áudio guardado ANTES da voz começar (não corta a 1ª sílaba)
   const MIN_SPEECH_MS = 350;       // fala mínima para valer uma transcrição
@@ -47,6 +48,8 @@ const LiveCoach = (() => {
   let clockTimer = null;
   let healthTimer = null;
   let lastCoachedCount = 0;
+  let lastCoachAt = 0;
+  let tipSoundOn = true;           // aviso sonoro sutil ao chegar dica
   let profile = null;
   let coachBusy = false;
   let transcribeModelOk = true;    // gpt-4o-mini-transcribe disponível?
@@ -116,11 +119,27 @@ const LiveCoach = (() => {
         .lc-seg-who { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
         .lc-seg.seller .lc-seg-who { color: #a8a2ff; }
         .lc-seg.client .lc-seg-who { color: #00d4aa; }
-        .lc-tip { padding: 10px 12px; border-radius: 10px; font-size: 0.85rem; line-height: 1.4; margin-bottom: 8px; border: 1px solid; animation: lcTipIn 0.35s ease; }
-        @keyframes lcTipIn { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
-        .lc-tip.urgent { background: rgba(255,71,87,0.10); border-color: rgba(255,71,87,0.35); }
-        .lc-tip.normal { background: rgba(108,99,255,0.10); border-color: rgba(108,99,255,0.30); }
-        .lc-tip.good   { background: rgba(46,213,115,0.10); border-color: rgba(46,213,115,0.30); }
+        /* ── Dica atual: cartão-herói impossível de ignorar ── */
+        .lc-hero { position: relative; border-radius: 14px; padding: 14px 16px; border: 1.5px solid; margin-bottom: 12px; animation: lcHeroIn 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.15); }
+        @keyframes lcHeroIn { from { transform: translateY(-12px) scale(0.96); opacity: 0; } to { transform: none; opacity: 1; } }
+        .lc-hero.urgent { background: linear-gradient(140deg, rgba(255,71,87,0.18), rgba(255,71,87,0.04)); border-color: rgba(255,71,87,0.65); box-shadow: 0 0 28px rgba(255,71,87,0.30), inset 0 0 18px rgba(255,71,87,0.06); }
+        .lc-hero.normal { background: linear-gradient(140deg, rgba(108,99,255,0.18), rgba(108,99,255,0.04)); border-color: rgba(108,99,255,0.65); box-shadow: 0 0 28px rgba(108,99,255,0.26), inset 0 0 18px rgba(108,99,255,0.06); }
+        .lc-hero.good { background: linear-gradient(140deg, rgba(46,213,115,0.16), rgba(46,213,115,0.04)); border-color: rgba(46,213,115,0.6); box-shadow: 0 0 28px rgba(46,213,115,0.24), inset 0 0 18px rgba(46,213,115,0.05); }
+        .lc-hero.stale { box-shadow: none; opacity: 0.72; }
+        .lc-hero-label { display: inline-flex; align-items: center; gap: 5px; font-size: 0.62rem; font-weight: 800; letter-spacing: 1.6px; padding: 3px 10px; border-radius: 100px; margin-bottom: 9px; }
+        .lc-hero.urgent .lc-hero-label { background: #ff4757; color: #fff; animation: lcPulse 0.9s infinite; }
+        .lc-hero.normal .lc-hero-label { background: #6c63ff; color: #fff; }
+        .lc-hero.good .lc-hero-label { background: #2ed573; color: #04140b; }
+        .lc-hero-body { display: flex; gap: 12px; align-items: flex-start; }
+        .lc-hero-icon { font-size: 1.7rem; line-height: 1; flex-shrink: 0; filter: drop-shadow(0 0 8px rgba(255,255,255,0.15)); }
+        .lc-hero-text { font-size: 1.04rem; font-weight: 700; line-height: 1.45; color: #f2f2fa; }
+        .lc-hero-fresh { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: #9494b8; }
+        .lc-fresh-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #2ed573; margin-right: 5px; animation: lcPulse 1.2s infinite; }
+        /* ── Histórico: dicas antigas encolhem e apagam ── */
+        .lc-hist { display: flex; gap: 8px; align-items: baseline; padding: 7px 10px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; font-size: 0.78rem; color: #9a9ab5; line-height: 1.35; }
+        .lc-hist .lc-hist-time { margin-left: auto; font-size: 0.65rem; color: #5a5a7a; white-space: nowrap; flex-shrink: 0; }
+        .lc-hist-divider { font-size: 0.62rem; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: #44445e; margin: 10px 0 6px; }
+        .lc-sound-btn { background: none; border: none; cursor: pointer; font-size: 0.95rem; padding: 0 4px; }
         .lc-btn { display: inline-flex; align-items: center; gap: 8px; padding: 0.7rem 1.4rem; border-radius: 100px; border: none; cursor: pointer; font-weight: 700; font-size: 0.9rem; }
         .lc-btn-primary { background: linear-gradient(135deg, #6c63ff, #00d4aa); color: #fff; }
         .lc-btn-danger { background: rgba(255,71,87,0.15); border: 1px solid rgba(255,71,87,0.4); color: #ff4757; }
@@ -258,7 +277,8 @@ const LiveCoach = (() => {
       const vTrack = displayStream.getVideoTracks()[0];
       if (vTrack) vTrack.addEventListener('ended', () => { if (running) stop(); });
 
-      coachTimer = setInterval(coachTick, COACH_INTERVAL_MS);
+      lastCoachAt = 0;
+      coachTimer = setInterval(() => requestCoach('periodic'), COACH_FALLBACK_MS);
       saveTimer = setInterval(persist, SAVE_INTERVAL_MS);
       healthTimer = setInterval(renderHealth, 3000);
 
@@ -530,6 +550,10 @@ const LiveCoach = (() => {
         transcript.push({ t: Date.now(), speaker, text });
       }
       renderTranscript();
+
+      // Cliente acabou de falar → o vendedor precisa de ajuda AGORA:
+      // dispara o coach imediatamente (com cooldown anti-spam).
+      if (speaker === 'client') requestCoach('client');
     } catch (e) {
       console.warn('[LiveCoach] transcribe fail', e?.message);
     }
@@ -559,11 +583,16 @@ const LiveCoach = (() => {
 
   // ══════════════════════════════════════
   // COACH — dicas + estágio + temperatura
+  // Disparo reativo: assim que o CLIENTE termina uma fala, o coach é
+  // acionado na hora (cooldown de 6s anti-spam). Um timer de 10s cobre
+  // os demais casos (ex: avaliar a última fala do vendedor).
   // ══════════════════════════════════════
-  async function coachTick() {
+  async function requestCoach(trigger) {
     if (!running || coachBusy) return;
-    if (transcript.length - lastCoachedCount < 2) return;
+    if (transcript.length - lastCoachedCount < 1) return;
+    if (Date.now() - lastCoachAt < COACH_MIN_GAP_MS) return;
     coachBusy = true;
+    lastCoachAt = Date.now();
     const sinceCount = transcript.length;
 
     try {
@@ -575,8 +604,12 @@ const LiveCoach = (() => {
         ? `\nPERFIL CONHECIDO DO VENDEDOR (aprendido em chamadas anteriores — personalize a dica com base nele):\n${JSON.stringify(profile)}\n`
         : '';
 
+      const triggerBlock = trigger === 'client'
+        ? '\n⚡ O CLIENTE ACABOU DE FALAR e o vendedor vai responder AGORA. Priorize: o que ele deve dizer/fazer nesta resposta imediata (tratar a objeção, aproveitar o sinal de compra, fazer a pergunta certa).\n'
+        : '';
+
       const prompt = `Você é um coach de vendas de elite (formado em SPIN Selling, Challenger e Sandler) acompanhando em silêncio uma chamada de vendas REAL em videochamada. O VENDEDOR é seu aluno; o CLIENTE é o outro lado (pode haver mais de uma pessoa no canal do cliente).
-${profileBlock}
+${profileBlock}${triggerBlock}
 TRECHO MAIS RECENTE DA CONVERSA (transcrição automática — pode conter pequenos erros; ignore fragmentos sem sentido):
 ${recent}
 
@@ -626,11 +659,39 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
     tips.unshift(tip);
     renderTips();
     updatePip();
+    playChime(tip.priority);
     try {
       if (document.hidden && Notification.permission === 'granted') {
         new Notification('🎧 Live Coach', { body: `${tip.icon} ${tip.tip}`, tag: 'livecoach-tip' });
       }
     } catch (e) {}
+  }
+
+  // Aviso sonoro sutil (2 notas, ~160ms) — desligável no painel
+  function playChime(priority) {
+    if (!tipSoundOn || !audioCtx) return;
+    try {
+      const t0 = audioCtx.currentTime;
+      const freqs = priority === 'urgent' ? [740, 988] : priority === 'good' ? [660, 880] : [587, 784];
+      freqs.forEach((f, i) => {
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = f;
+        g.gain.setValueAtTime(0, t0 + i * 0.09);
+        g.gain.linearRampToValueAtTime(0.055, t0 + i * 0.09 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.09 + 0.11);
+        osc.connect(g); g.connect(audioCtx.destination);
+        osc.start(t0 + i * 0.09);
+        osc.stop(t0 + i * 0.09 + 0.12);
+      });
+    } catch (e) {}
+  }
+
+  function toggleSound() {
+    tipSoundOn = !tipSoundOn;
+    const btn = document.getElementById('lc-sound-btn');
+    if (btn) { btn.textContent = tipSoundOn ? '🔔' : '🔕'; btn.title = tipSoundOn ? 'Som de dica ligado' : 'Som de dica desligado'; }
   }
 
   async function persist() {
@@ -689,7 +750,10 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
               <div style="margin-top:0.75rem" id="lc-health"></div>
             </div>
             <div class="lc-card">
-              <div class="lc-card-title">💡 Dicas do Coach</div>
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div class="lc-card-title" style="margin-bottom:0.9rem">💡 Coach em tempo real</div>
+                <button class="lc-sound-btn" id="lc-sound-btn" onclick="LiveCoach.toggleSound()" title="Som de dica ligado">🔔</button>
+              </div>
               <div id="lc-tips"><div class="lc-muted">As dicas aparecem aqui conforme a conversa evolui.</div></div>
             </div>
           </div>
@@ -708,6 +772,7 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
       if (el && startedAt) el.textContent = fmtClock(Date.now() - startedAt);
       const pel = pipWin?.document?.getElementById('pip-clock');
       if (pel && startedAt) pel.textContent = fmtClock(Date.now() - startedAt);
+      tickTipFreshness();
     }, 1000);
 
     renderHealth();
@@ -802,7 +867,11 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
             <div class="p-temp-track"><div class="p-temp-fill" id="pip-temp-fill" style="width:0%"></div></div>
             <strong id="pip-temp" style="font-size:0.8rem"></strong>
           </div>
-          <div id="pip-tip" style="flex:1;padding:10px 14px;font-size:0.92rem;line-height:1.5;overflow-y:auto;color:#e8e8f0">Aguardando a primeira dica do coach...</div>
+          <div id="pip-tip-box" style="flex:1;margin:8px 12px;padding:10px 12px;border-radius:12px;border:1.5px solid rgba(255,255,255,0.1);overflow-y:auto;transition:all 0.3s">
+            <div id="pip-tip-label" style="display:none;font-size:0.58rem;font-weight:800;letter-spacing:1.4px;padding:2px 8px;border-radius:100px;margin-bottom:6px;width:fit-content"></div>
+            <div id="pip-tip" style="font-size:0.95rem;font-weight:600;line-height:1.45;color:#e8e8f0">Aguardando a primeira dica do coach...</div>
+            <div id="pip-fresh" style="font-size:0.65rem;color:#9494b8;margin-top:6px"></div>
+          </div>
           <div class="p-row" style="gap:12px;padding-top:0">
             <span class="p-dot" id="pip-dot-seller" style="background:#5a5a7a"></span><span style="font-size:0.7rem;color:#9494b8">Você</span>
             <span class="p-dot" id="pip-dot-client" style="background:#5a5a7a"></span><span style="font-size:0.7rem;color:#9494b8">Cliente</span>
@@ -849,8 +918,18 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
       const tipEl = d.getElementById('pip-tip');
       if (tipEl && tips.length > 0) {
         const t = tips[0];
-        const color = t.priority === 'urgent' ? '#ff8a94' : t.priority === 'good' ? '#7bedA6' : '#c3beff';
-        tipEl.innerHTML = `<span style="color:${color};font-weight:700">${t.icon || '🎯'} </span><span style="color:${color}">${esc(t.tip)}</span>`;
+        const theme = t.priority === 'urgent'
+          ? { fg: '#ffb3ba', border: 'rgba(255,71,87,0.7)', bg: 'rgba(255,71,87,0.12)', label: '⚡ RESPONDA AGORA', labelBg: '#ff4757', labelFg: '#fff' }
+          : t.priority === 'good'
+            ? { fg: '#a9f5c8', border: 'rgba(46,213,115,0.6)', bg: 'rgba(46,213,115,0.10)', label: '✅ MANDOU BEM', labelBg: '#2ed573', labelFg: '#04140b' }
+            : { fg: '#d5d1ff', border: 'rgba(108,99,255,0.7)', bg: 'rgba(108,99,255,0.12)', label: '🎯 DICA', labelBg: '#6c63ff', labelFg: '#fff' };
+        tipEl.innerHTML = `<span style="font-size:1.2rem;margin-right:6px">${t.icon || '🎯'}</span><span style="color:${theme.fg}">${esc(t.tip)}</span>`;
+        const box = d.getElementById('pip-tip-box');
+        if (box) { box.style.borderColor = theme.border; box.style.background = theme.bg; box.style.boxShadow = `0 0 16px ${theme.bg}`; }
+        const lbl = d.getElementById('pip-tip-label');
+        if (lbl) { lbl.style.display = 'block'; lbl.textContent = theme.label; lbl.style.background = theme.labelBg; lbl.style.color = theme.labelFg; }
+        const pf = d.getElementById('pip-fresh');
+        if (pf) pf.textContent = freshLabel(t.t);
       }
       const stRow = d.getElementById('pip-stage-row');
       if (stRow && (latestStage !== null || latestTemp !== null)) {
@@ -890,15 +969,60 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
     el.scrollTop = el.scrollHeight;
   }
 
+  const HERO_LABELS = { urgent: '⚡ RESPONDA AGORA', normal: '🎯 DICA', good: '✅ MANDOU BEM' };
+
+  function freshLabel(t) {
+    const s = Math.round((Date.now() - t) / 1000);
+    if (s < 5) return 'agora';
+    if (s < 60) return `há ${s}s`;
+    return `há ${Math.floor(s / 60)}min`;
+  }
+
   function renderTips() {
     const el = document.getElementById('lc-tips');
     if (!el) return;
-    el.innerHTML = tips.map(t => `
-      <div class="lc-tip ${t.priority}">
-        <strong>${t.icon || '🎯'}</strong> ${esc(t.tip)}
-        <div class="lc-muted" style="margin-top:3px">${new Date(t.t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+    if (tips.length === 0) {
+      el.innerHTML = '<div class="lc-muted">As dicas aparecem aqui conforme a conversa evolui.</div>';
+      return;
+    }
+    const hero = tips[0];
+    const history = tips.slice(1, 7);
+    el.innerHTML = `
+      <div class="lc-hero ${hero.priority}${(Date.now() - hero.t) > 45000 ? ' stale' : ''}" id="lc-hero">
+        <span class="lc-hero-label">${HERO_LABELS[hero.priority] || HERO_LABELS.normal}</span>
+        <div class="lc-hero-body">
+          <span class="lc-hero-icon">${hero.icon || '🎯'}</span>
+          <div class="lc-hero-text">${esc(hero.tip)}</div>
+        </div>
+        <div class="lc-hero-fresh">
+          <span><span class="lc-fresh-dot"></span><span id="lc-tip-fresh">${freshLabel(hero.t)}</span></span>
+          <span>${new Date(hero.t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+        </div>
       </div>
-    `).join('') || '<div class="lc-muted">As dicas aparecem aqui conforme a conversa evolui.</div>';
+      ${history.length ? `<div class="lc-hist-divider">Anteriores</div>` : ''}
+      ${history.map((t, i) => `
+        <div class="lc-hist" style="opacity:${Math.max(0.35, 0.85 - i * 0.12)}">
+          <span>${t.icon || '🎯'}</span>
+          <span>${esc(t.tip)}</span>
+          <span class="lc-hist-time">${new Date(t.t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+      `).join('')}
+    `;
+  }
+
+  // Atualiza o frescor da dica-herói (chamado pelo relógio de 1s)
+  function tickTipFreshness() {
+    if (tips.length === 0) return;
+    const freshEl = document.getElementById('lc-tip-fresh');
+    if (freshEl) freshEl.textContent = freshLabel(tips[0].t);
+    const heroEl = document.getElementById('lc-hero');
+    if (heroEl && (Date.now() - tips[0].t) > 45000) heroEl.classList.add('stale');
+    if (pipWin) {
+      try {
+        const pf = pipWin.document.getElementById('pip-fresh');
+        if (pf) pf.textContent = freshLabel(tips[0].t);
+      } catch (e) {}
+    }
   }
 
   // ══════════════════════════════════════
@@ -1040,7 +1164,7 @@ Retorne EXCLUSIVAMENTE JSON:
       </div>`;
   }
 
-  return { open, close, start, stop, toggleMicPause, pip, toggleTheater };
+  return { open, close, start, stop, toggleMicPause, pip, toggleTheater, toggleSound };
 })();
 
 window.LiveCoach = LiveCoach;
