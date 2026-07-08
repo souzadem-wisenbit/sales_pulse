@@ -19,11 +19,13 @@
 
 const LiveCoach = (() => {
 
-  const CHUNK_MS = 10000;          // duração de cada bloco de áudio transcrito
   const COACH_INTERVAL_MS = 20000; // frequência das dicas
   const SAVE_INTERVAL_MS = 12000;  // frequência de persistência no backend
   const RMS_THRESHOLD = 0.025;     // energia mínima para considerar "voz"
-  const MIN_VOICED_TICKS = 3;      // ticks de 250ms com voz exigidos por bloco (~0,75s de fala)
+  const MIN_VOICED_TICKS = 2;      // ticks de 250ms com voz exigidos por trecho (~0,5s de fala)
+  const SILENCE_END_MS = 900;      // pausa que encerra uma fala (corte por VAD)
+  const MAX_UTTERANCE_MS = 25000;  // corte de segurança para falas muito longas
+  const IDLE_RECYCLE_MS = 15000;   // recicla gravação sem voz para limitar o tamanho do blob
 
   let running = false;
   let callId = null;
@@ -32,7 +34,7 @@ const LiveCoach = (() => {
   let displayStream = null;
   let activeRecorders = [];
   let audioCtx = null;
-  let voicedInChunk = { seller: 0, client: 0 };
+  let channels = { seller: null, client: null };  // motor de gravação por canal (VAD)
   let lastSoundAt = { seller: 0, client: 0 };
   let micPaused = false;
   let sharedSurface = null;        // 'browser' (aba) | 'monitor' | 'window'
@@ -244,7 +246,7 @@ const LiveCoach = (() => {
       latestStage = null;
       latestTemp = null;
       lastCoachedCount = 0;
-      voicedInChunk = { seller: 0, client: 0 };
+      channels = { seller: null, client: null };
       lastSoundAt = { seller: 0, client: 0 };
       micPaused = false;
       theaterMode = false;
@@ -253,10 +255,8 @@ const LiveCoach = (() => {
 
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const tabAudioStream = new MediaStream(displayStream.getAudioTracks());
-      monitorSound(micStream, 'seller');
-      monitorSound(tabAudioStream, 'client');
-      startChunkLoop(micStream, 'seller');
-      startChunkLoop(tabAudioStream, 'client');
+      startChannel(micStream, 'seller');
+      startChannel(tabAudioStream, 'client');
 
       const vTrack = displayStream.getVideoTracks()[0];
       if (vTrack) vTrack.addEventListener('ended', () => { if (running) stop(); });
@@ -277,56 +277,89 @@ const LiveCoach = (() => {
     }
   }
 
-  // Conta "ticks" (250ms) com energia de voz — descarta blocos de
-  // silêncio/ruído leve (que fazem o modelo alucinar frases).
-  function monitorSound(stream, speaker) {
+  // ══════════════════════════════════════
+  // MOTOR DE CANAL — gravação com corte por voz (VAD)
+  // A gravação só é cortada quando o locutor faz uma PAUSA (~0,9s),
+  // então cada trecho transcrito é uma frase/fala inteira — sem cortes
+  // no meio da frase (que aconteciam com blocos de tempo fixo).
+  // ══════════════════════════════════════
+  function startChannel(stream, speaker) {
+    const ch = {
+      recorder: null,
+      chunks: [],
+      recStartedAt: 0,
+      voicedTicks: 0,
+      lastVoiceAt: 0,
+      analyser: null,
+    };
+    channels[speaker] = ch;
+
     try {
       const src = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 512;
-      src.connect(analyser);
-      const data = new Uint8Array(analyser.fftSize);
-      const tick = () => {
-        if (!running) return;
-        analyser.getByteTimeDomainData(data);
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
-        if (Math.sqrt(sum / data.length) > RMS_THRESHOLD) {
-          voicedInChunk[speaker]++;
-          lastSoundAt[speaker] = Date.now();
-        }
-        setTimeout(tick, 250);
-      };
-      tick();
-    } catch (e) { console.warn('[LiveCoach] monitor fail', speaker, e); }
-  }
+      ch.analyser = audioCtx.createAnalyser();
+      ch.analyser.fftSize = 512;
+      src.connect(ch.analyser);
+    } catch (e) { console.warn('[LiveCoach] analyser fail', speaker, e); }
 
-  // Grava em blocos independentes (recorder reiniciado a cada bloco para que
-  // cada blob seja um arquivo webm completo e válido para transcrição).
-  function startChunkLoop(stream, speaker) {
-    const recordChunk = () => {
+    const beginRecording = () => {
       if (!running) return;
-      let recorder;
-      try { recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' }); }
-      catch (e) { recorder = new MediaRecorder(stream); }
-      const chunks = [];
-      recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
-      recorder.onstop = () => {
-        const idx = activeRecorders.indexOf(recorder);
+      try { ch.recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' }); }
+      catch (e) { ch.recorder = new MediaRecorder(stream); }
+      ch.chunks = [];
+      ch.voicedTicks = 0;
+      ch.lastVoiceAt = 0;
+      ch.recStartedAt = Date.now();
+      ch.recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) ch.chunks.push(e.data); };
+      ch.recorder.onstop = () => {
+        const idx = activeRecorders.indexOf(ch.recorder);
         if (idx >= 0) activeRecorders.splice(idx, 1);
-        const voiced = voicedInChunk[speaker];
-        voicedInChunk[speaker] = 0;
-        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const voiced = ch.voicedTicks;
+        const blob = new Blob(ch.chunks, { type: 'audio/webm' });
         if (voiced >= MIN_VOICED_TICKS && blob.size > 3000 && !(speaker === 'seller' && micPaused)) {
           transcribeChunk(blob, speaker);
         }
-        if (running) recordChunk();
+        if (running) beginRecording();
       };
-      activeRecorders.push(recorder);
-      recorder.start();
-      setTimeout(() => { if (recorder.state !== 'inactive') recorder.stop(); }, CHUNK_MS);
+      activeRecorders.push(ch.recorder);
+      ch.recorder.start();
     };
-    recordChunk();
+
+    const cut = () => {
+      if (ch.recorder && ch.recorder.state === 'recording') {
+        try { ch.recorder.stop(); } catch (e) {}
+      }
+    };
+
+    const data = new Uint8Array(512);
+    const tick = () => {
+      if (!running) return;
+      if (ch.analyser) {
+        ch.analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
+        if (Math.sqrt(sum / data.length) > RMS_THRESHOLD) {
+          ch.voicedTicks++;
+          ch.lastVoiceAt = Date.now();
+          lastSoundAt[speaker] = ch.lastVoiceAt;
+        }
+      }
+      const now = Date.now();
+      const dur = now - ch.recStartedAt;
+      if (ch.voicedTicks >= MIN_VOICED_TICKS && ch.lastVoiceAt && (now - ch.lastVoiceAt) > SILENCE_END_MS) {
+        // Fim de fala: houve voz e agora há pausa → corta e transcreve a frase inteira
+        cut();
+      } else if (dur > MAX_UTTERANCE_MS) {
+        // Monólogo muito longo sem pausa: corte de segurança
+        cut();
+      } else if (ch.voicedTicks === 0 && dur > IDLE_RECYCLE_MS) {
+        // Silêncio prolongado: recicla a gravação (o onstop descarta por falta de voz)
+        cut();
+      }
+      setTimeout(tick, 250);
+    };
+
+    beginRecording();
+    tick();
   }
 
   // ══════════════════════════════════════
@@ -431,7 +464,7 @@ const LiveCoach = (() => {
   function toggleMicPause() {
     micPaused = !micPaused;
     if (micStream) micStream.getAudioTracks().forEach(t => { t.enabled = !micPaused; });
-    if (micPaused) voicedInChunk.seller = 0;
+    if (micPaused && channels.seller) channels.seller.voicedTicks = 0;
     const btn = document.getElementById('lc-mic-btn');
     if (btn) {
       btn.className = micPaused ? 'lc-btn lc-btn-warning lc-btn-block' : 'lc-btn lc-btn-ghost lc-btn-block';
