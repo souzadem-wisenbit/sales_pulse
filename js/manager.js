@@ -2195,11 +2195,13 @@ const Manager = (() => {
       return {
         ...s,
         callsAnalyzed: p?.calls_analyzed || 0,
+        trainingsAnalyzed: p?.trainings_analyzed || 0,
+        interactions: (p?.calls_analyzed || 0) + (p?.trainings_analyzed || 0),
         strengthsCount: (prof.strengths || []).length,
         weaknessesCount: (prof.weaknesses || []).length,
         hasProfile: !!prof.styleSummary,
       };
-    }).sort((a, b) => (b.callsAnalyzed - a.callsAnalyzed) || (b.strengthsCount - a.strengthsCount));
+    }).sort((a, b) => (b.interactions - a.interactions) || (b.strengthsCount - a.strengthsCount));
 
     // Busca por nome/e-mail
     const q = lcSearch.trim().toLowerCase();
@@ -2236,7 +2238,7 @@ const Manager = (() => {
             <div class="config-section-icon teal">${s.avatar_emoji || '🧑'}</div>
             <div style="flex:1;min-width:200px">
               <div class="config-section-title">${escHtml(s.name)}</div>
-              <div class="config-section-desc">${escHtml(s.email)} · ${nCalls} chamada${nCalls !== 1 ? 's' : ''} analisada${nCalls !== 1 ? 's' : ''}${p?.updated_at ? ` · perfil atualizado ${new Date(p.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}` : ''}</div>
+              <div class="config-section-desc">${escHtml(s.email)} · 🎧 ${nCalls} chamada${nCalls !== 1 ? 's' : ''} · 🎓 ${p?.trainings_analyzed || 0} treino${(p?.trainings_analyzed || 0) !== 1 ? 's' : ''}${p?.updated_at ? ` · perfil atualizado ${new Date(p.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}` : ''}</div>
             </div>
             <div style="min-width:280px">
               <label class="form-label" style="font-size:0.68rem">🎓 Coach deste vendedor</label>
@@ -2257,6 +2259,7 @@ const Manager = (() => {
               ${(prof.strengths || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--success)">💪 Pontos fortes</div>${prof.strengths.map(x => `<div class="fs-xs text-secondary" style="padding:3px 0;line-height:1.5">✓ ${escHtml(x)}</div>`).join('')}</div>` : ''}
               ${(prof.weaknesses || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--warning)">🎯 Pontos a melhorar</div>${prof.weaknesses.map(x => `<div class="fs-xs text-secondary" style="padding:3px 0;line-height:1.5">△ ${escHtml(x)}</div>`).join('')}</div>` : ''}
               ${(prof.languageVices || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--danger)">🗣 Vícios de linguagem</div>${prof.languageVices.map(x => `<div class="fs-xs text-secondary" style="padding:3px 0;line-height:1.5">• ${escHtml(x)}</div>`).join('')}</div>` : ''}
+              ${(prof.evolutionNotes || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:#00d4aa">📈 Evolução</div>${prof.evolutionNotes.map(x => `<div class="fs-xs text-secondary" style="padding:3px 0;line-height:1.5">↗ ${escHtml(x)}</div>`).join('')}</div>` : ''}
               ${(prof.recommendations || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--accent-light)">💡 Recomendações do coach</div>${prof.recommendations.map(x => `<div class="fs-xs text-secondary" style="padding:3px 0;line-height:1.5">→ ${escHtml(x)}</div>`).join('')}</div>` : ''}
             </div>
           ` : `<p class="text-muted fs-sm" style="margin:0">Ainda sem chamadas analisadas — o relatório completo (estilo, trejeitos, pontos fortes e fracos) aparece após a primeira chamada real com o Live Coach.</p>`}
@@ -2318,11 +2321,11 @@ const Manager = (() => {
             </div>
           </div>
           ${filtered.slice(0, 5).map((s, i) => `
-            <div style="display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3);border-radius:var(--r-md);margin-bottom:6px;background:${i === 0 && s.callsAnalyzed > 0 ? 'linear-gradient(135deg, rgba(255,200,50,0.08), var(--bg-elevated))' : 'var(--bg-elevated)'};border:1px solid ${i === 0 && s.callsAnalyzed > 0 ? 'rgba(255,200,50,0.3)' : 'var(--border-subtle)'}">
-              <div style="font-size:1.3rem;width:36px;text-align:center">${s.callsAnalyzed > 0 && medals[i] ? medals[i] : `<span style="font-size:0.85rem;color:var(--text-muted)">${i + 1}º</span>`}</div>
+            <div style="display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3);border-radius:var(--r-md);margin-bottom:6px;background:${i === 0 && s.interactions > 0 ? 'linear-gradient(135deg, rgba(255,200,50,0.08), var(--bg-elevated))' : 'var(--bg-elevated)'};border:1px solid ${i === 0 && s.interactions > 0 ? 'rgba(255,200,50,0.3)' : 'var(--border-subtle)'}">
+              <div style="font-size:1.3rem;width:36px;text-align:center">${s.interactions > 0 && medals[i] ? medals[i] : `<span style="font-size:0.85rem;color:var(--text-muted)">${i + 1}º</span>`}</div>
               <div style="flex:1">
                 <div class="fw-600" style="font-size:0.9rem">${escHtml(s.name)}${s.coach_id === 'junior' ? ' <span style="color:#ffd76a;font-size:0.7rem">⭐ Júnior Smarzaro</span>' : ''}</div>
-                <div class="fs-xs text-muted">${s.callsAnalyzed} chamada${s.callsAnalyzed !== 1 ? 's' : ''} analisada${s.callsAnalyzed !== 1 ? 's' : ''}</div>
+                <div class="fs-xs text-muted">🎧 ${s.callsAnalyzed} chamada${s.callsAnalyzed !== 1 ? 's' : ''} real${s.callsAnalyzed !== 1 ? 'is' : ''} · 🎓 ${s.trainingsAnalyzed} treino${s.trainingsAnalyzed !== 1 ? 's' : ''}</div>
               </div>
               ${s.hasProfile ? `
                 <span class="badge badge-success" style="font-size:0.65rem">💪 ${s.strengthsCount}</span>

@@ -284,7 +284,7 @@ const API = (() => {
   async function getLiveCall(id) { return await get(`/api/live_calls/${id}`); }
   async function listLiveProfiles() { return await get('/api/live_profiles'); }
   async function getLiveProfile(userId) { return await get(`/api/live_profiles/${userId}`); }
-  async function saveLiveProfile(userId, profile) { return await put(`/api/live_profiles/${userId}`, { profile }); }
+  async function saveLiveProfile(userId, profile, event) { return await put(`/api/live_profiles/${userId}`, { profile, event: event || null }); }
   async function assignCoach(userId, coachId) { return await put(`/api/live_profiles/${userId}/coach`, { coachId }); }
 
   // AI Settings (OpenAI key shared across all devices/users via backend)

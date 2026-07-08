@@ -92,7 +92,7 @@ async function listProfiles(req, res) {
   try {
     // Gestor vê apenas perfis dos SEUS vendedores; superadmin vê todos
     const base = `
-      SELECT p.user_id, p.profile, p.calls_analyzed, p.updated_at, u.name, u.email, u.coach_id
+      SELECT p.user_id, p.profile, p.calls_analyzed, p.trainings_analyzed, p.updated_at, u.name, u.email, u.coach_id
       FROM seller_profiles p JOIN users u ON u.id = p.user_id`;
     const { rows } = req.user.role === 'superadmin'
       ? await db.query(`${base} ORDER BY p.updated_at DESC`)
@@ -173,14 +173,25 @@ async function upsertProfile(req, res) {
       return res.status(403).json({ error: 'Acesso negado' });
     }
     const profile = req.body.profile || {};
+    // Evento de aprendizado: chamada real ('live') ou treinamento ('training').
+    // Alimenta o histórico cumulativo (limitado aos 40 mais recentes).
+    const event = req.body.event || null;
+    const source = event?.source === 'training' ? 'training' : 'live';
+
+    const { rows } = await db.query('SELECT history, calls_analyzed, trainings_analyzed FROM seller_profiles WHERE user_id = $1', [userId]);
+    const existing = rows[0] || { history: [], calls_analyzed: 0, trainings_analyzed: 0 };
+    const history = Array.isArray(existing.history) ? existing.history : [];
+    if (event) history.push({ ...event, t: event.t || new Date().toISOString() });
+    const cappedHistory = history.slice(-40);
+    const calls = (existing.calls_analyzed || 0) + (event && source === 'live' ? 1 : 0);
+    const trainings = (existing.trainings_analyzed || 0) + (event && source === 'training' ? 1 : 0);
+
     await db.query(`
-      INSERT INTO seller_profiles (user_id, profile, calls_analyzed, updated_at)
-      VALUES ($1, $2, 1, CURRENT_TIMESTAMP)
+      INSERT INTO seller_profiles (user_id, profile, history, calls_analyzed, trainings_analyzed, updated_at)
+      VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
       ON CONFLICT (user_id) DO UPDATE
-        SET profile = $2,
-            calls_analyzed = seller_profiles.calls_analyzed + 1,
-            updated_at = CURRENT_TIMESTAMP
-    `, [userId, JSON.stringify(profile)]);
+        SET profile = $2, history = $3, calls_analyzed = $4, trainings_analyzed = $5, updated_at = CURRENT_TIMESTAMP
+    `, [userId, JSON.stringify(profile), JSON.stringify(cappedHistory), calls, trainings]);
     res.json({ success: true });
   } catch (err) {
     console.error('[LIVE_PROFILES UPSERT]', err);

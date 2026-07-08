@@ -51,6 +51,7 @@ const LiveCoach = (() => {
   let lastCoachAt = 0;
   let tipSoundOn = true;           // aviso sonoro sutil ao chegar dica
   let profile = null;
+  let profileHistory = [];         // histórico cumulativo de aprendizados (live + treinos)
   let coach = null;                // coach atribuído pelo gestor: {id, name, special?, profile?}
   let brief = null;                // briefing pré-chamada: produtos, ramo do cliente, diretrizes
   let availableProducts = [];
@@ -382,8 +383,9 @@ ${brief.directives ? `DIRETRIZES DO VENDEDOR (siga-as RIGOROSAMENTE em todas as 
       try {
         const p = await API.getLiveProfile(user.id);
         profile = (p && p.profile && Object.keys(p.profile).length > 0) ? p.profile : null;
+        profileHistory = Array.isArray(p?.history) ? p.history : [];
         coach = p?.coach || null;
-      } catch (e) { profile = null; coach = null; }
+      } catch (e) { profile = null; profileHistory = []; coach = null; }
 
       running = true;
       startedAt = Date.now();
@@ -1220,50 +1222,32 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
           .join('\n')
           .slice(0, 24000);
 
-        const prompt = `Você é um coach de vendas sênior. Abaixo está a transcrição de uma chamada de vendas REAL do vendedor "${user?.name || 'Vendedor'}". O canal CLIENTE pode conter mais de uma pessoa do lado remoto — se o contexto permitir distinguir, mencione no resumo. A transcrição pode conter pequenos fragmentos com erro — ignore-os.
+        const eventContext = `CHAMADA REAL por videochamada. O canal CLIENTE pode conter mais de uma pessoa do lado remoto. A transcrição pode conter pequenos fragmentos com erro — ignore-os.
 ${briefBlock()}
 Avalie também se o vendedor cumpriu as diretrizes e explorou bem os produtos do briefing.
 
-PERFIL ACUMULADO ATUAL DO VENDEDOR (vazio se primeira análise):
-${JSON.stringify(profile || {})}
-
 TRANSCRIÇÃO DA CHAMADA:
-${fullText}
+${fullText}`;
 
-Tarefas:
-1. Resuma a chamada e o desempenho do vendedor.
-2. CONSOLIDE o perfil do vendedor: combine o perfil acumulado com o que esta chamada revela (evolução, padrões recorrentes, vícios que persistem, melhorias).
-
-Retorne EXCLUSIVAMENTE JSON:
-{
-  "callSummary": "resumo da chamada e do desempenho em 2-4 frases",
-  "profile": {
-    "styleSummary": "estilo de comunicação e venda do vendedor, consolidado, 2-3 frases",
-    "strengths": ["até 5 pontos fortes"],
-    "weaknesses": ["até 5 pontos a melhorar"],
-    "languageVices": ["vícios de linguagem detectados"],
-    "recommendations": ["até 5 dicas personalizadas para as próximas chamadas"]
-  }
-}`;
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getApiKey()}` },
-          body: JSON.stringify({
-            model: Storage.getConfig().openaiModel || 'gpt-4o-mini',
-            messages: [{ role: 'user', content: prompt }],
-            max_tokens: 900,
-            temperature: 0.3,
-            response_format: { type: 'json_object' },
-          }),
+        const parsed = await consolidateLearning({
+          userName: user?.name || 'Vendedor',
+          sourceLabel: 'CHAMADA REAL',
+          eventContext,
+          currentProfile: profile,
+          history: profileHistory,
         });
-        if (response.ok) {
-          const data = await response.json();
-          const parsed = JSON.parse(data.choices[0]?.message?.content || '{}');
-          summary = parsed.callSummary || null;
+        if (parsed) {
+          summary = parsed.eventSummary || null;
           if (parsed.profile) {
             profile = parsed.profile;
-            try { await API.saveLiveProfile(user.id, profile); } catch (e) { console.warn('profile save fail', e); }
+            const event = {
+              source: 'live',
+              summary,
+              strengths: parsed.eventStrengths || [],
+              weaknesses: parsed.eventWeaknesses || [],
+              industry: brief?.industryLabel || null,
+            };
+            try { await API.saveLiveProfile(user.id, profile, event); } catch (e) { console.warn('profile save fail', e); }
           }
         }
       }
@@ -1280,6 +1264,124 @@ Retorne EXCLUSIVAMENTE JSON:
     } catch (e) { console.warn('[LiveCoach] final persist fail', e?.message); }
 
     renderEnded(summary);
+  }
+
+  // ══════════════════════════════════════
+  // DOSSIÊ EVOLUTIVO — consolidação cumulativa de aprendizados
+  // Cada evento (chamada real OU treinamento) alimenta um histórico; a
+  // consolidação recebe o perfil atual + o histórico e PRESERVA os pontos
+  // bons recorrentes em vez de reescrever do zero a cada chamada.
+  // ══════════════════════════════════════
+  function historyDigest(history) {
+    if (!history || history.length === 0) return '(sem eventos anteriores — primeira análise)';
+    return history.slice(-12).map(e => {
+      const d = e.t ? new Date(e.t).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '?';
+      const src = e.source === 'training' ? 'treino' : 'chamada real';
+      const st = (e.strengths || []).slice(0, 3).join('; ');
+      const wk = (e.weaknesses || []).slice(0, 3).join('; ');
+      return `[${d} · ${src}${e.score !== undefined && e.score !== null ? ` · nota ${e.score}` : ''}]${st ? ` fortes: ${st}` : ''}${wk ? ` | melhorar: ${wk}` : ''}`;
+    }).join('\n');
+  }
+
+  async function consolidateLearning({ userName, sourceLabel, eventContext, currentProfile, history }) {
+    const prompt = `Você é um coach de vendas sênior responsável pelo DOSSIÊ EVOLUTIVO do vendedor "${userName}". O dossiê é CUMULATIVO: construído ao longo de muitas interações (chamadas reais e sessões de treinamento), capturando e preservando os pontos bons de cada uma.
+
+PERFIL CONSOLIDADO ATUAL (vazio se primeira análise):
+${JSON.stringify(currentProfile || {})}
+
+HISTÓRICO DE APRENDIZADOS ANTERIORES (mais antigo → mais recente):
+${historyDigest(history)}
+
+NOVO EVENTO — ${sourceLabel}:
+${eventContext}
+
+REGRAS DE CONSOLIDAÇÃO CUMULATIVA (obrigatórias):
+1. PRESERVE os pontos fortes recorrentes já comprovados em eventos anteriores — NÃO os descarte só porque não apareceram neste evento.
+2. Registre EVOLUÇÃO explicitamente (ex: "reduziu vícios de linguagem nas últimas 3 interações", "escuta ativa evoluiu de fraca para consistente").
+3. Padrão que se repete em 3+ eventos = traço consolidado do vendedor; mencione a recorrência.
+4. O que apareceu só neste evento entra como observação recente, sem apagar o acumulado.
+5. Fraqueza superada em eventos recentes deve migrar para evolução, não permanecer como fraqueza.
+
+Retorne EXCLUSIVAMENTE JSON:
+{
+  "eventSummary": "resumo deste evento e do desempenho em 2-4 frases",
+  "eventStrengths": ["até 4 pontos bons ESPECÍFICOS deste evento"],
+  "eventWeaknesses": ["até 4 pontos a melhorar ESPECÍFICOS deste evento"],
+  "profile": {
+    "styleSummary": "estilo consolidado do vendedor em 2-4 frases, mencionando a trajetória ao longo das interações",
+    "strengths": ["até 7 pontos fortes consolidados, priorizando os recorrentes"],
+    "weaknesses": ["até 6 pontos a melhorar consolidados"],
+    "languageVices": ["vícios de linguagem persistentes"],
+    "recommendations": ["até 6 dicas personalizadas para as próximas interações"],
+    "evolutionNotes": ["até 4 marcos de evolução observados ao longo do tempo"]
+  }
+}`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getApiKey()}` },
+      body: JSON.stringify({
+        model: Storage.getConfig().openaiModel || 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 1100,
+        temperature: 0.3,
+        response_format: { type: 'json_object' },
+      }),
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    try { return JSON.parse(data.choices[0]?.message?.content || 'null'); } catch (e) { return null; }
+  }
+
+  // Chamado pelo módulo de TREINAMENTO (seller.js) ao fim de cada sessão
+  // simulada — o dossiê aprende também com os treinos, não só com as
+  // chamadas reais. Fire-and-forget: nunca bloqueia a tela de resultados.
+  async function learnFromTraining(trainMessages, evalData, trainConfig, totalScore) {
+    try {
+      const user = Auth.getUser();
+      if (!user || !getApiKey()) return;
+
+      let currentProfile = null;
+      let history = [];
+      try {
+        const p = await API.getLiveProfile(user.id);
+        currentProfile = (p?.profile && Object.keys(p.profile).length > 0) ? p.profile : null;
+        history = Array.isArray(p?.history) ? p.history : [];
+      } catch (e) {}
+
+      const convo = (trainMessages || [])
+        .map(m => `${m.role === 'user' ? 'VENDEDOR' : 'CLIENTE'}: ${m.content}`)
+        .join('\n')
+        .slice(0, 9000);
+
+      const eventContext = `SESSÃO DE TREINAMENTO (simulação com cliente de IA "${trainConfig?.customerName || ''}", dificuldade ${trainConfig?.difficulty || 'média'}${totalScore !== undefined && totalScore !== null ? `, nota final ${totalScore}` : ''}).
+AVALIAÇÃO AUTOMÁTICA DA SESSÃO:
+${JSON.stringify({ scores: evalData?.scores, positives: evalData?.positives, improvements: evalData?.improvements, summary: evalData?.summary, languageVices: evalData?.languageVices })}
+
+TRECHO DA CONVERSA:
+${convo}`;
+
+      const parsed = await consolidateLearning({
+        userName: user.name || 'Vendedor',
+        sourceLabel: 'SESSÃO DE TREINAMENTO',
+        eventContext,
+        currentProfile,
+        history,
+      });
+      if (parsed?.profile) {
+        const event = {
+          source: 'training',
+          summary: parsed.eventSummary || evalData?.summary || null,
+          strengths: parsed.eventStrengths || [],
+          weaknesses: parsed.eventWeaknesses || [],
+          score: (totalScore !== undefined && totalScore !== null) ? totalScore : null,
+        };
+        await API.saveLiveProfile(user.id, parsed.profile, event);
+        console.log('[LiveCoach] dossiê atualizado com o treinamento');
+      }
+    } catch (e) {
+      console.warn('[LiveCoach] learnFromTraining fail', e?.message);
+    }
   }
 
   function renderEnded(summary) {
@@ -1310,6 +1412,7 @@ Retorne EXCLUSIVAMENTE JSON:
               <p style="font-size:0.85rem;line-height:1.5;margin-bottom:0.75rem">${esc(p.styleSummary)}</p>
               ${(p.strengths || []).length ? `<div class="lc-card-title">💪 Pontos fortes</div>${p.strengths.map(s => `<span class="lc-chip">${esc(s)}</span>`).join('')}` : ''}
               ${(p.weaknesses || []).length ? `<div class="lc-card-title" style="margin-top:0.75rem">🎯 A melhorar</div>${p.weaknesses.map(s => `<span class="lc-chip">${esc(s)}</span>`).join('')}` : ''}
+              ${(p.evolutionNotes || []).length ? `<div class="lc-card-title" style="margin-top:0.75rem">📈 Sua evolução</div><ul style="font-size:0.83rem;line-height:1.6;padding-left:1.1rem;color:#7dead0">${p.evolutionNotes.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
               ${(p.recommendations || []).length ? `<div class="lc-card-title" style="margin-top:0.75rem">💡 Recomendações</div><ul style="font-size:0.83rem;line-height:1.6;padding-left:1.1rem">${p.recommendations.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
             ` : '<p class="lc-muted">Perfil ainda não gerado (chamada muito curta).</p>'}
           </div>
@@ -1317,7 +1420,7 @@ Retorne EXCLUSIVAMENTE JSON:
       </div>`;
   }
 
-  return { open, close, start, stop, toggleMicPause, pip, toggleTheater, toggleSound, toggleProduct };
+  return { open, close, start, stop, toggleMicPause, pip, toggleTheater, toggleSound, toggleProduct, learnFromTraining };
 })();
 
 window.LiveCoach = LiveCoach;

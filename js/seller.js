@@ -1778,7 +1778,7 @@ const Seller = (() => {
     try { savedSession = Storage.saveSession(session); } catch (e) { savedSession = { id: 'tmp_' + Date.now() }; }
 
     // Helper: build result safely and navigate to results
-    function buildAndShow(evalData) {
+    function buildAndShow(evalData, learn = false) {
       try {
         const result = ScoringEngine.buildResult(evalData, config, session);
         result.hiddenAgendaRevealed = agendaRevealed || evalData?.hiddenAgendaRevealed || false;
@@ -1788,6 +1788,16 @@ const Seller = (() => {
           result.newBadges = BadgeSystem.checkNewBadges(result, allSessions, config, userId);
         } catch (e) { result.newBadges = []; }
         try { Storage.updateSession(savedSession.id, { result }); } catch (e) {}
+
+        // Dossiê evolutivo: o treinamento também alimenta o aprendizado
+        // cumulativo do vendedor (fire-and-forget, nunca trava a tela).
+        if (learn) {
+          try {
+            if (window.LiveCoach && LiveCoach.learnFromTraining) {
+              LiveCoach.learnFromTraining(session.messages, evalData, config, result?.total);
+            }
+          } catch (e) { /* silencioso */ }
+        }
         
         // Mark the scheduled session as done if we had one
         if (config._pendingSessionId && typeof Storage.updateScheduledSession === 'function') {
@@ -1812,7 +1822,7 @@ const Seller = (() => {
         messages.map(m => ({ role: m.role, content: m.content })),
         config
       );
-      buildAndShow(aiEval);
+      buildAndShow(aiEval, true);
 
     } catch (err) {
       // API failed — use local scoring and still show results
