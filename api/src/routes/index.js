@@ -76,5 +76,6 @@ liveProfilesRouter.use(authenticate);
 liveProfilesRouter.get('/', authorize('manager'), liveCtrl.listProfiles);
 liveProfilesRouter.get('/:userId', authorize('manager', 'seller'), liveCtrl.getProfile);
 liveProfilesRouter.put('/:userId', authorize('manager', 'seller'), liveCtrl.upsertProfile);
+liveProfilesRouter.put('/:userId/coach', authorize('manager'), liveCtrl.assignCoach);
 
 module.exports = { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter, liveCallsRouter, liveProfilesRouter };

@@ -3,7 +3,22 @@ const db = require('../db/pool');
 
 async function listClients(req, res) {
   try {
-    const { rows } = await db.query('SELECT * FROM clients ORDER BY created_at DESC');
+    // Isolamento por gestor: gestor vê só os próprios clientes; vendedor vê
+    // os clientes do seu gestor + os referenciados em suas sessões agendadas
+    // (para nunca quebrar uma sessão já atribuída); superadmin vê tudo.
+    let query = 'SELECT * FROM clients ORDER BY created_at DESC';
+    let params = [];
+    if (req.user.role === 'manager') {
+      query = 'SELECT * FROM clients WHERE manager_id = $1 ORDER BY created_at DESC';
+      params = [req.user.id];
+    } else if (req.user.role === 'seller') {
+      query = `SELECT * FROM clients c
+               WHERE c.manager_id IS NOT DISTINCT FROM (SELECT manager_id FROM users WHERE id = $1)
+                  OR c.id IN (SELECT client_id FROM scheduled_sessions WHERE seller_id = $1)
+               ORDER BY c.created_at DESC`;
+      params = [req.user.id];
+    }
+    const { rows } = await db.query(query, params);
     
     const formatted = rows.map(r => ({
       ...r,
@@ -40,6 +55,8 @@ async function createClient(req, res) {
   try {
     const data = req.body;
     const id = data.id || 'cli_' + Date.now();
+    // Cliente pertence ao gestor que o criou (superadmin cria sem dono = global)
+    const managerId = req.user.role === 'manager' ? req.user.id : null;
     await db.query(`
       INSERT INTO clients (
         id, name, emoji, difficulty, description, humanidade, formalidade,
@@ -48,11 +65,11 @@ async function createClient(req, res) {
         usa_emojis, faz_perguntas, skepticism, urgency, price_sensitivity,
         product_knowledge, negotiation_will, trick_frequency, trick_types,
         vendedores_atribuidos, archetype, hidden_agenda, market_segment,
-        hostile_mode, hostile_competitors, session_constraints, custom_behavior
+        hostile_mode, hostile_competitors, session_constraints, custom_behavior, manager_id
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
         $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
-        $31, $32, $33
+        $31, $32, $33, $34
       )
     `, [
       id, data.name, data.emoji, data.difficulty, data.description, data.humanidade, data.formalidade,
@@ -61,7 +78,7 @@ async function createClient(req, res) {
       data.usaEmojis, data.fazPerguntas, data.skepticism, data.urgency, data.priceSensitivity,
       data.productKnowledge, data.negotiationWill, data.trickFrequency, JSON.stringify(data.trickTypes || []),
       JSON.stringify(data.vendedoresAtribuidos || []), data.archetype, data.hiddenAgenda, data.marketSegment,
-      data.hostileMode, JSON.stringify(data.hostileCompetitors || []), JSON.stringify(data.sessionConstraints || {}), data.customBehavior
+      data.hostileMode, JSON.stringify(data.hostileCompetitors || []), JSON.stringify(data.sessionConstraints || {}), data.customBehavior, managerId
     ]);
     res.status(201).json({ ...data, id });
   } catch (err) {
@@ -74,6 +91,12 @@ async function updateClient(req, res) {
   try {
     const { id } = req.params;
     const data = req.body;
+    // Gestor só edita os próprios clientes
+    if (req.user.role === 'manager') {
+      const { rows } = await db.query('SELECT manager_id FROM clients WHERE id = $1', [id]);
+      if (rows.length === 0) return res.status(404).json({ error: 'Cliente não encontrado' });
+      if (rows[0].manager_id !== req.user.id) return res.status(403).json({ error: 'Acesso negado' });
+    }
     // For simplicity, we just do a full update
     await db.query(`
       UPDATE clients SET
@@ -106,6 +129,11 @@ async function updateClient(req, res) {
 async function deleteClient(req, res) {
   try {
     const { id } = req.params;
+    if (req.user.role === 'manager') {
+      const { rows } = await db.query('SELECT manager_id FROM clients WHERE id = $1', [id]);
+      if (rows.length === 0) return res.status(404).json({ error: 'Cliente não encontrado' });
+      if (rows[0].manager_id !== req.user.id) return res.status(403).json({ error: 'Acesso negado' });
+    }
     await db.query('DELETE FROM clients WHERE id = $1', [id]);
     res.status(204).end();
   } catch (err) {

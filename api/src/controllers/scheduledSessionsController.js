@@ -3,7 +3,19 @@ const db = require('../db/pool');
 
 async function listScheduledSessions(req, res) {
   try {
-    const { rows } = await db.query('SELECT * FROM scheduled_sessions ORDER BY created_at DESC');
+    // Isolamento: gestor vê só sessões dos seus vendedores; vendedor só as suas
+    let query = 'SELECT * FROM scheduled_sessions ORDER BY created_at DESC';
+    let params = [];
+    if (req.user.role === 'manager') {
+      query = `SELECT s.* FROM scheduled_sessions s
+               JOIN users u ON u.id = s.seller_id
+               WHERE u.manager_id = $1 ORDER BY s.created_at DESC`;
+      params = [req.user.id];
+    } else if (req.user.role === 'seller') {
+      query = 'SELECT * FROM scheduled_sessions WHERE seller_id = $1 ORDER BY created_at DESC';
+      params = [req.user.id];
+    }
+    const { rows } = await db.query(query, params);
     const formatted = rows.map(r => ({
       ...r,
       sellerId: r.seller_id,

@@ -5,12 +5,16 @@ const bcrypt = require('bcryptjs');
 async function listUsers(req, res) {
   try {
     let query = `
-      SELECT id, name, email, role, status, avatar_emoji, manager_id, created_at, last_login_at
+      SELECT id, name, email, role, status, avatar_emoji, manager_id, coach_id, created_at, last_login_at
       FROM users
     `;
     const params = [];
     if (req.user.role === 'manager') {
       query += ` WHERE role = 'seller' AND manager_id = $1 `;
+      params.push(req.user.id);
+    } else if (req.user.role === 'seller') {
+      // Vendedor só enxerga o próprio registro
+      query += ` WHERE id = $1 `;
       params.push(req.user.id);
     }
     query += ` ORDER BY name ASC`;

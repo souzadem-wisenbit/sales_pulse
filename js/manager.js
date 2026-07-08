@@ -2134,48 +2134,90 @@ const Manager = (() => {
   // SETTINGS SECTION
   // ══════════════════════════════════════
   // ══════════════════════════════════════
-  // LIVE COACH SECTION (perfis aprendidos + chamadas reais)
+  // LIVE COACH SECTION (ranking + relatórios detalhados + coach por vendedor)
   // ══════════════════════════════════════
   async function renderLiveCoachSection(container) {
     container.innerHTML = `<div class="flex" style="justify-content:center;padding:3rem"><div class="spinner"></div></div>`;
 
+    const currentUser = Auth.getUser();
+    const isSuper = currentUser?.role === 'superadmin';
+
+    let sellers = [];
     let profiles = [];
     let calls = [];
+    try {
+      const users = (await API.request('/api/users')) || [];
+      sellers = users.filter(u => u.role === 'seller');
+    } catch (e) { sellers = Storage.getSellers(); }
     try { profiles = (await API.listLiveProfiles()) || []; } catch (e) { console.warn(e); }
     try { calls = (await API.listLiveCalls()) || []; } catch (e) { console.warn(e); }
 
-    // Gestor comum vê apenas seus vendedores; superadmin vê todos
-    const currentUser = Auth.getUser();
-    if (currentUser?.role === 'manager') {
-      const myIds = Storage.getSellers().map(s => String(s.id));
-      profiles = profiles.filter(p => myIds.includes(String(p.user_id)));
-      calls = calls.filter(c => myIds.includes(String(c.user_id)));
-    }
-
+    const profByUser = {};
+    profiles.forEach(p => { profByUser[p.user_id] = p; });
     const callsByUser = {};
-    calls.forEach(c => {
-      (callsByUser[c.user_id] = callsByUser[c.user_id] || []).push(c);
-    });
+    calls.forEach(c => { (callsByUser[c.user_id] = callsByUser[c.user_id] || []).push(c); });
 
-    const profileCard = (p) => {
-      const prof = p.profile || {};
-      const userCalls = (callsByUser[p.user_id] || []).slice(0, 5);
+    // Ranking: chamadas reais analisadas (engajamento); desempate por pontos fortes
+    const ranked = sellers.map(s => {
+      const p = profByUser[s.id];
+      const prof = p?.profile || {};
+      return {
+        ...s,
+        callsAnalyzed: p?.calls_analyzed || 0,
+        strengthsCount: (prof.strengths || []).length,
+        weaknessesCount: (prof.weaknesses || []).length,
+        hasProfile: !!prof.styleSummary,
+      };
+    }).sort((a, b) => (b.callsAnalyzed - a.callsAnalyzed) || (b.strengthsCount - a.strengthsCount));
+
+    const medals = ['🥇', '🥈', '🥉'];
+    const JUNIOR_STYLE = 'border-color:rgba(255,200,50,0.7);background:linear-gradient(135deg, rgba(255,200,50,0.12), rgba(20,20,35,0.9));color:#ffd76a;font-weight:700;';
+
+    const coachOptions = (s) => {
+      const others = ranked.filter(o => o.id !== s.id && o.hasProfile);
+      return `
+        <option value="" ${!s.coach_id ? 'selected' : ''}>🤖 Coach Padrão SalesPulse</option>
+        <option value="junior" ${s.coach_id === 'junior' ? 'selected' : ''}>⭐ Júnior Smarzaro — COACH MASTER ⭐</option>
+        ${others.map(o => `<option value="${o.id}" ${s.coach_id === o.id ? 'selected' : ''}>🧬 Estilo de ${escHtml(o.name)}</option>`).join('')}
+      `;
+    };
+
+    const sellerCard = (s) => {
+      const p = profByUser[s.id];
+      const prof = p?.profile || {};
+      const userCalls = (callsByUser[s.id] || []).slice(0, 4);
+      const isJunior = s.coach_id === 'junior';
+      const nCalls = p?.calls_analyzed || 0;
       return `
         <div class="config-section">
-          <div class="config-section-header">
-            <div class="config-section-icon teal">🧠</div>
-            <div style="flex:1">
-              <div class="config-section-title">${escHtml(p.name || 'Vendedor')}</div>
-              <div class="config-section-desc">${escHtml(p.email || '')} · ${p.calls_analyzed || 0} chamada${(p.calls_analyzed || 0) !== 1 ? 's' : ''} analisada${(p.calls_analyzed || 0) !== 1 ? 's' : ''} · atualizado ${p.updated_at ? new Date(p.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</div>
+          <div class="config-section-header" style="flex-wrap:wrap;gap:var(--sp-3)">
+            <div class="config-section-icon teal">${s.avatar_emoji || '🧑'}</div>
+            <div style="flex:1;min-width:200px">
+              <div class="config-section-title">${escHtml(s.name)}</div>
+              <div class="config-section-desc">${escHtml(s.email)} · ${nCalls} chamada${nCalls !== 1 ? 's' : ''} analisada${nCalls !== 1 ? 's' : ''}${p?.updated_at ? ` · perfil atualizado ${new Date(p.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}` : ''}</div>
+            </div>
+            <div style="min-width:280px">
+              <label class="form-label" style="font-size:0.68rem">🎓 Coach deste vendedor</label>
+              <div id="coach-wrap-${s.id}" style="border-radius:10px;${isJunior ? 'box-shadow:0 0 16px rgba(255,200,50,0.4);' : ''}">
+                <select class="form-select" data-seller="${s.id}" onchange="Manager.assignCoachUI(this)" style="${isJunior ? JUNIOR_STYLE : ''}">
+                  ${coachOptions(s)}
+                </select>
+              </div>
+              <div id="coach-note-${s.id}" style="display:${isJunior ? 'block' : 'none'};font-size:0.7rem;color:#ffd76a;margin-top:4px">⭐ Coach Master — metodologia exclusiva Júnior Smarzaro</div>
             </div>
           </div>
-          ${prof.styleSummary ? `<p style="font-size:0.88rem;line-height:1.6;margin-bottom:var(--sp-4)">${escHtml(prof.styleSummary)}</p>` : '<p class="text-muted fs-sm">Perfil ainda em construção.</p>'}
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--sp-4)">
-            ${(prof.strengths || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--success)">💪 Pontos fortes</div>${prof.strengths.map(s => `<div class="fs-xs text-secondary" style="padding:2px 0">• ${escHtml(s)}</div>`).join('')}</div>` : ''}
-            ${(prof.weaknesses || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--warning)">🎯 A melhorar</div>${prof.weaknesses.map(s => `<div class="fs-xs text-secondary" style="padding:2px 0">• ${escHtml(s)}</div>`).join('')}</div>` : ''}
-            ${(prof.recommendations || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--accent-light)">💡 Recomendações</div>${prof.recommendations.map(s => `<div class="fs-xs text-secondary" style="padding:2px 0">• ${escHtml(s)}</div>`).join('')}</div>` : ''}
-            ${(prof.languageVices || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--danger)">🗣 Vícios de linguagem</div>${prof.languageVices.map(s => `<div class="fs-xs text-secondary" style="padding:2px 0">• ${escHtml(s)}</div>`).join('')}</div>` : ''}
-          </div>
+          ${prof.styleSummary ? `
+            <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--r-md);padding:var(--sp-4);margin-bottom:var(--sp-4)">
+              <div class="fw-600 fs-sm mb-2" style="color:var(--accent-light)">🧠 Relatório do estilo de venda</div>
+              <p style="font-size:0.88rem;line-height:1.65;margin:0">${escHtml(prof.styleSummary)}</p>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:var(--sp-4)">
+              ${(prof.strengths || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--success)">💪 Pontos fortes</div>${prof.strengths.map(x => `<div class="fs-xs text-secondary" style="padding:3px 0;line-height:1.5">✓ ${escHtml(x)}</div>`).join('')}</div>` : ''}
+              ${(prof.weaknesses || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--warning)">🎯 Pontos a melhorar</div>${prof.weaknesses.map(x => `<div class="fs-xs text-secondary" style="padding:3px 0;line-height:1.5">△ ${escHtml(x)}</div>`).join('')}</div>` : ''}
+              ${(prof.languageVices || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--danger)">🗣 Vícios de linguagem</div>${prof.languageVices.map(x => `<div class="fs-xs text-secondary" style="padding:3px 0;line-height:1.5">• ${escHtml(x)}</div>`).join('')}</div>` : ''}
+              ${(prof.recommendations || []).length ? `<div><div class="fw-600 fs-sm mb-2" style="color:var(--accent-light)">💡 Recomendações do coach</div>${prof.recommendations.map(x => `<div class="fs-xs text-secondary" style="padding:3px 0;line-height:1.5">→ ${escHtml(x)}</div>`).join('')}</div>` : ''}
+            </div>
+          ` : `<p class="text-muted fs-sm" style="margin:0">Ainda sem chamadas analisadas — o relatório completo (estilo, trejeitos, pontos fortes e fracos) aparece após a primeira chamada real com o Live Coach.</p>`}
           ${userCalls.length ? `
             <div class="fw-600 fs-sm" style="margin:var(--sp-4) 0 var(--sp-2)">📞 Últimas chamadas</div>
             ${userCalls.map(c => `
@@ -2189,11 +2231,9 @@ const Manager = (() => {
       `;
     };
 
-    const isSuper = currentUser?.role === 'superadmin';
-
     container.innerHTML = `
       <div class="api-config-info mb-6">
-        <strong>🎧 Live Coach:</strong> os vendedores iniciam o assistente no painel deles durante chamadas reais (Meet, Teams, Zoom). A IA transcreve a conversa, envia dicas em tempo real e aprende o perfil de cada vendedor a cada chamada. Os perfis aprendidos aparecem aqui.
+        <strong>🎧 Live Coach:</strong> seus vendedores iniciam o assistente durante chamadas reais (Meet, Teams, Zoom). A IA transcreve, envia dicas ao vivo e aprende o estilo, os trejeitos e a técnica de cada um — o ranking e os relatórios abaixo mostram apenas a SUA equipe. Atribua a cada vendedor o coach que quiser: o padrão, o estilo de um colega top performer, ou o ⭐ Coach Master Júnior Smarzaro.
       </div>
       ${isSuper ? `
       <div class="config-section" style="border-color:rgba(0,212,170,0.3)">
@@ -2201,13 +2241,8 @@ const Manager = (() => {
           <div class="config-section-icon purple">🧪</div>
           <div>
             <div class="config-section-title">Laboratório de Testes <span class="badge badge-teal" style="font-size:0.65rem;margin-left:6px">Gestor Master</span></div>
-            <div class="config-section-desc">Valide o Live Coach sozinho: um cliente-robô com voz neural realista lê um roteiro de vendas (objeções, sinais de compra, negociação) em outra aba enquanto você responde como vendedor no microfone.</div>
+            <div class="config-section-desc">Valide o Live Coach sozinho: um cliente-robô com voz neural realista lê um roteiro de vendas em outra aba enquanto você responde como vendedor no microfone.</div>
           </div>
-        </div>
-        <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.8;margin-bottom:var(--sp-4)">
-          <strong>1.</strong> Clique em <strong>Abrir Simulador de Cliente</strong> — abre em nova aba, com roteiro de 18 falas, modo automático e falas customizadas.<br>
-          <strong>2.</strong> Volte aqui e clique em <strong>Iniciar Live Coach</strong> — compartilhe a <strong>aba do Simulador</strong> marcando "Compartilhar áudio da guia" e permita o microfone.<br>
-          <strong>3.</strong> Dê o play no Simulador e responda como vendedor. Valide: transcrição dos 2 canais, dicas, estágio, termômetro e o perfil aprendido ao encerrar.
         </div>
         <div class="flex gap-3 flex-wrap">
           <button class="btn btn-teal" onclick="window.open('testlab.html','_blank')">🧪 Abrir Simulador de Cliente</button>
@@ -2215,14 +2250,58 @@ const Manager = (() => {
         </div>
       </div>
       ` : ''}
-      ${profiles.length === 0 ? `
+      ${ranked.length === 0 ? `
         <div class="card empty-state" style="padding:var(--sp-16)">
           <div class="empty-state-icon" style="font-size:3rem">🎧</div>
-          <div class="empty-state-title">Nenhum perfil aprendido ainda</div>
-          <div class="empty-state-desc">Quando um vendedor usar o Live Coach em uma chamada real, a IA analisará a conversa e construirá o perfil dele aqui — atualizado a cada nova chamada.</div>
+          <div class="empty-state-title">Nenhum vendedor na sua equipe ainda</div>
+          <div class="empty-state-desc">Cadastre vendedores na aba Vendedores — o ranking e os relatórios do Live Coach deles aparecem aqui.</div>
         </div>
-      ` : profiles.map(profileCard).join('')}
+      ` : `
+        <div class="config-section" style="border-color:rgba(108,99,255,0.3)">
+          <div class="config-section-header">
+            <div class="config-section-icon purple">🏆</div>
+            <div>
+              <div class="config-section-title">Ranking da sua equipe</div>
+              <div class="config-section-desc">Ordenado por chamadas reais analisadas pelo Live Coach</div>
+            </div>
+          </div>
+          ${ranked.map((s, i) => `
+            <div style="display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3);border-radius:var(--r-md);margin-bottom:6px;background:${i === 0 && s.callsAnalyzed > 0 ? 'linear-gradient(135deg, rgba(255,200,50,0.08), var(--bg-elevated))' : 'var(--bg-elevated)'};border:1px solid ${i === 0 && s.callsAnalyzed > 0 ? 'rgba(255,200,50,0.3)' : 'var(--border-subtle)'}">
+              <div style="font-size:1.3rem;width:36px;text-align:center">${s.callsAnalyzed > 0 && medals[i] ? medals[i] : `<span style="font-size:0.85rem;color:var(--text-muted)">${i + 1}º</span>`}</div>
+              <div style="flex:1">
+                <div class="fw-600" style="font-size:0.9rem">${escHtml(s.name)}${s.coach_id === 'junior' ? ' <span style="color:#ffd76a;font-size:0.7rem">⭐ Júnior Smarzaro</span>' : ''}</div>
+                <div class="fs-xs text-muted">${s.callsAnalyzed} chamada${s.callsAnalyzed !== 1 ? 's' : ''} analisada${s.callsAnalyzed !== 1 ? 's' : ''}</div>
+              </div>
+              ${s.hasProfile ? `
+                <span class="badge badge-success" style="font-size:0.65rem">💪 ${s.strengthsCount}</span>
+                <span class="badge badge-warning" style="font-size:0.65rem">🎯 ${s.weaknessesCount}</span>
+              ` : '<span class="fs-xs text-muted">sem perfil ainda</span>'}
+            </div>
+          `).join('')}
+        </div>
+        ${ranked.map(sellerCard).join('')}
+      `}
     `;
+  }
+
+  // Atribui o coach escolhido pelo gestor ao vendedor
+  async function assignCoachUI(sel) {
+    const sellerId = sel.dataset.seller;
+    const coachId = sel.value || null;
+    const JUNIOR_STYLE = 'border-color:rgba(255,200,50,0.7);background:linear-gradient(135deg, rgba(255,200,50,0.12), rgba(20,20,35,0.9));color:#ffd76a;font-weight:700;';
+    try {
+      await API.assignCoach(sellerId, coachId);
+      UI.toast(coachId === 'junior' ? '⭐ Júnior Smarzaro atribuído como Coach Master!' : '✅ Coach atualizado!', 'success');
+      const isJunior = coachId === 'junior';
+      const wrap = document.getElementById('coach-wrap-' + sellerId);
+      if (wrap) wrap.style.boxShadow = isJunior ? '0 0 16px rgba(255,200,50,0.4)' : 'none';
+      sel.style.cssText = isJunior ? JUNIOR_STYLE : '';
+      const note = document.getElementById('coach-note-' + sellerId);
+      if (note) note.style.display = isJunior ? 'block' : 'none';
+    } catch (e) {
+      console.error(e);
+      UI.toast('Erro ao atribuir coach', 'error');
+    }
   }
 
   function renderSettingsSection(container) {
@@ -2469,6 +2548,7 @@ const Manager = (() => {
     switchProductTab,
     selectArchetype,
     viewSessionReport, generateFakeReports,
+    assignCoachUI,
   };
 })();
 

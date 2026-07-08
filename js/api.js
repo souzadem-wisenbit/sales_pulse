@@ -285,6 +285,7 @@ const API = (() => {
   async function listLiveProfiles() { return await get('/api/live_profiles'); }
   async function getLiveProfile(userId) { return await get(`/api/live_profiles/${userId}`); }
   async function saveLiveProfile(userId, profile) { return await put(`/api/live_profiles/${userId}`, { profile }); }
+  async function assignCoach(userId, coachId) { return await put(`/api/live_profiles/${userId}/coach`, { coachId }); }
 
   // AI Settings (OpenAI key shared across all devices/users via backend)
   async function getAiSettings() {
@@ -353,6 +354,7 @@ const API = (() => {
     listLiveProfiles,
     getLiveProfile,
     saveLiveProfile,
+    assignCoach,
   };
 
 })();

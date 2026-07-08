@@ -51,6 +51,7 @@ const LiveCoach = (() => {
   let lastCoachAt = 0;
   let tipSoundOn = true;           // aviso sonoro sutil ao chegar dica
   let profile = null;
+  let coach = null;                // coach atribuído pelo gestor: {id, name, special?, profile?}
   let coachBusy = false;
   let transcribeModelOk = true;    // gpt-4o-mini-transcribe disponível?
 
@@ -254,7 +255,8 @@ const LiveCoach = (() => {
       try {
         const p = await API.getLiveProfile(user.id);
         profile = (p && p.profile && Object.keys(p.profile).length > 0) ? p.profile : null;
-      } catch (e) { profile = null; }
+        coach = p?.coach || null;
+      } catch (e) { profile = null; coach = null; }
 
       running = true;
       startedAt = Date.now();
@@ -608,7 +610,15 @@ const LiveCoach = (() => {
         ? '\n⚡ O CLIENTE ACABOU DE FALAR e o vendedor vai responder AGORA. Priorize: o que ele deve dizer/fazer nesta resposta imediata (tratar a objeção, aproveitar o sinal de compra, fazer a pergunta certa).\n'
         : '';
 
-      const prompt = `Você é um coach de vendas de elite (formado em SPIN Selling, Challenger e Sandler) acompanhando em silêncio uma chamada de vendas REAL em videochamada. O VENDEDOR é seu aluno; o CLIENTE é o outro lado (pode haver mais de uma pessoa no canal do cliente).
+      // Persona do coach atribuído pelo gestor
+      let coachPersona = 'Você é um coach de vendas de elite (formado em SPIN Selling, Challenger e Sandler)';
+      if (coach && coach.id === 'junior') {
+        coachPersona = 'Você é JÚNIOR SMARZARO, coach master de vendas — mentor lendário, direto ao ponto, focado em fechamento e em fazer o vendedor performar no mais alto nível (metodologia própria; formado também em SPIN Selling, Challenger e Sandler)';
+      } else if (coach && coach.profile && Object.keys(coach.profile).length > 0) {
+        coachPersona = `Você é um coach de vendas de elite que treina no ESTILO do vendedor de referência "${coach.name}". Estilo de referência a ser transmitido nas dicas:\n${JSON.stringify(coach.profile)}\nOriente o vendedor a incorporar os pontos fortes desse estilo`;
+      }
+
+      const prompt = `${coachPersona}, acompanhando em silêncio uma chamada de vendas REAL em videochamada. O VENDEDOR é seu aluno; o CLIENTE é o outro lado (pode haver mais de uma pessoa no canal do cliente).
 ${profileBlock}${triggerBlock}
 TRECHO MAIS RECENTE DA CONVERSA (transcrição automática — pode conter pequenos erros; ignore fragmentos sem sentido):
 ${recent}
@@ -715,6 +725,11 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
         <div class="lc-header">
           <div class="lc-title"><span class="lc-live-dot"></span>Live Coach — Monitorando chamada</div>
           <div class="lc-chip" id="lc-clock">00:00</div>
+          ${coach && coach.id === 'junior'
+            ? `<div class="lc-chip" style="border-color:rgba(255,200,50,0.6);background:linear-gradient(135deg, rgba(255,200,50,0.18), rgba(255,160,0,0.08));color:#ffd76a;font-weight:800">⭐ Coach: Júnior Smarzaro</div>`
+            : coach && coach.name
+              ? `<div class="lc-chip" style="border-color:rgba(0,212,170,0.4);color:#7dead0">🧬 Coach: Estilo de ${esc(coach.name)}</div>`
+              : `<div class="lc-chip">🤖 Coach Padrão</div>`}
           <div style="margin-left:auto;display:flex;gap:8px">
             <button class="lc-btn lc-btn-danger" onclick="LiveCoach.stop()">⏹ Encerrar e Analisar</button>
           </div>

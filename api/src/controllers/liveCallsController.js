@@ -15,9 +15,15 @@ async function listLiveCalls(req, res) {
              jsonb_array_length(c.tips) AS tip_count,
              u.name AS user_name
       FROM live_calls c LEFT JOIN users u ON u.id = c.user_id`;
-    const { rows } = isManager(req.user)
-      ? await db.query(`${base} ORDER BY c.started_at DESC LIMIT 200`)
-      : await db.query(`${base} WHERE c.user_id = $1 ORDER BY c.started_at DESC LIMIT 200`, [req.user.id]);
+    let rows;
+    if (req.user.role === 'superadmin') {
+      ({ rows } = await db.query(`${base} ORDER BY c.started_at DESC LIMIT 200`));
+    } else if (req.user.role === 'manager') {
+      // Gestor vê apenas chamadas dos SEUS vendedores (e as dele próprio)
+      ({ rows } = await db.query(`${base} WHERE u.manager_id = $1 OR c.user_id = $1 ORDER BY c.started_at DESC LIMIT 200`, [req.user.id]));
+    } else {
+      ({ rows } = await db.query(`${base} WHERE c.user_id = $1 ORDER BY c.started_at DESC LIMIT 200`, [req.user.id]));
+    }
     res.json(rows);
   } catch (err) {
     console.error('[LIVE_CALLS LIST]', err);
@@ -83,10 +89,13 @@ async function updateLiveCall(req, res) {
 
 async function listProfiles(req, res) {
   try {
-    const { rows } = await db.query(`
-      SELECT p.user_id, p.profile, p.calls_analyzed, p.updated_at, u.name, u.email
-      FROM seller_profiles p JOIN users u ON u.id = p.user_id
-      ORDER BY p.updated_at DESC`);
+    // Gestor vê apenas perfis dos SEUS vendedores; superadmin vê todos
+    const base = `
+      SELECT p.user_id, p.profile, p.calls_analyzed, p.updated_at, u.name, u.email, u.coach_id
+      FROM seller_profiles p JOIN users u ON u.id = p.user_id`;
+    const { rows } = req.user.role === 'superadmin'
+      ? await db.query(`${base} ORDER BY p.updated_at DESC`)
+      : await db.query(`${base} WHERE u.manager_id = $1 ORDER BY p.updated_at DESC`, [req.user.id]);
     res.json(rows);
   } catch (err) {
     console.error('[LIVE_PROFILES LIST]', err);
@@ -94,17 +103,65 @@ async function listProfiles(req, res) {
   }
 }
 
+// Verifica se o gestor é dono do vendedor (superadmin sempre pode)
+async function canAccessSeller(reqUser, sellerId) {
+  if (reqUser.role === 'superadmin') return true;
+  if (reqUser.id === sellerId) return true;
+  if (reqUser.role !== 'manager') return false;
+  const { rows } = await db.query('SELECT manager_id FROM users WHERE id = $1', [sellerId]);
+  return rows.length > 0 && rows[0].manager_id === reqUser.id;
+}
+
 async function getProfile(req, res) {
   try {
     const { userId } = req.params;
-    if (!isManager(req.user) && req.user.id !== userId) {
+    if (!(await canAccessSeller(req.user, userId))) {
       return res.status(403).json({ error: 'Acesso negado' });
     }
     const { rows } = await db.query('SELECT * FROM seller_profiles WHERE user_id = $1', [userId]);
-    res.json(rows[0] || { user_id: userId, profile: {}, calls_analyzed: 0 });
+    const result = rows[0] || { user_id: userId, profile: {}, calls_analyzed: 0 };
+
+    // Resolve o coach atribuído ao vendedor (usado para personalizar as dicas)
+    const { rows: urows } = await db.query('SELECT coach_id FROM users WHERE id = $1', [userId]);
+    const coachId = urows[0]?.coach_id || null;
+    if (coachId === 'junior') {
+      result.coach = { id: 'junior', name: 'Júnior Smarzaro', special: true };
+    } else if (coachId) {
+      const { rows: crows } = await db.query(`
+        SELECT u.name, p.profile FROM users u
+        LEFT JOIN seller_profiles p ON p.user_id = u.id
+        WHERE u.id = $1`, [coachId]);
+      if (crows.length > 0) {
+        result.coach = { id: coachId, name: crows[0].name, profile: crows[0].profile || {} };
+      }
+    }
+    res.json(result);
   } catch (err) {
     console.error('[LIVE_PROFILES GET]', err);
     res.status(500).json({ error: 'Erro ao buscar perfil' });
+  }
+}
+
+// Atribui um coach a um vendedor: null (padrão) | 'junior' | UUID de outro vendedor
+async function assignCoach(req, res) {
+  try {
+    const { userId } = req.params;
+    if (req.user.role === 'seller') return res.status(403).json({ error: 'Apenas gestores atribuem coach' });
+    if (!(await canAccessSeller(req.user, userId))) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    const coachId = req.body.coachId || null;
+    if (coachId && coachId !== 'junior') {
+      // Coach baseado em outro vendedor: precisa ser acessível a este gestor
+      if (!(await canAccessSeller(req.user, coachId))) {
+        return res.status(403).json({ error: 'Coach inválido' });
+      }
+    }
+    await db.query('UPDATE users SET coach_id = $1 WHERE id = $2', [coachId, userId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[LIVE_PROFILES COACH]', err);
+    res.status(500).json({ error: 'Erro ao atribuir coach' });
   }
 }
 
@@ -130,4 +187,4 @@ async function upsertProfile(req, res) {
   }
 }
 
-module.exports = { listLiveCalls, getLiveCall, createLiveCall, updateLiveCall, listProfiles, getProfile, upsertProfile };
+module.exports = { listLiveCalls, getLiveCall, createLiveCall, updateLiveCall, listProfiles, getProfile, upsertProfile, assignCoach };

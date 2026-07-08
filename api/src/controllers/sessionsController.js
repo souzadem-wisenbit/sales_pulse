@@ -106,7 +106,19 @@ async function sendMessage(req, res) {
 
 async function listSessions(req, res) {
   try {
-    const { rows } = await db.query('SELECT * FROM sessions ORDER BY created_at DESC');
+    // Isolamento: gestor vê só sessões (pontuações) dos seus vendedores
+    let query = 'SELECT * FROM sessions ORDER BY created_at DESC';
+    let params = [];
+    if (req.user.role === 'manager') {
+      query = `SELECT s.* FROM sessions s
+               JOIN users u ON u.id = s.user_id
+               WHERE u.manager_id = $1 ORDER BY s.created_at DESC`;
+      params = [req.user.id];
+    } else if (req.user.role === 'seller') {
+      query = 'SELECT * FROM sessions WHERE user_id = $1 ORDER BY created_at DESC';
+      params = [req.user.id];
+    }
+    const { rows } = await db.query(query, params);
     return res.json(rows);
   } catch (err) {
     return res.status(500).json({ error: 'Erro ao listar sessões.' });
