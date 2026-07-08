@@ -278,7 +278,7 @@ const API = (() => {
   async function deleteScheduledSession(id) { return await del(`/api/scheduled_sessions/${id}`); }
 
   // Live Coach (chamadas reais)
-  async function createLiveCall() { return await post('/api/live_calls', {}, 0); }
+  async function createLiveCall(briefing) { return await post('/api/live_calls', { briefing: briefing || {} }, 0); }
   async function updateLiveCall(id, data) { return await put(`/api/live_calls/${id}`, data); }
   async function listLiveCalls() { return await get('/api/live_calls'); }
   async function getLiveCall(id) { return await get(`/api/live_calls/${id}`); }

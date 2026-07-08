@@ -10,7 +10,7 @@ function isManager(user) {
 async function listLiveCalls(req, res) {
   try {
     const base = `
-      SELECT c.id, c.user_id, c.started_at, c.ended_at, c.summary,
+      SELECT c.id, c.user_id, c.started_at, c.ended_at, c.summary, c.briefing,
              jsonb_array_length(c.transcript) AS segments,
              jsonb_array_length(c.tips) AS tip_count,
              u.name AS user_name
@@ -49,7 +49,8 @@ async function getLiveCall(req, res) {
 async function createLiveCall(req, res) {
   try {
     const id = 'call_' + Date.now();
-    await db.query('INSERT INTO live_calls (id, user_id) VALUES ($1, $2)', [id, req.user.id]);
+    const briefing = req.body?.briefing || {};
+    await db.query('INSERT INTO live_calls (id, user_id, briefing) VALUES ($1, $2, $3)', [id, req.user.id, JSON.stringify(briefing)]);
     res.status(201).json({ id });
   } catch (err) {
     console.error('[LIVE_CALLS CREATE]', err);

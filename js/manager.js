@@ -2134,13 +2134,17 @@ const Manager = (() => {
   // SETTINGS SECTION
   // ══════════════════════════════════════
   // ══════════════════════════════════════
-  // LIVE COACH SECTION (ranking + relatórios detalhados + coach por vendedor)
+  // LIVE COACH SECTION — paginado, com busca (ranking + relatórios + coach)
   // ══════════════════════════════════════
-  async function renderLiveCoachSection(container) {
-    container.innerHTML = `<div class="flex" style="justify-content:center;padding:3rem"><div class="spinner"></div></div>`;
+  const LC_PAGE_SIZE = 5;
+  let lcData = null;      // cache da seção: { sellers, profiles, calls }
+  let lcPage = 1;
+  let lcSearch = '';
+  let lcContainer = null;
 
-    const currentUser = Auth.getUser();
-    const isSuper = currentUser?.role === 'superadmin';
+  async function renderLiveCoachSection(container) {
+    lcContainer = container;
+    container.innerHTML = `<div class="flex" style="justify-content:center;padding:3rem"><div class="spinner"></div></div>`;
 
     let sellers = [];
     let profiles = [];
@@ -2152,13 +2156,40 @@ const Manager = (() => {
     try { profiles = (await API.listLiveProfiles()) || []; } catch (e) { console.warn(e); }
     try { calls = (await API.listLiveCalls()) || []; } catch (e) { console.warn(e); }
 
-    const profByUser = {};
-    profiles.forEach(p => { profByUser[p.user_id] = p; });
-    const callsByUser = {};
-    calls.forEach(c => { (callsByUser[c.user_id] = callsByUser[c.user_id] || []).push(c); });
+    lcData = { sellers, profiles, calls };
+    lcPage = 1;
+    lcSearch = '';
+    paintLiveCoach();
+  }
 
-    // Ranking: chamadas reais analisadas (engajamento); desempate por pontos fortes
-    const ranked = sellers.map(s => {
+  function lcSetPage(p) {
+    lcPage = p;
+    paintLiveCoach();
+    document.getElementById('lc-cards-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function lcSearchInput(el) {
+    lcSearch = el.value;
+    lcPage = 1;
+    paintLiveCoach();
+    const inp = document.getElementById('lc-search');
+    if (inp) { inp.focus(); const v = inp.value; inp.setSelectionRange(v.length, v.length); }
+  }
+
+  function paintLiveCoach() {
+    const container = lcContainer;
+    if (!container || !lcData) return;
+
+    const currentUser = Auth.getUser();
+    const isSuper = currentUser?.role === 'superadmin';
+
+    const profByUser = {};
+    lcData.profiles.forEach(p => { profByUser[p.user_id] = p; });
+    const callsByUser = {};
+    lcData.calls.forEach(c => { (callsByUser[c.user_id] = callsByUser[c.user_id] || []).push(c); });
+
+    // Ranking: chamadas reais analisadas; desempate por pontos fortes
+    let ranked = lcData.sellers.map(s => {
       const p = profByUser[s.id];
       const prof = p?.profile || {};
       return {
@@ -2169,6 +2200,17 @@ const Manager = (() => {
         hasProfile: !!prof.styleSummary,
       };
     }).sort((a, b) => (b.callsAnalyzed - a.callsAnalyzed) || (b.strengthsCount - a.strengthsCount));
+
+    // Busca por nome/e-mail
+    const q = lcSearch.trim().toLowerCase();
+    const filtered = q
+      ? ranked.filter(s => (s.name || '').toLowerCase().includes(q) || (s.email || '').toLowerCase().includes(q))
+      : ranked;
+
+    // Paginação
+    const totalPages = Math.max(1, Math.ceil(filtered.length / LC_PAGE_SIZE));
+    if (lcPage > totalPages) lcPage = totalPages;
+    const pageItems = filtered.slice((lcPage - 1) * LC_PAGE_SIZE, lcPage * LC_PAGE_SIZE);
 
     const medals = ['🥇', '🥈', '🥉'];
     const JUNIOR_STYLE = 'border-color:rgba(255,200,50,0.7);background:linear-gradient(135deg, rgba(255,200,50,0.12), rgba(20,20,35,0.9));color:#ffd76a;font-weight:700;';
@@ -2222,7 +2264,8 @@ const Manager = (() => {
             <div class="fw-600 fs-sm" style="margin:var(--sp-4) 0 var(--sp-2)">📞 Últimas chamadas</div>
             ${userCalls.map(c => `
               <div style="padding:var(--sp-2) var(--sp-3);background:var(--bg-elevated);border-radius:var(--r-md);border:1px solid var(--border-subtle);margin-bottom:6px">
-                <div class="fs-xs text-muted">${new Date(c.started_at).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${c.segments || 0} falas · ${c.tip_count || 0} dicas${c.ended_at ? '' : ' · ⏳ em andamento'}</div>
+                <div class="fs-xs text-muted">${new Date(c.started_at).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${c.segments || 0} falas · ${c.tip_count || 0} dicas${c.briefing?.industryLabel ? ` · ${escHtml(c.briefing.industryLabel)}` : ''}${c.ended_at ? '' : ' · ⏳ em andamento'}</div>
+                ${(c.briefing?.products || []).length ? `<div class="fs-xs" style="margin-top:2px;color:var(--teal, #00d4aa)">📦 ${c.briefing.products.map(p => escHtml(p.name)).join(' · ')}</div>` : ''}
                 ${c.summary ? `<div class="fs-xs text-secondary" style="margin-top:3px;line-height:1.5">${escHtml(c.summary)}</div>` : ''}
               </div>
             `).join('')}
@@ -2231,9 +2274,18 @@ const Manager = (() => {
       `;
     };
 
+    const pager = totalPages > 1 ? `
+      <div style="display:flex;gap:6px;justify-content:center;align-items:center;margin-top:var(--sp-4);flex-wrap:wrap">
+        <button class="btn btn-sm btn-ghost" ${lcPage <= 1 ? 'disabled' : ''} onclick="Manager.lcSetPage(${lcPage - 1})">‹ Anterior</button>
+        ${Array.from({ length: totalPages }, (_, i) => i + 1).map(pg => `
+          <button class="btn btn-sm ${pg === lcPage ? 'btn-primary' : 'btn-ghost'}" onclick="Manager.lcSetPage(${pg})" style="min-width:38px">${pg}</button>
+        `).join('')}
+        <button class="btn btn-sm btn-ghost" ${lcPage >= totalPages ? 'disabled' : ''} onclick="Manager.lcSetPage(${lcPage + 1})">Próximo ›</button>
+      </div>` : '';
+
     container.innerHTML = `
       <div class="api-config-info mb-6">
-        <strong>🎧 Live Coach:</strong> seus vendedores iniciam o assistente durante chamadas reais (Meet, Teams, Zoom). A IA transcreve, envia dicas ao vivo e aprende o estilo, os trejeitos e a técnica de cada um — o ranking e os relatórios abaixo mostram apenas a SUA equipe. Atribua a cada vendedor o coach que quiser: o padrão, o estilo de um colega top performer, ou o ⭐ Coach Master Júnior Smarzaro.
+        <strong>🎧 Live Coach:</strong> seus vendedores iniciam o assistente durante chamadas reais. A IA transcreve, envia dicas ao vivo moldadas pelo briefing da chamada e aprende o estilo de cada um. Atribua a cada vendedor o coach que quiser — inclusive o ⭐ Coach Master Júnior Smarzaro.
       </div>
       ${isSuper ? `
       <div class="config-section" style="border-color:rgba(0,212,170,0.3)">
@@ -2241,7 +2293,7 @@ const Manager = (() => {
           <div class="config-section-icon purple">🧪</div>
           <div>
             <div class="config-section-title">Laboratório de Testes <span class="badge badge-teal" style="font-size:0.65rem;margin-left:6px">Gestor Master</span></div>
-            <div class="config-section-desc">Valide o Live Coach sozinho: um cliente-robô com voz neural realista lê um roteiro de vendas em outra aba enquanto você responde como vendedor no microfone.</div>
+            <div class="config-section-desc">Valide o Live Coach sozinho: um cliente-robô com voz neural lê um roteiro de vendas em outra aba enquanto você responde como vendedor.</div>
           </div>
         </div>
         <div class="flex gap-3 flex-wrap">
@@ -2262,10 +2314,10 @@ const Manager = (() => {
             <div class="config-section-icon purple">🏆</div>
             <div>
               <div class="config-section-title">Ranking da sua equipe</div>
-              <div class="config-section-desc">Ordenado por chamadas reais analisadas pelo Live Coach</div>
+              <div class="config-section-desc">Top ${Math.min(5, filtered.length)} por chamadas reais analisadas pelo Live Coach</div>
             </div>
           </div>
-          ${ranked.map((s, i) => `
+          ${filtered.slice(0, 5).map((s, i) => `
             <div style="display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3);border-radius:var(--r-md);margin-bottom:6px;background:${i === 0 && s.callsAnalyzed > 0 ? 'linear-gradient(135deg, rgba(255,200,50,0.08), var(--bg-elevated))' : 'var(--bg-elevated)'};border:1px solid ${i === 0 && s.callsAnalyzed > 0 ? 'rgba(255,200,50,0.3)' : 'var(--border-subtle)'}">
               <div style="font-size:1.3rem;width:36px;text-align:center">${s.callsAnalyzed > 0 && medals[i] ? medals[i] : `<span style="font-size:0.85rem;color:var(--text-muted)">${i + 1}º</span>`}</div>
               <div style="flex:1">
@@ -2279,7 +2331,14 @@ const Manager = (() => {
             </div>
           `).join('')}
         </div>
-        ${ranked.map(sellerCard).join('')}
+
+        <div id="lc-cards-top" style="display:flex;gap:10px;align-items:center;margin-bottom:var(--sp-4);flex-wrap:wrap">
+          <input id="lc-search" class="form-input" placeholder="🔎 Buscar vendedor por nome ou e-mail..." value="${escHtml(lcSearch)}" oninput="Manager.lcSearchInput(this)" style="max-width:300px">
+          <span class="fs-xs text-muted">${filtered.length} vendedor${filtered.length !== 1 ? 'es' : ''}${totalPages > 1 ? ` · página ${lcPage} de ${totalPages}` : ''}</span>
+          <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="Manager.refreshSection('livecoach')">↺ Atualizar</button>
+        </div>
+        ${pageItems.length === 0 ? `<div class="card empty-state" style="padding:var(--sp-10)"><div class="empty-state-desc">Nenhum vendedor encontrado para "${escHtml(lcSearch)}".</div></div>` : pageItems.map(sellerCard).join('')}
+        ${pager}
       `}
     `;
   }
@@ -2292,6 +2351,9 @@ const Manager = (() => {
     try {
       await API.assignCoach(sellerId, coachId);
       UI.toast(coachId === 'junior' ? '⭐ Júnior Smarzaro atribuído como Coach Master!' : '✅ Coach atualizado!', 'success');
+      // Atualiza o cache para a paginação refletir a mudança
+      const cached = lcData?.sellers?.find(x => String(x.id) === String(sellerId));
+      if (cached) cached.coach_id = coachId;
       const isJunior = coachId === 'junior';
       const wrap = document.getElementById('coach-wrap-' + sellerId);
       if (wrap) wrap.style.boxShadow = isJunior ? '0 0 16px rgba(255,200,50,0.4)' : 'none';
@@ -2548,7 +2610,7 @@ const Manager = (() => {
     switchProductTab,
     selectArchetype,
     viewSessionReport, generateFakeReports,
-    assignCoachUI,
+    assignCoachUI, lcSetPage, lcSearchInput,
   };
 })();
 

@@ -52,7 +52,27 @@ const LiveCoach = (() => {
   let tipSoundOn = true;           // aviso sonoro sutil ao chegar dica
   let profile = null;
   let coach = null;                // coach atribuído pelo gestor: {id, name, special?, profile?}
+  let brief = null;                // briefing pré-chamada: produtos, ramo do cliente, diretrizes
+  let availableProducts = [];
+  let selectedProductIds = new Set();
   let coachBusy = false;
+
+  const INDUSTRIES = [
+    ['geral', '🌐 Geral / Outro'],
+    ['tecnologia', '💻 Tecnologia / SaaS'],
+    ['saude', '🏥 Saúde / Clínicas'],
+    ['farmacia', '💊 Farmácia'],
+    ['industria', '🏭 Indústria'],
+    ['varejo', '🛒 Varejo / E-commerce'],
+    ['educacao', '📚 Educação'],
+    ['servicos', '💼 Serviços B2B'],
+    ['financeiro', '🏦 Financeiro / Seguros'],
+    ['imobiliario', '🏢 Imobiliário'],
+    ['agro', '🌾 Agronegócio'],
+    ['juridico', '⚖️ Jurídico / Advocacia'],
+    ['alimenticio', '🍽 Alimentício / Restaurantes'],
+    ['logistica', '🚚 Logística / Transporte'],
+  ];
   let transcribeModelOk = true;    // gpt-4o-mini-transcribe disponível?
 
   const STAGE_LABELS = {
@@ -161,6 +181,18 @@ const LiveCoach = (() => {
         .lc-stage-row { display: flex; align-items: center; gap: 10px; margin-bottom: 0.75rem; flex-wrap: wrap; }
         .lc-temp-track { flex: 1; min-width: 110px; height: 8px; border-radius: 100px; background: rgba(255,255,255,0.07); overflow: hidden; }
         .lc-temp-fill { height: 100%; border-radius: 100px; transition: width 0.6s ease, background 0.6s ease; }
+        /* ── Briefing pré-chamada ── */
+        .lc-label { display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #8a8aad; margin: 1rem 0 0.5rem; }
+        .lc-label:first-of-type { margin-top: 0; }
+        .lc-pchips { display: flex; flex-wrap: wrap; gap: 8px; }
+        .lc-pchip { padding: 8px 14px; border-radius: 100px; border: 1.5px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: #b9b9d0; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.18s; user-select: none; }
+        .lc-pchip:hover { border-color: rgba(108,99,255,0.5); }
+        .lc-pchip.sel { border-color: #00d4aa; background: linear-gradient(135deg, rgba(0,212,170,0.18), rgba(0,212,170,0.06)); color: #7dead0; box-shadow: 0 0 12px rgba(0,212,170,0.2); }
+        .lc-pchip.sel::before { content: '✓ '; }
+        .lc-input, .lc-select, .lc-textarea { width: 100%; background: rgba(255,255,255,0.045); border: 1.5px solid rgba(255,255,255,0.12); color: #e8e8f0; border-radius: 12px; padding: 0.7rem 0.9rem; font-size: 0.88rem; font-family: inherit; transition: border 0.2s; }
+        .lc-input:focus, .lc-select:focus, .lc-textarea:focus { outline: none; border-color: rgba(108,99,255,0.6); }
+        .lc-textarea { min-height: 92px; resize: vertical; line-height: 1.5; }
+        .lc-brief-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 100px; font-size: 0.73rem; font-weight: 600; background: rgba(0,212,170,0.1); border: 1px solid rgba(0,212,170,0.3); color: #7dead0; margin: 2px; }
       </style>
     `;
   }
@@ -182,6 +214,25 @@ const LiveCoach = (() => {
       return;
     }
 
+    // Carrega os produtos disponíveis para o vendedor montar o briefing
+    overlay.innerHTML = `${baseStyles()}
+      <div class="lc-wrap" style="display:flex;align-items:center;justify-content:center;min-height:60vh">
+        <div class="lc-muted">Carregando seus produtos...</div>
+      </div>`;
+    overlay.style.display = 'block';
+    Promise.resolve().then(async () => {
+      try { availableProducts = (await API.listProducts()) || []; } catch (e) { availableProducts = []; }
+      try {
+        const p = await API.getLiveProfile(Auth.getUser().id);
+        coach = p?.coach || null;
+      } catch (e) { coach = null; }
+      selectedProductIds = new Set();
+      renderSetup();
+    });
+  }
+
+  function renderSetup() {
+    const overlay = ensureOverlay();
     overlay.innerHTML = `${baseStyles()}
       <div class="lc-wrap">
         <div class="lc-header">
@@ -190,23 +241,92 @@ const LiveCoach = (() => {
         </div>
         <div class="lc-grid">
           <div class="lc-card">
-            <div class="lc-card-title">Como funciona</div>
-            <div class="lc-setup-step"><div class="lc-step-num">1</div><div>Abra sua reunião (Google Meet, Teams, Zoom Web...) em <strong>outra aba deste navegador</strong>.</div></div>
-            <div class="lc-setup-step"><div class="lc-step-num">2</div><div>Clique em <strong>Iniciar</strong> e selecione a <strong>ABA da reunião</strong> (não a tela inteira!), marcando <strong>"Compartilhar áudio da guia"</strong>. Assim o áudio do cliente é captado direto — mesmo com o som do PC baixo ou mudo.</div></div>
-            <div class="lc-setup-step"><div class="lc-step-num">3</div><div>Permita o acesso ao <strong>microfone</strong>. Sua fala e a do cliente são identificadas automaticamente por canal.</div></div>
-            <div class="lc-setup-step"><div class="lc-step-num">4</div><div>Use <strong>fones de ouvido</strong> para o microfone não captar a voz do cliente junto com a sua.</div></div>
-            <div class="lc-setup-step"><div class="lc-step-num">5</div><div>Clique em <strong>🗔 Janela flutuante</strong>: uma mini-janela fica por cima de tudo com o vídeo, as dicas ao vivo, a temperatura da negociação e o botão de <strong>mute do coach</strong> — controle total sem sair da reunião.</div></div>
-            <div class="lc-setup-step"><div class="lc-step-num">6</div><div>⚠️ O mudo do Meet/Teams <strong>não silencia o Live Coach</strong> — use o botão de microfone daqui (na tela ou na janela flutuante).</div></div>
+            <div class="lc-card-title">🎯 Briefing da chamada — o coach vai agir com base nisso</div>
+
+            <label class="lc-label">1 · O que você vai vender? *</label>
+            ${availableProducts.length > 0 ? `
+              <div class="lc-pchips">
+                ${availableProducts.map(p => `
+                  <span class="lc-pchip" data-id="${p.id}" onclick="LiveCoach.toggleProduct(this)">${esc(p.name)}${p.price ? ` · ${esc(p.price)}` : ''}</span>
+                `).join('')}
+              </div>
+              <input class="lc-input" id="lc-brief-extra" placeholder="Outro produto/serviço não cadastrado (opcional)" style="margin-top:10px">
+            ` : `
+              <div class="lc-muted" style="margin-bottom:8px">Você não tem produtos cadastrados — descreva abaixo o que vai vender.</div>
+              <input class="lc-input" id="lc-brief-extra" placeholder="Ex: Consultoria de marketing digital, plano trimestral R$ 4.500">
+            `}
+
+            <label class="lc-label">2 · Ramo do cliente</label>
+            <select class="lc-select" id="lc-brief-industry">
+              ${INDUSTRIES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
+            </select>
+
+            <label class="lc-label">3 · Diretrizes da chamada (linguagem natural, opcional)</label>
+            <textarea class="lc-textarea" id="lc-brief-directives" placeholder="Ex: É uma segunda reunião, o cliente já viu a demo e travou no preço. Objetivo de hoje: fechar o plano anual com no máximo 10% de desconto. Decisor é o CFO, perfil analítico — usar números e ROI. Não mencionar o concorrente X."></textarea>
+            <div class="lc-muted" style="margin-top:6px">O coach segue essas diretrizes durante toda a chamada — objetivo, contexto, limites de negociação, perfil do decisor, o que evitar...</div>
           </div>
-          <div class="lc-card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:1rem">
-            <div style="font-size:3rem">🎙</div>
-            <p class="lc-muted">Transcrição ao vivo, dicas em tempo real, temperatura da negociação e aprendizado do seu perfil a cada chamada.</p>
-            <button class="lc-btn lc-btn-primary" onclick="LiveCoach.start()" id="lc-start-btn">🚀 Iniciar Live Coach</button>
-            <div class="lc-muted" id="lc-start-status"></div>
+
+          <div>
+            <div class="lc-card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:1rem">
+              <div style="font-size:3rem">🎙</div>
+              ${coach && coach.id === 'junior'
+                ? `<div class="lc-chip" style="border-color:rgba(255,200,50,0.6);background:linear-gradient(135deg, rgba(255,200,50,0.18), rgba(255,160,0,0.08));color:#ffd76a;font-weight:800">⭐ Seu coach: Júnior Smarzaro</div>`
+                : ''}
+              <p class="lc-muted">Transcrição ao vivo, dicas em tempo real moldadas pelo seu briefing, temperatura da negociação e aprendizado do seu perfil.</p>
+              <button class="lc-btn lc-btn-primary" onclick="LiveCoach.start()" id="lc-start-btn">🚀 Iniciar Live Coach</button>
+              <div class="lc-muted" id="lc-start-status"></div>
+            </div>
+            <div class="lc-card">
+              <div class="lc-card-title">Como funciona</div>
+              <div class="lc-setup-step"><div class="lc-step-num">1</div><div>Abra sua reunião (Meet, Teams, Zoom Web...) em <strong>outra aba deste navegador</strong>.</div></div>
+              <div class="lc-setup-step"><div class="lc-step-num">2</div><div>Ao iniciar, selecione a <strong>ABA da reunião</strong> (não a tela inteira!) e marque <strong>"Compartilhar áudio da guia"</strong>.</div></div>
+              <div class="lc-setup-step"><div class="lc-step-num">3</div><div>Permita o <strong>microfone</strong> e use <strong>fones de ouvido</strong>.</div></div>
+              <div class="lc-setup-step"><div class="lc-step-num">4</div><div>Use a <strong>🗔 Janela flutuante</strong> para ver dicas, termômetro e mutar o coach por cima da reunião.</div></div>
+              <div class="lc-setup-step"><div class="lc-step-num">5</div><div>⚠️ O mudo do Meet/Teams <strong>não silencia o Live Coach</strong> — use o botão de microfone daqui.</div></div>
+            </div>
           </div>
         </div>
       </div>`;
-    overlay.style.display = 'block';
+  }
+
+  function toggleProduct(el) {
+    const id = String(el.dataset.id);
+    if (selectedProductIds.has(id)) { selectedProductIds.delete(id); el.classList.remove('sel'); }
+    else { selectedProductIds.add(id); el.classList.add('sel'); }
+  }
+
+  // Monta o briefing a partir do formulário; retorna null se inválido
+  function collectBrief() {
+    const products = availableProducts.filter(p => selectedProductIds.has(String(p.id)));
+    const extra = (document.getElementById('lc-brief-extra')?.value || '').trim();
+    if (products.length === 0 && !extra) return null;
+    const sel = document.getElementById('lc-brief-industry');
+    return {
+      products: products.map(p => ({
+        id: p.id, name: p.name, price: p.price || '',
+        description: p.description || '', benefits: p.benefits || [],
+      })),
+      extraProduct: extra || null,
+      industry: sel?.value || 'geral',
+      industryLabel: sel?.options[sel.selectedIndex]?.text || 'Geral',
+      directives: (document.getElementById('lc-brief-directives')?.value || '').trim() || null,
+    };
+  }
+
+  // Bloco do briefing injetado em todos os prompts do coach
+  function briefBlock() {
+    if (!brief) return '';
+    const prods = [
+      ...(brief.products || []).map(p => `- ${p.name}${p.price ? ` (${p.price})` : ''}${p.description ? `: ${p.description.slice(0, 160)}` : ''}${(p.benefits || []).length ? ` | Benefícios: ${p.benefits.slice(0, 5).join(', ')}` : ''}`),
+      ...(brief.extraProduct ? [`- ${brief.extraProduct}`] : []),
+    ].join('\n');
+    return `
+BRIEFING DESTA CHAMADA (definido pelo vendedor — fundamente as dicas nele):
+PRODUTOS/SERVIÇOS EM VENDA:
+${prods || '- (não informado)'}
+RAMO DO CLIENTE: ${brief.industryLabel || 'Geral'} — adapte argumentos, exemplos e objeções típicas deste ramo.
+${brief.directives ? `DIRETRIZES DO VENDEDOR (siga-as RIGOROSAMENTE em todas as dicas): ${brief.directives}` : ''}
+`;
   }
 
   function close() {
@@ -225,6 +345,13 @@ const LiveCoach = (() => {
   async function start() {
     const statusEl = document.getElementById('lc-start-status');
     const setStatus = (t) => { if (statusEl) statusEl.textContent = t; };
+
+    // Briefing é obrigatório: pelo menos um produto (ou descrição livre)
+    brief = collectBrief();
+    if (!brief) {
+      setStatus('⚠️ Selecione ao menos um produto (ou descreva o que vai vender) antes de iniciar.');
+      return;
+    }
 
     try {
       setStatus('Selecione a ABA da reunião e marque "Compartilhar áudio da guia"...');
@@ -248,7 +375,7 @@ const LiveCoach = (() => {
       setStatus('Preparando...');
       try { await Notification.requestPermission(); } catch (e) {}
 
-      const created = await API.createLiveCall();
+      const created = await API.createLiveCall(brief);
       callId = created?.id || ('call_' + Date.now());
 
       const user = Auth.getUser();
@@ -619,7 +746,7 @@ const LiveCoach = (() => {
       }
 
       const prompt = `${coachPersona}, acompanhando em silêncio uma chamada de vendas REAL em videochamada. O VENDEDOR é seu aluno; o CLIENTE é o outro lado (pode haver mais de uma pessoa no canal do cliente).
-${profileBlock}${triggerBlock}
+${briefBlock()}${profileBlock}${triggerBlock}
 TRECHO MAIS RECENTE DA CONVERSA (transcrição automática — pode conter pequenos erros; ignore fragmentos sem sentido):
 ${recent}
 
@@ -754,6 +881,15 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
             </div>
           </div>
           <div>
+            ${brief ? `
+            <div class="lc-card" style="padding:0.9rem 1.25rem">
+              <div class="lc-card-title" style="margin-bottom:0.5rem">🎯 Briefing ativo</div>
+              ${(brief.products || []).map(p => `<span class="lc-brief-chip">📦 ${esc(p.name)}</span>`).join('')}
+              ${brief.extraProduct ? `<span class="lc-brief-chip">📦 ${esc(brief.extraProduct)}</span>` : ''}
+              <span class="lc-brief-chip" style="border-color:rgba(108,99,255,0.35);background:rgba(108,99,255,0.1);color:#c3beff">${esc(brief.industryLabel)}</span>
+              ${brief.directives ? `<div class="lc-muted" style="margin-top:6px;line-height:1.45">📋 ${esc(brief.directives.slice(0, 160))}${brief.directives.length > 160 ? '…' : ''}</div>` : ''}
+            </div>
+            ` : ''}
             <div class="lc-card">
               <div class="lc-card-title">🌡 Termômetro da negociação</div>
               <div id="lc-stage"><div class="lc-muted">Analisando os primeiros minutos...</div></div>
@@ -1085,6 +1221,8 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
           .slice(0, 24000);
 
         const prompt = `Você é um coach de vendas sênior. Abaixo está a transcrição de uma chamada de vendas REAL do vendedor "${user?.name || 'Vendedor'}". O canal CLIENTE pode conter mais de uma pessoa do lado remoto — se o contexto permitir distinguir, mencione no resumo. A transcrição pode conter pequenos fragmentos com erro — ignore-os.
+${briefBlock()}
+Avalie também se o vendedor cumpriu as diretrizes e explorou bem os produtos do briefing.
 
 PERFIL ACUMULADO ATUAL DO VENDEDOR (vazio se primeira análise):
 ${JSON.stringify(profile || {})}
@@ -1179,7 +1317,7 @@ Retorne EXCLUSIVAMENTE JSON:
       </div>`;
   }
 
-  return { open, close, start, stop, toggleMicPause, pip, toggleTheater, toggleSound };
+  return { open, close, start, stop, toggleMicPause, pip, toggleTheater, toggleSound, toggleProduct };
 })();
 
 window.LiveCoach = LiveCoach;
