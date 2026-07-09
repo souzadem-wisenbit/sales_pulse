@@ -19,7 +19,7 @@
 
 const LiveCoach = (() => {
 
-  const COACH_MIN_GAP_MS = 6000;   // intervalo mínimo entre dicas (anti-spam)
+  const COACH_MIN_GAP_MS = 10000;   // intervalo mínimo entre dicas (anti-spam)
   const COACH_FALLBACK_MS = 10000; // verificação periódica (rede de segurança)
   const SAVE_INTERVAL_MS = 12000;  // frequência de persistência no backend
   const PREROLL_MS = 400;          // áudio guardado ANTES da voz começar (não corta a 1ª sílaba)
@@ -156,6 +156,10 @@ const LiveCoach = (() => {
         .lc-hero-icon { font-size: 1.7rem; line-height: 1; flex-shrink: 0; filter: drop-shadow(0 0 8px rgba(255,255,255,0.15)); }
         .lc-hero-text { font-size: 1.04rem; font-weight: 700; line-height: 1.45; color: #f2f2fa; }
         .lc-hero-fresh { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: #9494b8; }
+        .lc-say { margin-top: 10px; padding: 11px 13px; border-radius: 10px; background: rgba(7,7,15,0.55); border: 1px dashed rgba(255,255,255,0.22); }
+        .lc-say-label { font-size: 0.6rem; font-weight: 800; letter-spacing: 1.4px; color: #8a8aad; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
+        .lc-say-tone { font-style: italic; font-weight: 600; text-transform: none; letter-spacing: 0.2px; color: #b0aed6; }
+        .lc-say-text { font-size: 0.96rem; line-height: 1.55; color: #ffffff; }
         .lc-fresh-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #2ed573; margin-right: 5px; animation: lcPulse 1.2s infinite; }
         /* ── Histórico: dicas antigas encolhem e apagam ── */
         .lc-hist { display: flex; gap: 8px; align-items: baseline; padding: 7px 10px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; font-size: 0.78rem; color: #9a9ab5; line-height: 1.35; }
@@ -191,8 +195,10 @@ const LiveCoach = (() => {
         .lc-pchip.sel { border-color: #00d4aa; background: linear-gradient(135deg, rgba(0,212,170,0.18), rgba(0,212,170,0.06)); color: #7dead0; box-shadow: 0 0 12px rgba(0,212,170,0.2); }
         .lc-pchip.sel::before { content: '✓ '; }
         .lc-input, .lc-select, .lc-textarea { width: 100%; background: rgba(255,255,255,0.045); border: 1.5px solid rgba(255,255,255,0.12); color: #e8e8f0; border-radius: 12px; padding: 0.7rem 0.9rem; font-size: 0.88rem; font-family: inherit; transition: border 0.2s; }
-        .lc-input:focus, .lc-select:focus, .lc-textarea:focus { outline: none; border-color: rgba(108,99,255,0.6); }
+        .lc-input:focus, .lc-select:focus, .lc-textarea:focus { outline: none; border-color: rgba(108,99,255,0.6); background: rgba(255,255,255,0.045); }
         .lc-textarea { min-height: 92px; resize: vertical; line-height: 1.5; }
+        .lc-select {width: 100%; background: #1b1b22; color: #e8e8f0; border: 1.5px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 0.7rem 0.9rem;}
+        .lc-select option { background: #1b1b22; color: #e8e8f0; }
         .lc-brief-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 100px; font-size: 0.73rem; font-weight: 600; background: rgba(0,212,170,0.1); border: 1px solid rgba(0,212,170,0.3); color: #7dead0; margin: 2px; }
       </style>
     `;
@@ -271,8 +277,16 @@ const LiveCoach = (() => {
             <div class="lc-card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:1rem">
               <div style="font-size:3rem">🎙</div>
               ${coach && coach.id === 'junior'
-                ? `<div class="lc-chip" style="border-color:rgba(255,200,50,0.6);background:linear-gradient(135deg, rgba(255,200,50,0.18), rgba(255,160,0,0.08));color:#ffd76a;font-weight:800">⭐ Seu coach: Júnior Smarzaro</div>`
-                : ''}
+                ? `<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:14px;border:1.5px solid rgba(255,200,50,0.55);background:linear-gradient(135deg, rgba(255,200,50,0.14), rgba(20,20,35,0.6));box-shadow:0 0 20px rgba(255,200,50,0.25)">
+                    <img src="img/junior.jpg" style="width:46px;height:46px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,200,50,0.75)" alt="Júnior Smarzaro">
+                    <div style="text-align:left">
+                      <div style="font-weight:800;color:#ffd76a;font-size:0.92rem">⭐ Seu coach: Júnior Smarzaro</div>
+                      <div class="lc-muted" style="font-size:0.68rem">Coach Master · alta performance comercial</div>
+                    </div>
+                  </div>`
+                : coach && coach.name
+                  ? `<div class="lc-chip" style="border-color:rgba(0,212,170,0.4);color:#7dead0">🧬 Seu coach: Estilo de ${esc(coach.name)}</div>`
+                  : ''}
               <p class="lc-muted">Transcrição ao vivo, dicas em tempo real moldadas pelo seu briefing, temperatura da negociação e aprendizado do seu perfil.</p>
               <button class="lc-btn lc-btn-primary" onclick="LiveCoach.start()" id="lc-start-btn">🚀 Iniciar Live Coach</button>
               <div class="lc-muted" id="lc-start-status"></div>
@@ -727,8 +741,11 @@ ${brief.directives ? `DIRETRIZES DO VENDEDOR (siga-as RIGOROSAMENTE em todas as 
     const sinceCount = transcript.length;
 
     try {
-      const recent = transcript.slice(-16)
-        .map(s => `${s.speaker === 'seller' ? 'VENDEDOR' : 'CLIENTE'}: ${s.text}`)
+      // Falas com idade relativa: o coach sabe o que é o assunto ATUAL
+      // e o que já ficou para trás (dica atrasada = dica errada).
+      const nowT = Date.now();
+      const recent = transcript.slice(-12)
+        .map(s => `[há ${Math.max(0, Math.round((nowT - s.t) / 1000))}s] ${s.speaker === 'seller' ? 'VENDEDOR' : 'CLIENTE'}: ${s.text}`)
         .join('\n');
 
       const profileBlock = profile
@@ -749,19 +766,29 @@ ${brief.directives ? `DIRETRIZES DO VENDEDOR (siga-as RIGOROSAMENTE em todas as 
 
       const prompt = `${coachPersona}, acompanhando em silêncio uma chamada de vendas REAL em videochamada. O VENDEDOR é seu aluno; o CLIENTE é o outro lado (pode haver mais de uma pessoa no canal do cliente).
 ${briefBlock()}${profileBlock}${triggerBlock}
-TRECHO MAIS RECENTE DA CONVERSA (transcrição automática — pode conter pequenos erros; ignore fragmentos sem sentido):
+TRECHO MAIS RECENTE DA CONVERSA (com a idade de cada fala — transcrição automática, pode conter pequenos erros):
 ${recent}
+
+REGRAS DE OURO (obrigatórias, valem para QUALQUER coach):
+1. RECÊNCIA: comente APENAS o assunto ATUAL (as falas mais recentes). Se a conversa mudou de assunto, NUNCA volte ao anterior — dica atrasada é dica errada.
+2. RUÍDO: ignore completamente small talk operacional ("tá me ouvindo?", "vou compartilhar a tela"), conversas paralelas, ruídos e falas sem relação com a reunião. Se o trecho recente for só isso, retorne {"tip": null}.
+3. CONEXÃO ANTES DA VENDA: no início da chamada o objetivo é conexão GENUÍNA — NÃO mande falar do produto nem cavar dores cedo demais. Não seja direto e não fale do produto até construir uma conexão verdadeira, principalmente em vendas de alto valor!!! Sugira elogios específicos e sinceros a algo que o cliente disse/conquistou, interesse verdadeiro pelo negócio dele. Só avance quando o rapport estiver construído.
+4. ANCORAGEM NO PRODUTO: o vendedor vende OS PRODUTOS DO BRIEFING. O ramo do cliente é CONTEXTO para vender ESSE produto — JAMAIS desvie a venda para outro serviço/tema. Se o vendedor voltar a falar do produto do briefing, dê munição específica sobre ELE imediatamente.
+5. MUNIÇÃO CONCRETA: nunca dê ordem vaga ("reforce o valor de X"). Entregue o conteúdo PRONTO no campo "say": a frase exata que o vendedor pode falar em voz alta, com argumentos, dados e números reais e específicos (se citar fatos, use fatos verdadeiros e notórios).
+6. FECHAMENTO PARRUDO: em estágio de fechamento, dê o script exato — a pergunta de fechamento pronta, o tom de entrega, e instrua a fazer silêncio após perguntar.
 
 Retorne EXCLUSIVAMENTE JSON:
 {
-  "tip": "UMA dica curta, específica e acionável para o vendedor usar AGORA (máx 18 palavras). null se nada útil.",
+  "tip": "diagnóstico/direção curta (máx 14 palavras). null se nada útil ou se o trecho for só ruído.",
+  "say": "fala PRONTA para o vendedor dizer AGORA, natural e fluida, 1-3 frases (máx 45 palavras). null se não se aplicar.",
+  "tone": "tom de entrega em 2-4 palavras (ex: 'confiante e calmo'). null se não se aplicar.",
   "priority": "urgent|normal|good",
   "icon": "um emoji",
   "stage": "rapport|descoberta|apresentacao|objecoes|fechamento",
   "temperature": <0-100, o quão quente a negociação está: interesse real, sinais de compra, engajamento do cliente>
 }
 
-Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção mal respondida? sinal de compra ignorado? linguagem fraca? hora de avançar? Se o vendedor acabou de mandar bem, use priority "good" e reforce.`;
+Se o vendedor acabou de mandar bem, use priority "good", reforce o acerto e diga como capitalizar em cima dele.`;
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -769,7 +796,7 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
         body: JSON.stringify({
           model: Storage.getConfig().openaiModel || 'gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 160,
+          max_tokens: 320,
           temperature: 0.4,
           response_format: { type: 'json_object' },
         }),
@@ -782,7 +809,19 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
         if (typeof parsed.temperature === 'number') latestTemp = Math.max(0, Math.min(100, Math.round(parsed.temperature)));
         renderStage();
         if (parsed.tip) {
-          addTip({ t: Date.now(), tip: parsed.tip, priority: parsed.priority || 'normal', icon: parsed.icon || '🎯' });
+          // Anti-obsolescência: se a conversa andou muito enquanto a dica era
+          // gerada, o assunto provavelmente mudou — descarta (exceto urgente).
+          const grewBy = transcript.length - sinceCount;
+          if (grewBy < 3 || parsed.priority === 'urgent') {
+            addTip({
+              t: Date.now(),
+              tip: parsed.tip,
+              say: parsed.say || null,
+              tone: parsed.tone || null,
+              priority: parsed.priority || 'normal',
+              icon: parsed.icon || '🎯',
+            });
+          }
         }
         updatePip();
       }
@@ -801,7 +840,8 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
     playChime(tip.priority);
     try {
       if (document.hidden && Notification.permission === 'granted') {
-        new Notification('🎧 Live Coach', { body: `${tip.icon} ${tip.tip}`, tag: 'livecoach-tip' });
+        const body = `${tip.icon} ${tip.tip}${tip.say ? `\n💬 "${tip.say}"` : ''}`.slice(0, 180);
+        new Notification('🎧 Live Coach', { body, tag: 'livecoach-tip' });
       }
     } catch (e) {}
   }
@@ -855,7 +895,9 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
           <div class="lc-title"><span class="lc-live-dot"></span>Live Coach — Monitorando chamada</div>
           <div class="lc-chip" id="lc-clock">00:00</div>
           ${coach && coach.id === 'junior'
-            ? `<div class="lc-chip" style="border-color:rgba(255,200,50,0.6);background:linear-gradient(135deg, rgba(255,200,50,0.18), rgba(255,160,0,0.08));color:#ffd76a;font-weight:800">⭐ Coach: Júnior Smarzaro</div>`
+            ? `<div class="lc-chip" style="display:inline-flex;align-items:center;gap:7px;padding-left:4px;border-color:rgba(255,200,50,0.6);background:linear-gradient(135deg, rgba(255,200,50,0.18), rgba(255,160,0,0.08));color:#ffd76a;font-weight:800">
+                 <img src="img/junior.jpg" style="width:20px;height:20px;border-radius:50%;object-fit:cover;border:1px solid rgba(255,200,50,0.8)" alt="">⭐ Coach: Júnior Smarzaro
+               </div>`
             : coach && coach.name
               ? `<div class="lc-chip" style="border-color:rgba(0,212,170,0.4);color:#7dead0">🧬 Coach: Estilo de ${esc(coach.name)}</div>`
               : `<div class="lc-chip">🤖 Coach Padrão</div>`}
@@ -1023,6 +1065,7 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
           <div id="pip-tip-box" style="flex:1;margin:8px 12px;padding:10px 12px;border-radius:12px;border:1.5px solid rgba(255,255,255,0.1);overflow-y:auto;transition:all 0.3s">
             <div id="pip-tip-label" style="display:none;font-size:0.58rem;font-weight:800;letter-spacing:1.4px;padding:2px 8px;border-radius:100px;margin-bottom:6px;width:fit-content"></div>
             <div id="pip-tip" style="font-size:0.95rem;font-weight:600;line-height:1.45;color:#e8e8f0">Aguardando a primeira dica do coach...</div>
+            <div id="pip-say" style="display:none;margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,0.45);border:1px dashed rgba(255,255,255,0.25);font-size:0.88rem;line-height:1.5;color:#fff"></div>
             <div id="pip-fresh" style="font-size:0.65rem;color:#9494b8;margin-top:6px"></div>
           </div>
           <div class="p-row" style="gap:12px;padding-top:0">
@@ -1077,6 +1120,15 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
             ? { fg: '#a9f5c8', border: 'rgba(46,213,115,0.6)', bg: 'rgba(46,213,115,0.10)', label: '✅ MANDOU BEM', labelBg: '#2ed573', labelFg: '#04140b' }
             : { fg: '#d5d1ff', border: 'rgba(108,99,255,0.7)', bg: 'rgba(108,99,255,0.12)', label: '🎯 DICA', labelBg: '#6c63ff', labelFg: '#fff' };
         tipEl.innerHTML = `<span style="font-size:1.2rem;margin-right:6px">${t.icon || '🎯'}</span><span style="color:${theme.fg}">${esc(t.tip)}</span>`;
+        const sayEl = d.getElementById('pip-say');
+        if (sayEl) {
+          if (t.say) {
+            sayEl.style.display = 'block';
+            sayEl.innerHTML = `<span style="font-size:0.58rem;font-weight:800;letter-spacing:1.2px;color:#8a8aad">💬 FALE ASSIM${t.tone ? ` · <i style="text-transform:none">${esc(t.tone)}</i>` : ''}</span><br>"${esc(t.say)}"`;
+          } else {
+            sayEl.style.display = 'none';
+          }
+        }
         const box = d.getElementById('pip-tip-box');
         if (box) { box.style.borderColor = theme.border; box.style.background = theme.bg; box.style.boxShadow = `0 0 16px ${theme.bg}`; }
         const lbl = d.getElementById('pip-tip-label');
@@ -1147,6 +1199,11 @@ Critérios para a dica: dor explorada antes do pitch? escuta ativa? objeção ma
           <span class="lc-hero-icon">${hero.icon || '🎯'}</span>
           <div class="lc-hero-text">${esc(hero.tip)}</div>
         </div>
+        ${hero.say ? `
+        <div class="lc-say">
+          <div class="lc-say-label"><span>💬 FALE ASSIM</span>${hero.tone ? `<span class="lc-say-tone">${esc(hero.tone)}</span>` : ''}</div>
+          <div class="lc-say-text">"${esc(hero.say)}"</div>
+        </div>` : ''}
         <div class="lc-hero-fresh">
           <span><span class="lc-fresh-dot"></span><span id="lc-tip-fresh">${freshLabel(hero.t)}</span></span>
           <span>${new Date(hero.t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>

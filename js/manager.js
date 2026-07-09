@@ -2215,22 +2215,31 @@ const Manager = (() => {
     const pageItems = filtered.slice((lcPage - 1) * LC_PAGE_SIZE, lcPage * LC_PAGE_SIZE);
 
     const medals = ['🥇', '🥈', '🥉'];
-    const JUNIOR_STYLE = 'border-color:rgba(255,200,50,0.7);background:linear-gradient(135deg, rgba(255,200,50,0.12), rgba(20,20,35,0.9));color:#ffd76a;font-weight:700;';
 
-    const coachOptions = (s) => {
-      const others = ranked.filter(o => o.id !== s.id && o.hasProfile);
-      return `
-        <option value="" ${!s.coach_id ? 'selected' : ''}>🤖 Coach Padrão SalesPulse</option>
-        <option value="junior" ${s.coach_id === 'junior' ? 'selected' : ''}>⭐ Júnior Smarzaro — COACH MASTER ⭐</option>
-        ${others.map(o => `<option value="${o.id}" ${s.coach_id === o.id ? 'selected' : ''}>🧬 Estilo de ${escHtml(o.name)}</option>`).join('')}
-      `;
+    const coachBadge = (s) => {
+      if (s.coach_id === 'junior') {
+        return `<div class="coach-badge coach-badge-junior" onclick="Manager.openCoachPicker('${s.id}')">
+          <img src="img/junior.jpg" alt="">
+          <div><div class="cb-name">⭐ Júnior Smarzaro</div><div class="cb-sub">Coach Master · trocar</div></div>
+        </div>`;
+      }
+      const styleOf = s.coach_id ? ranked.find(o => String(o.id) === String(s.coach_id)) : null;
+      if (styleOf) {
+        return `<div class="coach-badge coach-badge-style" onclick="Manager.openCoachPicker('${s.id}')">
+          <img src="img/avatar_generic.svg" alt="">
+          <div><div class="cb-name">🧬 Estilo de ${escHtml(styleOf.name)}</div><div class="cb-sub">trocar coach</div></div>
+        </div>`;
+      }
+      return `<div class="coach-badge coach-badge-default" onclick="Manager.openCoachPicker('${s.id}')">
+        <img src="img/salespulse_logo.png" alt="">
+        <div><div class="cb-name">Coach Padrão SalesPulse</div><div class="cb-sub">trocar coach</div></div>
+      </div>`;
     };
 
     const sellerCard = (s) => {
       const p = profByUser[s.id];
       const prof = p?.profile || {};
       const userCalls = (callsByUser[s.id] || []).slice(0, 4);
-      const isJunior = s.coach_id === 'junior';
       const nCalls = p?.calls_analyzed || 0;
       return `
         <div class="config-section">
@@ -2240,14 +2249,9 @@ const Manager = (() => {
               <div class="config-section-title">${escHtml(s.name)}</div>
               <div class="config-section-desc">${escHtml(s.email)} · 🎧 ${nCalls} chamada${nCalls !== 1 ? 's' : ''} · 🎓 ${p?.trainings_analyzed || 0} treino${(p?.trainings_analyzed || 0) !== 1 ? 's' : ''}${p?.updated_at ? ` · perfil atualizado ${new Date(p.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}` : ''}</div>
             </div>
-            <div style="min-width:280px">
+            <div>
               <label class="form-label" style="font-size:0.68rem">🎓 Coach deste vendedor</label>
-              <div id="coach-wrap-${s.id}" style="border-radius:10px;${isJunior ? 'box-shadow:0 0 16px rgba(255,200,50,0.4);' : ''}">
-                <select class="form-select" data-seller="${s.id}" onchange="Manager.assignCoachUI(this)" style="${isJunior ? JUNIOR_STYLE : ''}">
-                  ${coachOptions(s)}
-                </select>
-              </div>
-              <div id="coach-note-${s.id}" style="display:${isJunior ? 'block' : 'none'};font-size:0.7rem;color:#ffd76a;margin-top:4px">⭐ Coach Master — metodologia exclusiva Júnior Smarzaro</div>
+              ${coachBadge(s)}
             </div>
           </div>
           ${prof.styleSummary ? `
@@ -2347,22 +2351,110 @@ const Manager = (() => {
   }
 
   // Atribui o coach escolhido pelo gestor ao vendedor
-  async function assignCoachUI(sel) {
-    const sellerId = sel.dataset.seller;
-    const coachId = sel.value || null;
-    const JUNIOR_STYLE = 'border-color:rgba(255,200,50,0.7);background:linear-gradient(135deg, rgba(255,200,50,0.12), rgba(20,20,35,0.9));color:#ffd76a;font-weight:700;';
+  // ══════════════════════════════════════
+  // COACH PICKER — modal de cards premium (foto + bio) para escolher o
+  // coach de cada vendedor: Padrão SalesPulse, ⭐ Júnior Smarzaro (Coach
+  // Master) ou o estilo aprendido de qualquer colega da equipe.
+  // ══════════════════════════════════════
+  let coachPickerSellerId = null;
+
+  function openCoachPicker(sellerId) {
+    coachPickerSellerId = sellerId;
+    const seller = lcData?.sellers?.find(x => String(x.id) === String(sellerId));
+    if (!seller) return;
+
+    const profByUser = {};
+    (lcData?.profiles || []).forEach(p => { profByUser[p.user_id] = p; });
+    const teammates = (lcData?.sellers || [])
+      .filter(o => String(o.id) !== String(sellerId) && profByUser[o.id]?.profile?.styleSummary)
+      .map(o => ({ ...o, strengthsCount: (profByUser[o.id]?.profile?.strengths || []).length }));
+
+    const isSel = (id) => String(seller.coach_id || '') === String(id || '');
+
+    let modal = document.getElementById('coach-picker-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'coach-picker-modal';
+      modal.className = 'modal-overlay';
+      document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+      <style>
+        .cp-modal { max-width: 860px; }
+        .cp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; margin-top: var(--sp-5); }
+        .cp-card { position: relative; border-radius: 18px; padding: 20px 18px; cursor: pointer; border: 1.5px solid rgba(255,255,255,0.09); background: linear-gradient(160deg, rgba(255,255,255,0.035), rgba(255,255,255,0.01)); transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease; text-align: center; }
+        .cp-card:hover { transform: translateY(-4px); border-color: rgba(108,99,255,0.4); box-shadow: 0 12px 28px rgba(0,0,0,0.35); }
+        .cp-card.cp-selected { border-color: #00d4aa; box-shadow: 0 0 0 2px rgba(0,212,170,0.35), 0 12px 28px rgba(0,0,0,0.35); }
+        .cp-card.cp-junior { border-color: rgba(255,200,50,0.45); background: linear-gradient(160deg, rgba(255,200,50,0.09), rgba(255,255,255,0.01)); }
+        .cp-card.cp-junior:hover { border-color: rgba(255,200,50,0.85); box-shadow: 0 12px 32px rgba(255,180,30,0.22); }
+        .cp-card.cp-junior.cp-selected { border-color: #ffd25c; box-shadow: 0 0 0 2px rgba(255,200,50,0.55), 0 12px 32px rgba(255,180,30,0.25); }
+        .cp-check { position: absolute; top: 10px; right: 10px; width: 22px; height: 22px; border-radius: 50%; background: #00d4aa; color: #04140b; display: none; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 900; }
+        .cp-junior .cp-check { background: #ffd25c; }
+        .cp-selected .cp-check { display: flex; }
+        .cp-avatar { width: 76px; height: 76px; border-radius: 50%; object-fit: cover; margin: 0 auto 12px; display: block; border: 2px solid rgba(255,255,255,0.12); background: #14141f; }
+        .cp-card.cp-junior .cp-avatar { border-color: rgba(255,200,50,0.7); box-shadow: 0 0 18px rgba(255,200,50,0.3); }
+        .cp-card.cp-default .cp-avatar { object-fit: contain; padding: 14px; background: #0d0d18; }
+        .cp-badge { display: inline-block; font-size: 0.6rem; font-weight: 800; letter-spacing: 1px; padding: 3px 10px; border-radius: 100px; margin-bottom: 8px; background: linear-gradient(135deg, #ffd25c, #ffa500); color: #2a1a00; }
+        .cp-name { font-weight: 800; font-size: 0.95rem; color: #f2f2fa; margin-bottom: 4px; }
+        .cp-role { font-size: 0.72rem; color: #8a8aad; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .cp-bio { font-size: 0.78rem; line-height: 1.5; color: #b9b9d0; }
+        .cp-stat { font-size: 0.72rem; color: #7dead0; margin-top: 6px; }
+      </style>
+      <div class="modal cp-modal">
+        <div class="flex flex-between" style="margin-bottom:var(--sp-2)">
+          <h3>🎓 Escolher Coach — ${escHtml(seller.name)}</h3>
+          <button class="btn btn-ghost btn-icon" onclick="Manager.closeCoachPicker()">✕</button>
+        </div>
+        <p class="text-muted fs-sm" style="margin:0">Todos os coaches seguem as mesmas regras de ouro (conexão antes da venda, munição concreta, foco no produto certo) — a diferença é o estilo e a persona.</p>
+        <div class="cp-grid">
+          <div class="cp-card cp-default ${isSel(null) || !seller.coach_id ? 'cp-selected' : ''}" onclick="Manager.selectCoach(${JSON.stringify(null)})">
+            <span class="cp-check">✓</span>
+            <img class="cp-avatar" src="img/salespulse_logo.png" alt="">
+            <div class="cp-name">Coach Padrão SalesPulse</div>
+            <div class="cp-role">Metodologia Base</div>
+            <div class="cp-bio">SPIN Selling, Challenger e Sandler combinados — a experiência oficial do SalesPulse.</div>
+          </div>
+
+          <div class="cp-card cp-junior ${isSel('junior') ? 'cp-selected' : ''}" onclick="Manager.selectCoach('junior')">
+            <span class="cp-check">✓</span>
+            <span class="cp-badge">⭐ COACH MASTER</span>
+            <img class="cp-avatar" src="img/junior.jpg" alt="Júnior Smarzaro">
+            <div class="cp-name">Júnior Smarzaro</div>
+            <div class="cp-role">Alta Performance Comercial</div>
+            <div class="cp-bio">Júnior Smarzaro é um dos maiores especialistas em alta performance comercial do Brasil, reconhecido por transformar equipes comuns em máquinas de vendas por meio de técnicas práticas, mudança de comportamento e execução de excelência.</div>
+          </div>
+
+          ${teammates.map(t => `
+            <div class="cp-card ${isSel(t.id) ? 'cp-selected' : ''}" onclick="Manager.selectCoach('${t.id}')">
+              <span class="cp-check">✓</span>
+              <img class="cp-avatar" src="img/avatar_generic.svg" alt="">
+              <div class="cp-name">Estilo de ${escHtml(t.name)}</div>
+              <div class="cp-role">Colega de Equipe</div>
+              <div class="cp-bio">Coach moldado no perfil de vendas aprendido de ${escHtml(t.name.split(' ')[0])} ao longo de chamadas e treinos reais.</div>
+              <div class="cp-stat">💪 ${t.strengthsCount} pontos fortes mapeados</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+    modal.classList.add('active');
+  }
+
+  function closeCoachPicker() {
+    document.getElementById('coach-picker-modal')?.classList.remove('active');
+  }
+
+  async function selectCoach(coachId) {
+    const sellerId = coachPickerSellerId;
+    if (!sellerId) return;
     try {
-      await API.assignCoach(sellerId, coachId);
-      UI.toast(coachId === 'junior' ? '⭐ Júnior Smarzaro atribuído como Coach Master!' : '✅ Coach atualizado!', 'success');
-      // Atualiza o cache para a paginação refletir a mudança
+      await API.assignCoach(sellerId, coachId || null);
       const cached = lcData?.sellers?.find(x => String(x.id) === String(sellerId));
-      if (cached) cached.coach_id = coachId;
-      const isJunior = coachId === 'junior';
-      const wrap = document.getElementById('coach-wrap-' + sellerId);
-      if (wrap) wrap.style.boxShadow = isJunior ? '0 0 16px rgba(255,200,50,0.4)' : 'none';
-      sel.style.cssText = isJunior ? JUNIOR_STYLE : '';
-      const note = document.getElementById('coach-note-' + sellerId);
-      if (note) note.style.display = isJunior ? 'block' : 'none';
+      if (cached) cached.coach_id = coachId || null;
+      UI.toast(coachId === 'junior' ? '⭐ Júnior Smarzaro atribuído como Coach Master!' : '✅ Coach atualizado!', 'success');
+      closeCoachPicker();
+      paintLiveCoach();
     } catch (e) {
       console.error(e);
       UI.toast('Erro ao atribuir coach', 'error');
@@ -2613,7 +2705,7 @@ const Manager = (() => {
     switchProductTab,
     selectArchetype,
     viewSessionReport, generateFakeReports,
-    assignCoachUI, lcSetPage, lcSearchInput,
+    openCoachPicker, closeCoachPicker, selectCoach, lcSetPage, lcSearchInput,
   };
 })();
 
