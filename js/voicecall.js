@@ -288,10 +288,14 @@ const VoiceCall = (() => {
     openingSent = true;
 
     let opening;
+    const prodNames = [
+      ...((cfg.products || []).map(p => p.name)),
+      ...(cfg.productName && !(cfg.products || []).some(p => p.name === cfg.productName) ? [cfg.productName] : []),
+    ].filter(Boolean).join(', ');
     if (isRedial) {
       opening = 'A ligação caiu há pouco e o vendedor acabou de ligar de volta. Atenda de forma natural e curta, comentando a queda ("oi, caiu aqui", "agora sim, te ouço") e retome de onde pararam.';
     } else if (cfg.salesApproach === 'passive') {
-      opening = 'Foi VOCÊ que ligou para o vendedor, por causa da sua dor/necessidade. Ele acabou de atender. Cumprimente e explique em 1-2 frases faladas por que você está ligando, no estilo do seu perfil. Depois espere a resposta dele.';
+      opening = `Foi VOCÊ que ligou para o vendedor. Ele acabou de atender. Cumprimente e explique em 1-2 frases faladas por que você está ligando, no estilo do seu perfil.${prodNames ? ` O motivo da sua ligação é OBRIGATORIAMENTE uma dor/necessidade real do seu negócio ligada a: ${prodNames}. Não mencione nenhum outro tipo de produto ou interesse.` : ' O motivo é a dor/necessidade do seu perfil.'} Depois espere a resposta dele.`;
     } else {
       opening = 'Seu telefone tocou: número desconhecido (é um vendedor, mas você ainda não sabe). Atenda como você atenderia no trabalho: curto e neutro, tipo "Alô?" ou "Pois não?". NÃO se apresente com nome completo, NÃO pergunte "como posso ajudar". Só atenda e espere a pessoa falar.';
     }
