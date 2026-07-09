@@ -609,3 +609,155 @@ a:hover { color: var(--accent-light); }
   box-shadow: 0 0 8px var(--success-glow);
   animation: pulse 2s ease infinite;
 }
+
+/* ================================================
+   VOICE CALL — Treinamento por voz (VoiceCall)
+   ================================================ */
+.vc-screen {
+  min-height: 100vh;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(108,99,255,0.10) 0%, transparent 60%), #07070f;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 1.5rem; position: relative;
+}
+
+.vc-back { position: absolute; top: 1rem; left: 1rem; }
+
+.vc-card {
+  background: rgba(14,14,26,0.85);
+  border: 1px solid rgba(108,99,255,0.18);
+  border-radius: 24px;
+  padding: 2.5rem 2rem;
+  max-width: 460px; width: 100%;
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center;
+  backdrop-filter: blur(20px);
+}
+
+.vc-avatar-wrap { position: relative; width: 110px; height: 110px; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem; }
+
+.vc-avatar {
+  width: 96px; height: 96px; border-radius: 50%;
+  background: linear-gradient(135deg, rgba(108,99,255,0.35), rgba(0,212,170,0.35));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.6rem; z-index: 2;
+}
+
+.vc-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 2px solid rgba(0,212,170,0.5);
+  opacity: 0; z-index: 1;
+}
+.vc-speaking .vc-ring-1 { animation: vcRing 1.4s ease-out infinite; }
+.vc-speaking .vc-ring-2 { animation: vcRing 1.4s ease-out 0.5s infinite; }
+.vc-speaking .vc-avatar { box-shadow: 0 0 34px rgba(0,212,170,0.45); }
+
+@keyframes vcRing {
+  0%   { transform: scale(1);    opacity: 0.75; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+
+.vc-client-name { font-size: 1.35rem; font-weight: 800; color: #e8e8f0; }
+.vc-client-role { font-size: 0.85rem; color: #9494b8; margin-top: 2px; }
+
+.vc-brief {
+  margin-top: 1.5rem; width: 100%;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px; padding: 1rem 1.1rem; text-align: left;
+}
+.vc-brief-title { font-weight: 700; color: #e8e8f0; font-size: 0.9rem; margin-bottom: 6px; }
+.vc-brief-text { font-size: 0.84rem; color: #9494b8; line-height: 1.55; }
+.vc-brief-tips { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+.vc-brief-tips span { font-size: 0.76rem; color: #6a6a8a; }
+
+.vc-dial-btn {
+  margin-top: 1.5rem;
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 0.95rem 2.2rem;
+  background: linear-gradient(135deg, #16c784, #00d4aa);
+  border: none; border-radius: 100px;
+  font-size: 1rem; font-weight: 700; color: #06231b;
+  cursor: pointer;
+  box-shadow: 0 8px 34px rgba(0,212,170,0.4);
+  transition: all 0.2s;
+}
+.vc-dial-btn:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.06); }
+.vc-dial-btn:disabled { opacity: 0.65; cursor: wait; }
+
+.vc-status-line { margin-top: 0.9rem; font-size: 0.8rem; color: var(--warning); min-height: 1.2em; }
+
+/* ── Tela em chamada ── */
+.vc-screen-live { justify-content: space-between; padding: 1rem 1rem 1.5rem; }
+
+.vc-topbar {
+  width: 100%; max-width: 640px;
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+}
+
+.vc-status {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 0.8rem; font-weight: 700; color: var(--warning);
+  background: rgba(255,165,2,0.08); border: 1px solid rgba(255,165,2,0.25);
+  padding: 5px 12px; border-radius: 100px;
+}
+.vc-status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 1.6s ease infinite; }
+.vc-status-live { color: var(--success); background: rgba(46,213,115,0.08); border-color: rgba(46,213,115,0.3); }
+
+.vc-timer { font-variant-numeric: tabular-nums; font-weight: 700; color: #e8e8f0; font-size: 0.9rem; }
+
+.vc-meter { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.vc-meter-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #5a5a7a; }
+.vc-meter-bar { width: 110px; height: 8px; border-radius: 100px; background: rgba(255,255,255,0.07); overflow: hidden; }
+.vc-meter-fill { height: 100%; border-radius: 100px; background: var(--danger); transition: width 0.6s ease, background 0.6s ease; }
+.vc-meter-value { font-size: 0.8rem; font-weight: 800; color: #e8e8f0; min-width: 36px; }
+
+.vc-stage { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 1rem 0; }
+.vc-you-talking { margin-top: 0.8rem; font-size: 0.8rem; color: var(--accent-light, #8f88ff); opacity: 0; transition: opacity 0.25s; }
+
+.vc-captions {
+  width: 100%; max-width: 640px;
+  max-height: 160px; overflow-y: auto;
+  background: rgba(14,14,26,0.85);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px; padding: 0.8rem 1rem;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.vc-cap-line { font-size: 0.84rem; color: #cfcfe4; line-height: 1.45; }
+.vc-cap-line strong { color: var(--success); font-weight: 700; }
+.vc-cap-user strong { color: #8f88ff; }
+.vc-cap-live { opacity: 0.75; font-style: italic; }
+.vc-cap-empty { color: #5a5a7a; text-align: center; font-style: italic; }
+
+.vc-banner {
+  width: 100%; max-width: 640px;
+  margin-top: 0.6rem;
+  background: rgba(108,99,255,0.12);
+  border: 1px solid rgba(108,99,255,0.35);
+  border-radius: 12px; padding: 0.7rem 1rem;
+  font-size: 0.88rem; font-weight: 700; color: #e8e8f0; text-align: center;
+}
+
+.vc-controls { display: flex; gap: 1.4rem; margin-top: 1.1rem; }
+
+.vc-ctrl {
+  width: 74px; height: 74px; border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #e8e8f0; font-size: 1.5rem;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  cursor: pointer; transition: all 0.2s;
+}
+.vc-ctrl span { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #9494b8; }
+.vc-ctrl:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
+.vc-ctrl-active { background: rgba(255,165,2,0.15); border-color: rgba(255,165,2,0.45); }
+
+.vc-ctrl-end { background: rgba(255,71,87,0.85); border-color: transparent; }
+.vc-ctrl-end span { color: rgba(255,255,255,0.85); }
+.vc-ctrl-end:hover { background: #ff4757; }
+
+@media (max-width: 600px) {
+  .vc-meter { width: 100%; margin-left: 0; }
+  .vc-controls { gap: 1rem; }
+  .vc-ctrl { width: 64px; height: 64px; font-size: 1.3rem; }
+}

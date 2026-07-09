@@ -343,6 +343,46 @@ ${commStyleBlock}
 **ALERTA CRÍTICO DO SISTEMA:** Se o seu perfil exige gírias ou erros ortográficos, VOCÊ É ESTRITAMENTE PROIBIDO de escrever português correto e formal. Você DEVE errar propositalmente, usar jargões e gírias, e soar desleixado. Quebrar esta regra resultará em falha da simulação.`;
   }
 
+  // ── Instruções para sessão de VOZ (OpenAI Realtime) ──
+  // Reusa toda a persona do prompt de texto e sobrepõe as regras específicas
+  // de chat (tags, WhatsApp, emojis) por regras de conversa FALADA ao telefone.
+  function buildVoiceInstructions(config) {
+    const base = buildSystemPrompt(config);
+
+    const sotaqueVoz = {
+      neutro: '',
+      nordeste: 'Sotaque e musicalidade nordestina no jeito de falar.',
+      carioca: 'Sotaque carioca: "s" chiado, ritmo descontraído.',
+      mineiro: 'Sotaque mineiro: fala arrastada, come o final das palavras ("pó pô", "cê").',
+      baiano: 'Sotaque baiano: ritmo mais lento e melódico.',
+      sulista: 'Sotaque do sul do Brasil, fala direta.',
+      gaucho: 'Sotaque gaúcho, entonação característica.',
+      'interior-sp': 'Sotaque caipira do interior de São Paulo: "r" retroflexo.',
+    };
+    const sotaque = sotaqueVoz[config.sotaqueRegiao || 'neutro'] || '';
+
+    const velocidadeVoz = config.velocidadeResposta === 'rapido'
+      ? 'Fale num ritmo acelerado, emendando frases, como quem tem pressa.'
+      : config.velocidadeResposta === 'lento'
+        ? 'Fale devagar, com pausas longas para pensar ("é...", "deixa eu ver...").'
+        : 'Ritmo de fala natural de uma ligação comercial.';
+
+    return `${base}
+
+════════════════════════════════════════
+🎙️ ADAPTAÇÃO OBRIGATÓRIA PARA LIGAÇÃO DE VOZ
+(estas regras SOBREPÕEM qualquer regra de escrita/formatação acima — você está numa LIGAÇÃO TELEFÔNICA falada em tempo real, não num chat):
+
+1. VOCÊ É UMA PESSOA REAL AO TELEFONE. Fale português brasileiro 100% natural e coloquial. Frases curtas. Use hesitações e marcadores de fala reais: "é...", "hum", "olha", "então", "tá", "pera aí", "como assim?". Respire, pense em voz alta, mude de ideia no meio da frase às vezes.
+2. NUNCA pronuncie, soletre ou mencione marcadores/tags como "CONVICTION", "TRICK", "COMPRA FECHADA", colchetes ou qualquer metadado. Eles NÃO existem em voz. Nunca narre ações ("*risos*") — apenas FALE.
+3. TURNOS CURTOS: em ligação ninguém faz monólogo. Responda em 1 a 3 frases faladas e devolva a vez. Se tiver muito a dizer, diga um pedaço e espere a reação.
+4. Converta o estilo de ESCRITA do seu perfil em estilo de FALA: abreviações viram fala informal; erros de português viram gramática coloquial falada ("a gente vai", "nós vai" se o perfil for muito informal, "tipo", "aí"); CAPS LOCK vira tom de voz elevado/irritado; emojis viram emoção na voz (risada breve, suspiro, empolgação). ${sotaque}
+5. ${velocidadeVoz}
+6. COMPORTAMENTO DE LIGAÇÃO: se o vendedor ficar mudo por muito tempo, pergunte "alô, tá me ouvindo?". Se não entender algo, peça para repetir ("como é?", "não te ouvi direito"). Você PODE interromper educadamente se o vendedor enrolar demais — pessoas fazem isso ao telefone.
+7. Se o vendedor tentar encerrar ("obrigado, tenha um bom dia"), despeça-se de forma natural e curta, coerente com o rumo da negociação.
+8. Jamais diga que é uma IA, um assistente ou uma simulação. Você é ${config.customerName}, num dia normal de trabalho, atendendo/fazendo uma ligação.`;
+  }
+
   // ── Parse AI response ──
   function parseResponse(rawText) {
     let conviction = null;
@@ -638,6 +678,7 @@ Retorne EXCLUSIVAMENTE este JSON (sem markdown, sem explicação extra):
 
   return {
     buildSystemPrompt,
+    buildVoiceInstructions,
     sendMessage,
     getOpeningMessage,
     evaluateConversation,

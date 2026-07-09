@@ -23,6 +23,7 @@ async function listScheduledSessions(req, res) {
       showRealtime: r.show_realtime,
       showReport: r.show_report,
       salesApproach: r.sales_approach || 'active',
+      sessionMode: r.session_mode || 'text',
       productIds: r.product_ids || [],
       scheduledAt: r.scheduled_at,
       doneAt: r.done_at,
@@ -45,14 +46,15 @@ async function createScheduledSession(req, res) {
     const id = data.id || 'sched_' + Date.now();
     await db.query(`
       INSERT INTO scheduled_sessions (
-        id, seller_id, client_id, status, show_realtime, show_report, sales_approach, product_ids
+        id, seller_id, client_id, status, show_realtime, show_report, sales_approach, product_ids, session_mode
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8
+        $1, $2, $3, $4, $5, $6, $7, $8, $9
       )
     `, [
       id, data.sellerId, data.clientId, data.status || 'pending',
       data.showRealtime ?? true, data.showReport ?? true, data.salesApproach || 'active',
-      JSON.stringify(data.productIds || [])
+      JSON.stringify(data.productIds || []),
+      data.sessionMode === 'voice' ? 'voice' : 'text'
     ]);
     res.status(201).json({ ...data, id });
   } catch (err) {

@@ -465,16 +465,17 @@ const Seller = (() => {
                 const client = allClients.find(c => String(c.id) === String(ssClientId));
                 const cName = client ? client.name : 'Cliente Desconhecido';
                 const isInProgress = !!ss.startedAt;
+                const isVoice = (ss.sessionMode || ss.session_mode || 'text') === 'voice';
                 return `
-                  <div class="pending-session-card" style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.1); text-align: left;">
+                  <div class="pending-session-card" style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid ${isVoice ? 'rgba(0,212,170,0.3)' : 'rgba(255,255,255,0.1)'}; text-align: left;">
                     <div>
                       <div style="font-weight: 600; color: #fff; font-size: 1.1rem;">${cName}</div>
                       <div style="font-size: 0.85rem; color: ${isInProgress ? 'var(--warning)' : 'var(--accent-light)'}; margin-top: 4px;">
-                        ${isInProgress ? '⏳ Em andamento...' : '📅 Sessão Agendada'}
+                        ${isInProgress ? '⏳ Em andamento...' : '📅 Sessão Agendada'} · ${isVoice ? '🎙️ Ligação por voz' : '💬 Chat por texto'}
                       </div>
                     </div>
                     <button class="btn btn-sm ${isInProgress ? 'btn-warning' : 'btn-primary'}" onclick="Seller.startTraining('${ssClientId}', '${ss.id}')" style="padding: 8px 16px;">
-                      ${isInProgress ? 'Continuar' : 'Iniciar'}
+                      ${isInProgress ? (isVoice ? '📞 Religar' : 'Continuar') : (isVoice ? '📞 Ligar' : 'Iniciar')}
                     </button>
                   </div>
                 `;
@@ -555,8 +556,18 @@ const Seller = (() => {
       return;
     }
 
+    // Sessão por VOZ: o gestor escolheu ligação em tempo real — o módulo
+    // VoiceCall assume a experiência inteira e devolve a transcrição para
+    // avaliação via Seller.completeVoiceSession.
+    const sessionMode = sessionToStart.sessionMode || sessionToStart.session_mode || 'text';
+    if (sessionMode === 'voice' && window.VoiceCall) {
+      resetSession();
+      VoiceCall.start({ session: sessionToStart, config });
+      return;
+    }
+
     resetSession(); // Reseta primeiro, depois restaura os valores
-    
+
     // Restaurar estado da sessão persistida
     if (sessionToStart.startedAt) {
       // Se a sessão já havia começado
@@ -1843,6 +1854,23 @@ const Seller = (() => {
     }
   }
 
+  // ── Fim de sessão por VOZ ──
+  // O VoiceCall entrega a transcrição da ligação já no formato do chat
+  // (user/bot) e a avaliação segue o MESMO pipeline do texto: evaluateConversation,
+  // ScoringEngine, badges, dossiê evolutivo e relatório final.
+  async function completeVoiceSession({ config: vcConfig, messages: vcMessages, conviction: vcConviction, durationSeconds: vcDuration }) {
+    config          = vcConfig;
+    messages        = (vcMessages || []).map(m => ({ role: m.role, content: m.content, timestamp: new Date() }));
+    conviction      = typeof vcConviction === 'number' ? vcConviction : 0;
+    durationSeconds = vcDuration || 0;
+    tricks          = 0;
+    agendaRevealed  = false;
+    sessionEnded    = false;
+    isWaiting       = false;
+    criteriaScores  = { rapport: 0, discovery: 0, value: 0, objections: 0, closing: 0, professionalism: 0 };
+    await endSession();
+  }
+
   // Emergency exit — called by the inline button in the loading overlay
   function _forceExit() {
     stopTimer();
@@ -1957,6 +1985,7 @@ const Seller = (() => {
     confirmEnd,
     showXray,
     toggleMic,
+    completeVoiceSession,
     _forceExit,
   };
 })();

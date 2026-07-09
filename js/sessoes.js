@@ -138,6 +138,10 @@ const Sessoes = (() => {
       ? '💬 Venda Passiva'
       : '📞 Prospecção Ativa';
 
+    const modeLabel = ((s.sessionMode || s.session_mode || 'text') === 'voice')
+      ? '🎙️ Ligação por Voz'
+      : '💬 Chat por Texto';
+
     return `
       <div class="sessao-card ${isDone ? 'sessao-done' : ''} ${isOverdue ? 'sessao-overdue' : ''}">
         <div class="sessao-card-left">
@@ -150,6 +154,7 @@ const Sessoes = (() => {
               ${client ? `<span class="sessao-client-role">${escHtml(client.role || '')} · ${escHtml(client.company || '')}</span>` : ''}
             </div>
             <div class="sessao-meta">
+              <span class="sessao-tag" ${modeLabel.startsWith('🎙️') ? 'style="border-color:rgba(0,212,170,0.4);color:var(--success)"' : ''}>${modeLabel}</span>
               <span class="sessao-tag">${approachLabel}</span>
               <span class="sessao-tag">${timeLabel}</span>
               ${dueLabel ? `<span class="sessao-tag ${isOverdue ? 'sessao-tag-danger' : ''}">${dueLabel}</span>` : ''}
@@ -258,6 +263,27 @@ const Sessoes = (() => {
           </div>
         </div>
 
+        <!-- Modalidade: chat por texto ou ligação por voz -->
+        <div class="form-group">
+          <label class="form-label">📡 Modalidade da Sessão *</label>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <label style="display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--border-subtle);border-radius:var(--r-md);cursor:pointer">
+              <input type="radio" name="ss-mode" value="text" checked style="margin-top:3px">
+              <div>
+                <div style="font-weight:600">💬 Chat por Texto</div>
+                <div class="form-hint" style="margin:2px 0 0">Conversa escrita, como no WhatsApp. O vendedor digita e o cliente responde por mensagem.</div>
+              </div>
+            </label>
+            <label style="display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid rgba(0,212,170,0.35);border-radius:var(--r-md);cursor:pointer;background:rgba(0,212,170,0.04)">
+              <input type="radio" name="ss-mode" value="voice" style="margin-top:3px">
+              <div>
+                <div style="font-weight:600">🎙️ Ligação por Voz <span style="background:linear-gradient(135deg,#6c63ff,#00d4aa);color:white;font-size:0.62rem;font-weight:700;padding:2px 8px;border-radius:100px;letter-spacing:0.5px;vertical-align:middle">NOVO</span></div>
+                <div class="form-hint" style="margin:2px 0 0">Ligação em tempo real: o vendedor fala no microfone e o cliente responde com voz humana, com interrupções e turnos naturais — como um telefonema de verdade. Requer microfone.</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
         <!-- Produtos para esta sessão -->
         <div class="form-group">
           <label class="form-label">📦 Produtos para o Vendedor Oferecer</label>
@@ -351,6 +377,7 @@ const Sessoes = (() => {
     const sellerId       = document.getElementById('ss-seller')?.value;
     const clientId       = document.getElementById('ss-client')?.value;
     const salesApproach  = document.querySelector('input[name="ss-approach"]:checked')?.value || 'active';
+    const sessionMode    = document.querySelector('input[name="ss-mode"]:checked')?.value || 'text';
     const productIds     = Array.from(document.querySelectorAll('.ss-product-check:checked')).map(c => c.value);
     const responseTimeSec= parseInt(document.getElementById('ss-response-time')?.value || '0');
     const dueAt          = document.getElementById('ss-due-at')?.value;
@@ -366,6 +393,7 @@ const Sessoes = (() => {
         sellerId,
         clientId,
         salesApproach,
+        sessionMode,
         productIds,
         responseTimeSec,
         dueAt: dueAt || null,
