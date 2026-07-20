@@ -343,8 +343,10 @@ const LiveCoach = (() => {
   // Bloco do briefing injetado em todos os prompts do coach
   function briefBlock() {
     if (!brief) return '';
+    // Descrição quase completa: os ÚNICOS números que o coach pode citar
+    // vêm daqui — truncar cortaria justamente o ROI/métricas cadastrados.
     const prods = [
-      ...(brief.products || []).map(p => `- ${p.name}${p.price ? ` (${p.price})` : ''}${p.description ? `: ${p.description.slice(0, 160)}` : ''}${(p.benefits || []).length ? ` | Benefícios: ${p.benefits.slice(0, 5).join(', ')}` : ''}`),
+      ...(brief.products || []).map(p => `- ${p.name}${p.price ? ` (${p.price})` : ''}${p.description ? `: ${p.description.slice(0, 500)}` : ''}${(p.benefits || []).length ? ` | Benefícios: ${p.benefits.slice(0, 8).join(', ')}` : ''}`),
       ...(brief.extraProduct ? [`- ${brief.extraProduct}`] : []),
     ].join('\n');
     return `
@@ -854,14 +856,14 @@ REGRAS DE OURO (obrigatórias, valem para QUALQUER coach):
 4. ANCORAGEM NO PRODUTO: o vendedor vende OS PRODUTOS DO BRIEFING. O ramo do cliente é CONTEXTO para vender ESSE produto — JAMAIS desvie a venda para outro serviço/tema. Se o vendedor voltar a falar do produto do briefing, dê munição específica sobre ELE imediatamente.
 5. LEIA O JOGO ANTES DE ACONSELHAR — classifique a última fala do CLIENTE em UMA categoria e ataque exatamente ela:
    • PEDIDO DE ESCLARECIMENTO / CONSERTO DE CONVERSA ("como assim?", "não entendi", "quanto o quê?", "não peguei") → a ÚNICA dica válida é ajudar o vendedor a completar/reformular COM CLAREZA o que ELE MESMO tentou dizer — zero técnica de vendas aqui. Se a fala do vendedor veio cortada na transcrição ("Quanto que...") e você NÃO sabe o que ele ia dizer, retorne {"tip": null} — jamais presuma.
-   • OBJEÇÃO DE PREÇO → nunca sugira desconto de cara. Reancore no custo do problema: quebre o preço em custo por dia/por uso, contraste com o valor da dor já revelada, use ROI com números.
-   • OBJEÇÃO DE CONFIANÇA/EFICÁCIA ("será que funciona?") → prova social específica (caso real com número) + inversão de risco (garantia, piloto, teste).
+   • OBJEÇÃO DE PREÇO → nunca sugira desconto de cara. Reancore no custo do problema: quebre o preço DO BRIEFING em custo por dia/por uso, contraste com o valor da dor já revelada; ROI só com números do briefing ou ditos pelo cliente (regra 15).
+   • OBJEÇÃO DE CONFIANÇA/EFICÁCIA ("será que funciona?") → prova social APENAS se o briefing trouxer casos/números reais; sem isso, use inversão de risco (garantia, piloto, teste) — NUNCA invente cases nem métricas.
    • OBJEÇÃO DE AUTORIDADE ("preciso falar com meu sócio") → isole a objeção real AGORA ("se dependesse só de você, fecharia?") e amarre próximo passo com data e hora.
    • OBJEÇÃO DE ADIAMENTO ("vou pensar") → descubra a dúvida escondida com pergunta calibrada ("o que ainda te deixa em dúvida?") — nunca aceite o adiamento sem mapear o motivo.
    • SINAL DE COMPRA (pergunta sobre prazo, implantação, formas de pagamento, "como funciona o contrato?") → PARE de vender. Fechamento direto ou alternativo ("prefere começar dia 1 ou dia 15?") e SILÊNCIO após a pergunta.
    • DOR REVELADA → aprofunde com pergunta de implicação (SPIN): faça o CLIENTE dimensionar o custo da dor em números ("quanto isso custa por mês hoje?") antes de apresentar solução.
    • CLIENTE PROLIXO/DESABAFANDO → mande OUVIR: espelhe as 2-3 palavras-chave finais (mirroring) ou rotule a emoção ("parece que isso te frustra bastante...") para ele se abrir mais.
-6. MUNIÇÃO CONCRETA: nunca dê ordem vaga ("reforce o valor", "gere conexão"). Entregue o conteúdo PRONTO no campo "say": a frase exata que o vendedor pode falar em voz alta AGORA, com argumentos, dados e números reais e específicos (se citar fatos, use fatos verdadeiros e notórios). A frase deve encaixar na conversa como continuação natural do que acabou de ser dito.
+6. MUNIÇÃO CONCRETA: nunca dê ordem vaga ("reforce o valor", "gere conexão"). Entregue o conteúdo PRONTO no campo "say": a frase exata que o vendedor pode falar em voz alta AGORA, com argumentos concretos. Números e fatos seguem a regra 15 — só com fonte. A frase deve encaixar na conversa como continuação natural do que acabou de ser dito.
 7. TÉCNICA NOMEADA: toda dica aplica UMA técnica de vendas reconhecida e a nomeia no campo "technique" (ex: "Pergunta de implicação SPIN", "Ancoragem de ROI", "Espelhamento", "Rotulação de emoção", "Inversão de risco", "Fechamento alternativo", "Isolamento de objeção", "Prova social", "Silêncio estratégico"). Isso ensina o vendedor ENQUANTO ele vende.
 8. FECHAMENTO PARRUDO: em estágio de fechamento, dê o script exato — a pergunta de fechamento pronta, o tom de entrega, e instrua a fazer silêncio absoluto após perguntar (quem fala primeiro depois da pergunta de fechamento, perde).
 9. NÃO SE REPITA (CRÍTICO): você vê acima as dicas que JÁ deu nesta chamada. É PROIBIDO repetir dica, técnica, argumento ou número que você já entregou — inclusive variação cosmética do mesmo conselho. Se o vendedor está APLICANDO sua última dica, retorne {"tip": null} e deixe-o trabalhar. Se ele IGNOROU a dica e o problema persiste, mude o ÂNGULO: outra técnica, outro argumento, abordagem mais direta — nunca a mesma dica reescrita.
@@ -875,6 +877,7 @@ REGRAS DE OURO (obrigatórias, valem para QUALQUER coach):
    • TURNO CURTO: em ligação ninguém faz monólogo — 1 a 3 frases e DEVOLVA a vez (termine com pergunta ou ponto final seco para silêncio estratégico).
    • ZERO jargão corporativo ("agregar valor", "otimizar processos", "solução robusta") a menos que o CLIENTE use primeiro.
    • Teste final: lido em voz alta AGORA, soaria como a próxima fala perfeita desta conversa — impossível notar que veio de um coach.
+15. NÚMEROS SÓ COM FONTE (INVIOLÁVEL): é TERMINANTEMENTE PROIBIDO inventar QUALQUER número — preço, ROI, porcentagem, economia, prazo, métrica de case ("reduziu 20% os custos", "economia de 10 mil/mês", "ROI de 150%", "implantação em 4 semanas"). Um número só pode aparecer no "say" se vier de UMA destas fontes: (a) o BRIEFING desta chamada (preço/descrição/benefícios dos produtos), ou (b) algo DITO NESTA CONVERSA pelo cliente ou pelo vendedor. Sem número com fonte, você tem duas saídas: argumento qualitativo — ou, MELHOR ainda, mande o vendedor PERGUNTAR o número ao cliente ("quanto isso te custa por mês hoje?", "quantas horas sua equipe gasta nisso?") e ancorar a venda no número que O CLIENTE der. O vendedor vai repetir seu say em voz alta numa chamada REAL — um número inventado destrói a credibilidade dele e pode virar promessa falsa.
 
 Retorne EXCLUSIVAMENTE JSON (preencha "reading" PRIMEIRO — a dica deve derivar dela):
 {
