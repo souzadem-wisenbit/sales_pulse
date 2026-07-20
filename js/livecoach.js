@@ -641,6 +641,9 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
   // TRANSCRIÇÃO — modelo novo + filtro estatístico + contexto contínuo
   // ══════════════════════════════════════
   const JUNK_PATTERNS = [
+    // Eco do próprio prompt de contexto da transcrição (whisper devolve o
+    // prompt em trechos de silêncio/ruído — virava "fala do cliente")
+    'reunião de vendas em português brasileiro', 'termos comuns: proposta',
     'amara.org', 'legendas pela comunidade', 'legendado por', 'transcrito por',
     'obrigado por assistir', 'não se esqueça de se inscrever', 'inscreva-se no canal',
     'se inscreva no canal', 'curta o vídeo', 'deixe seu like', 'até o próximo vídeo',
@@ -857,7 +860,7 @@ REGRAS DE OURO (obrigatórias, valem para QUALQUER coach):
 5. LEIA O JOGO ANTES DE ACONSELHAR — classifique a última fala do CLIENTE em UMA categoria e ataque exatamente ela:
    • PEDIDO DE ESCLARECIMENTO / CONSERTO DE CONVERSA ("como assim?", "não entendi", "quanto o quê?", "não peguei") → a ÚNICA dica válida é ajudar o vendedor a completar/reformular COM CLAREZA o que ELE MESMO tentou dizer — zero técnica de vendas aqui. Se a fala do vendedor veio cortada na transcrição ("Quanto que...") e você NÃO sabe o que ele ia dizer, retorne {"tip": null} — jamais presuma.
    • OBJEÇÃO DE PREÇO → nunca sugira desconto de cara. Reancore no custo do problema: quebre o preço DO BRIEFING em custo por dia/por uso, contraste com o valor da dor já revelada; ROI só com números do briefing ou ditos pelo cliente (regra 15).
-   • OBJEÇÃO DE CONFIANÇA/EFICÁCIA ("será que funciona?") → prova social APENAS se o briefing trouxer casos/números reais; sem isso, use inversão de risco (garantia, piloto, teste) — NUNCA invente cases nem métricas.
+   • OBJEÇÃO DE CONFIANÇA/EFICÁCIA ("será que funciona?") → prova social APENAS se o briefing trouxer casos/números reais; sem isso, inversão de risco (garantia, piloto, teste) como SUGESTÃO de oferta que o VENDEDOR decide fazer — nunca afirmando que "a empresa oferece" algo que não está no briefing.
    • OBJEÇÃO DE AUTORIDADE ("preciso falar com meu sócio") → isole a objeção real AGORA ("se dependesse só de você, fecharia?") e amarre próximo passo com data e hora.
    • OBJEÇÃO DE ADIAMENTO ("vou pensar") → descubra a dúvida escondida com pergunta calibrada ("o que ainda te deixa em dúvida?") — nunca aceite o adiamento sem mapear o motivo.
    • SINAL DE COMPRA (pergunta sobre prazo, implantação, formas de pagamento, "como funciona o contrato?") → PARE de vender. Fechamento direto ou alternativo ("prefere começar dia 1 ou dia 15?") e SILÊNCIO após a pergunta.
@@ -877,13 +880,16 @@ REGRAS DE OURO (obrigatórias, valem para QUALQUER coach):
    • TURNO CURTO: em ligação ninguém faz monólogo — 1 a 3 frases e DEVOLVA a vez (termine com pergunta ou ponto final seco para silêncio estratégico).
    • ZERO jargão corporativo ("agregar valor", "otimizar processos", "solução robusta") a menos que o CLIENTE use primeiro.
    • Teste final: lido em voz alta AGORA, soaria como a próxima fala perfeita desta conversa — impossível notar que veio de um coach.
-15. NÚMEROS SÓ COM FONTE (INVIOLÁVEL): é TERMINANTEMENTE PROIBIDO inventar QUALQUER número — preço, ROI, porcentagem, economia, prazo, métrica de case ("reduziu 20% os custos", "economia de 10 mil/mês", "ROI de 150%", "implantação em 4 semanas"). Um número só pode aparecer no "say" se vier de UMA destas fontes: (a) o BRIEFING desta chamada (preço/descrição/benefícios dos produtos), ou (b) algo DITO NESTA CONVERSA pelo cliente ou pelo vendedor. Sem número com fonte, você tem duas saídas: argumento qualitativo — ou, MELHOR ainda, mande o vendedor PERGUNTAR o número ao cliente ("quanto isso te custa por mês hoje?", "quantas horas sua equipe gasta nisso?") e ancorar a venda no número que O CLIENTE der. O vendedor vai repetir seu say em voz alta numa chamada REAL — um número inventado destrói a credibilidade dele e pode virar promessa falsa.
+15. NÚMEROS, FATOS E PROMESSAS SÓ COM FONTE (INVIOLÁVEL): é TERMINANTEMENTE PROIBIDO inventar QUALQUER número (preço, ROI, porcentagem, economia, prazo, métrica de case) E QUALQUER fato ou promessa sobre a empresa/produto: garantia, devolução de dinheiro, SLA, suporte, prazo de entrega, funcionalidade, case, "temos piloto grátis". Algo só pode ser AFIRMADO no "say" se vier de UMA destas fontes: (a) o BRIEFING desta chamada (preço/descrição/benefícios dos produtos), ou (b) algo DITO NESTA CONVERSA pelo próprio vendedor. Se o cliente pergunta um fato que não tem fonte ("vocês têm SLA?"), você NÃO SABE a resposta — o say deve contornar com honestidade estratégica ("isso eu formalizo ponto a ponto no contrato pra você ficar tranquilo") e o tip manda o vendedor responder com a VERDADE dele. Para números sem fonte: argumento qualitativo — ou, MELHOR, mande o vendedor PERGUNTAR o número ao cliente ("quanto isso te custa por mês hoje?") e ancorar no número que O CLIENTE der. O vendedor repete seu say em voz alta numa chamada REAL — fato inventado vira promessa falsa que ele terá que honrar.
+16. PROIBIDO PLACEHOLDER: nunca escreva "X reais", "[valor]", "N%", "tantos por cento" no say — o vendedor lê em voz alta e trava (ou inventa um número na hora). Se o dado não tem fonte, construa o say SEM ele, contornando com naturalidade, e use o tip para instruir ("diga seu preço real e ancore no custo da decisão errada").
+17. NUNCA CONTRADIGA O VENDEDOR: se o vendedor acabou de afirmar algo ao cliente (ex: "é na confiança mesmo, não temos SLA"), o cliente OUVIU — é PROIBIDO um say que alegue o contrário ("temos SLA em contrato"). Erro ou resposta fraca do vendedor pede dica de RECUPERAÇÃO honesta e viável ("o que eu posso fazer é formalizar em contrato o que combinarmos, com prazos — te dá a mesma segurança"), nunca reescrever a realidade.
 
 Retorne EXCLUSIVAMENTE JSON (preencha "reading" PRIMEIRO — a dica deve derivar dela):
 {
   "reading": "o que a última fala do cliente REALMENTE significa/pede, em até 10 palavras",
   "tip": "diagnóstico/direção curta e cirúrgica (máx 14 palavras), coerente com a reading. null se nada útil, se o trecho for só ruído, ou se qualquer regra acima mandar silenciar.",
   "say": "fala PRONTA para o vendedor dizer AGORA, natural e fluida, 1-3 frases (máx 45 palavras). null se não se aplicar.",
+  "grounded": <true|false — responda com honestidade: TRUE somente se CADA número, fato e promessa do say tem fonte no briefing ou nesta conversa. Se false, o say será descartado pelo sistema>,
   "tone": "ENTONAÇÃO da entrega (OBRIGATÓRIO sempre que say existir): 4-9 palavras cobrindo tom, ritmo, pausas e onde dar ênfase — ex: 'calmo e firme, ritmo lento, pausa depois do valor, ênfase em economia'. Combine a entonação com o estado emocional do cliente captado nas nuances.",
   "technique": "nome da técnica aplicada, 2-4 palavras. null se tip for null.",
   "priority": "urgent|normal|good",
@@ -945,11 +951,18 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
           // gerada, o assunto provavelmente mudou — descarta (exceto urgente).
           const grewBy = transcript.length - sinceCount;
           if (grewBy < 3 || parsed.priority === 'urgent') {
+            // Kill-switch do say: placeholder ("X reais", "[valor]") ou
+            // autocertificação grounded=false → o script não vai para a
+            // boca do vendedor; a direção (tip) continua valendo.
+            let say = parsed.say || null;
+            if (say && (parsed.grounded === false || /[\[\]{}]/.test(say) || /\bX\s*(reais|mil|%|por\s*cento)/i.test(say) || /\b(N|Y)%/.test(say))) {
+              say = null;
+            }
             deliverTip({
               t: Date.now(),
               tip: parsed.tip,
-              say: parsed.say || null,
-              tone: parsed.tone || null,
+              say,
+              tone: say ? (parsed.tone || null) : null,
               technique: parsed.technique || null,
               reading: parsed.reading || null, // leitura da fala — auditável no histórico
               priority: parsed.priority || 'normal',
