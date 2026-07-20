@@ -19,8 +19,10 @@
 
 const LiveCoach = (() => {
 
-  const COACH_MIN_GAP_MS = 10000;   // intervalo mínimo entre dicas (anti-spam)
+  const COACH_GAP_CLIENT_MS = 7000;    // cooldown após dica reativa (cliente falou → resposta rápida)
+  const COACH_GAP_PERIODIC_MS = 14000; // cooldown das verificações periódicas (anti-spam)
   const COACH_FALLBACK_MS = 10000; // verificação periódica (rede de segurança)
+  const TIP_MAX_HOLD_MS = 45000;   // dica segurada por mais que isso = assunto já mudou, descarta
   const SAVE_INTERVAL_MS = 12000;  // frequência de persistência no backend
   const PREROLL_MS = 400;          // áudio guardado ANTES da voz começar (não corta a 1ª sílaba)
   const MIN_SPEECH_MS = 350;       // fala mínima para valer uma transcrição
@@ -57,6 +59,11 @@ const LiveCoach = (() => {
   let availableProducts = [];
   let selectedProductIds = new Set();
   let coachBusy = false;
+  let pendingTip = null;           // dica pronta aguardando o vendedor PARAR de falar
+  let pendingTipTimer = null;
+  let captureController = null;    // Captured Surface Control (rolagem/zoom na aba capturada)
+  let surfaceCtlEnabled = false;
+  let clickHintShown = false;
 
   const INDUSTRIES = [
     ['geral', '🌐 Geral / Outro'],
@@ -152,6 +159,7 @@ const LiveCoach = (() => {
         .lc-hero.urgent .lc-hero-label { background: #ff4757; color: #fff; animation: lcPulse 0.9s infinite; }
         .lc-hero.normal .lc-hero-label { background: #6c63ff; color: #fff; }
         .lc-hero.good .lc-hero-label { background: #2ed573; color: #04140b; }
+        .lc-tech-chip { display: inline-block; margin-left: 8px; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.6px; padding: 3px 10px; border-radius: 100px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); color: #c9c9dd; vertical-align: middle; text-transform: uppercase; }
         .lc-hero-body { display: flex; gap: 12px; align-items: flex-start; }
         .lc-hero-icon { font-size: 1.7rem; line-height: 1; flex-shrink: 0; filter: drop-shadow(0 0 8px rgba(255,255,255,0.15)); }
         .lc-hero-text { font-size: 1.04rem; font-weight: 700; line-height: 1.45; color: #f2f2fa; }
@@ -296,7 +304,7 @@ const LiveCoach = (() => {
               <div class="lc-setup-step"><div class="lc-step-num">1</div><div>Abra sua reunião (Meet, Teams, Zoom Web...) em <strong>outra aba deste navegador</strong>.</div></div>
               <div class="lc-setup-step"><div class="lc-step-num">2</div><div>Ao iniciar, selecione a <strong>ABA da reunião</strong> (não a tela inteira!) e marque <strong>"Compartilhar áudio da guia"</strong>.</div></div>
               <div class="lc-setup-step"><div class="lc-step-num">3</div><div>Permita o <strong>microfone</strong> e use <strong>fones de ouvido</strong>.</div></div>
-              <div class="lc-setup-step"><div class="lc-step-num">4</div><div>Use a <strong>🗔 Janela flutuante</strong> para ver dicas, termômetro e mutar o coach por cima da reunião.</div></div>
+              <div class="lc-setup-step"><div class="lc-step-num">4</div><div>Use a <strong>🗔 Janela flutuante</strong> para ver dicas, termômetro e mutar o coach por cima da reunião. Com <strong>🖱 Controle da aba</strong> (Chrome), dá para rolar e dar zoom na aba da reunião direto pelo espelho.</div></div>
               <div class="lc-setup-step"><div class="lc-step-num">5</div><div>⚠️ O mudo do Meet/Teams <strong>não silencia o Live Coach</strong> — use o botão de microfone daqui.</div></div>
             </div>
           </div>
@@ -372,7 +380,20 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
 
     try {
       setStatus('Selecione a ABA da reunião e marque "Compartilhar áudio da guia"...');
-      displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      // Captured Surface Control (Chrome 136+): permite rolar/dar zoom na aba
+      // capturada de dentro do SalesPulse, e evita roubar o foco ao iniciar.
+      captureController = null;
+      surfaceCtlEnabled = false;
+      clickHintShown = false;
+      try {
+        if ('CaptureController' in window) {
+          captureController = new CaptureController();
+          try { captureController.setFocusBehavior('no-focus-change'); } catch (e) {}
+        }
+      } catch (e) { captureController = null; }
+      const gdmOpts = { video: true, audio: true };
+      if (captureController) gdmOpts.controller = captureController;
+      displayStream = await navigator.mediaDevices.getDisplayMedia(gdmOpts);
 
       if (displayStream.getAudioTracks().length === 0) {
         displayStream.getTracks().forEach(t => t.stop());
@@ -415,6 +436,8 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
       micPaused = false;
       theaterMode = false;
       transcribeModelOk = true;
+      pendingTip = null;
+      if (pendingTipTimer) { clearInterval(pendingTipTimer); pendingTipTimer = null; }
 
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       const tabAudioStream = new MediaStream(displayStream.getAudioTracks());
@@ -737,7 +760,8 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
   async function requestCoach(trigger) {
     if (!running || coachBusy) return;
     if (transcript.length - lastCoachedCount < 1) return;
-    if (Date.now() - lastCoachAt < COACH_MIN_GAP_MS) return;
+    const minGap = trigger === 'client' ? COACH_GAP_CLIENT_MS : COACH_GAP_PERIODIC_MS;
+    if (Date.now() - lastCoachAt < minGap) return;
     coachBusy = true;
     lastCoachAt = Date.now();
     const sinceCount = transcript.length;
@@ -774,23 +798,33 @@ ${recent}
 REGRAS DE OURO (obrigatórias, valem para QUALQUER coach):
 1. RECÊNCIA: comente APENAS o assunto ATUAL (as falas mais recentes). Se a conversa mudou de assunto, NUNCA volte ao anterior — dica atrasada é dica errada.
 2. RUÍDO: ignore completamente small talk operacional ("tá me ouvindo?", "vou compartilhar a tela"), conversas paralelas, ruídos e falas sem relação com a reunião. Se o trecho recente for só isso, retorne {"tip": null}.
-3. CONEXÃO ANTES DA VENDA: no início da chamada o objetivo é conexão GENUÍNA — NÃO mande falar do produto nem cavar dores cedo demais. Não seja direto e não fale do produto até construir uma conexão verdadeira, principalmente em vendas de alto valor!!! Sugira elogios específicos e sinceros a algo que o cliente disse/conquistou, interesse verdadeiro pelo negócio dele. Só avance quando o rapport estiver construído.
+3. CONEXÃO ANTES DA VENDA: no início da chamada o objetivo é conexão GENUÍNA — NÃO mande falar do produto nem cavar dores cedo demais, principalmente em vendas de alto valor. Sugira elogios específicos e sinceros a algo que o cliente disse/conquistou e interesse verdadeiro pelo negócio dele. Só avance quando o rapport estiver construído.
 4. ANCORAGEM NO PRODUTO: o vendedor vende OS PRODUTOS DO BRIEFING. O ramo do cliente é CONTEXTO para vender ESSE produto — JAMAIS desvie a venda para outro serviço/tema. Se o vendedor voltar a falar do produto do briefing, dê munição específica sobre ELE imediatamente.
-5. MUNIÇÃO CONCRETA: nunca dê ordem vaga ("reforce o valor de X"). Entregue o conteúdo PRONTO no campo "say": a frase exata que o vendedor pode falar em voz alta, com argumentos, dados e números reais e específicos (se citar fatos, use fatos verdadeiros e notórios).
-6. FECHAMENTO PARRUDO: em estágio de fechamento, dê o script exato — a pergunta de fechamento pronta, o tom de entrega, e instrua a fazer silêncio após perguntar.
+5. LEIA O JOGO ANTES DE ACONSELHAR — classifique a última fala do CLIENTE em UMA categoria e ataque exatamente ela:
+   • OBJEÇÃO DE PREÇO → nunca sugira desconto de cara. Reancore no custo do problema: quebre o preço em custo por dia/por uso, contraste com o valor da dor já revelada, use ROI com números.
+   • OBJEÇÃO DE CONFIANÇA/EFICÁCIA ("será que funciona?") → prova social específica (caso real com número) + inversão de risco (garantia, piloto, teste).
+   • OBJEÇÃO DE AUTORIDADE ("preciso falar com meu sócio") → isole a objeção real AGORA ("se dependesse só de você, fecharia?") e amarre próximo passo com data e hora.
+   • OBJEÇÃO DE ADIAMENTO ("vou pensar") → descubra a dúvida escondida com pergunta calibrada ("o que ainda te deixa em dúvida?") — nunca aceite o adiamento sem mapear o motivo.
+   • SINAL DE COMPRA (pergunta sobre prazo, implantação, formas de pagamento, "como funciona o contrato?") → PARE de vender. Fechamento direto ou alternativo ("prefere começar dia 1 ou dia 15?") e SILÊNCIO após a pergunta.
+   • DOR REVELADA → aprofunde com pergunta de implicação (SPIN): faça o CLIENTE dimensionar o custo da dor em números ("quanto isso custa por mês hoje?") antes de apresentar solução.
+   • CLIENTE PROLIXO/DESABAFANDO → mande OUVIR: espelhe as 2-3 palavras-chave finais (mirroring) ou rotule a emoção ("parece que isso te frustra bastante...") para ele se abrir mais.
+6. MUNIÇÃO CONCRETA: nunca dê ordem vaga ("reforce o valor", "gere conexão"). Entregue o conteúdo PRONTO no campo "say": a frase exata que o vendedor pode falar em voz alta AGORA, com argumentos, dados e números reais e específicos (se citar fatos, use fatos verdadeiros e notórios). A frase deve encaixar na conversa como continuação natural do que acabou de ser dito.
+7. TÉCNICA NOMEADA: toda dica aplica UMA técnica de vendas reconhecida e a nomeia no campo "technique" (ex: "Pergunta de implicação SPIN", "Ancoragem de ROI", "Espelhamento", "Rotulação de emoção", "Inversão de risco", "Fechamento alternativo", "Isolamento de objeção", "Prova social", "Silêncio estratégico"). Isso ensina o vendedor ENQUANTO ele vende.
+8. FECHAMENTO PARRUDO: em estágio de fechamento, dê o script exato — a pergunta de fechamento pronta, o tom de entrega, e instrua a fazer silêncio absoluto após perguntar (quem fala primeiro depois da pergunta de fechamento, perde).
 
 Retorne EXCLUSIVAMENTE JSON:
 {
-  "tip": "diagnóstico/direção curta (máx 14 palavras). null se nada útil ou se o trecho for só ruído.",
+  "tip": "diagnóstico/direção curta e cirúrgica (máx 14 palavras). null se nada útil ou se o trecho for só ruído.",
   "say": "fala PRONTA para o vendedor dizer AGORA, natural e fluida, 1-3 frases (máx 45 palavras). null se não se aplicar.",
   "tone": "tom de entrega em 2-4 palavras (ex: 'confiante e calmo'). null se não se aplicar.",
+  "technique": "nome da técnica aplicada, 2-4 palavras. null se tip for null.",
   "priority": "urgent|normal|good",
   "icon": "um emoji",
   "stage": "rapport|descoberta|apresentacao|objecoes|fechamento",
   "temperature": <0-100, o quão quente a negociação está: interesse real, sinais de compra, engajamento do cliente>
 }
 
-Se o vendedor acabou de mandar bem, use priority "good", reforce o acerto e diga como capitalizar em cima dele.`;
+Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele acertou e dê a jogada seguinte pronta para capitalizar em cima do acerto.`;
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -798,7 +832,7 @@ Se o vendedor acabou de mandar bem, use priority "good", reforce o acerto e diga
         body: JSON.stringify({
           model: Storage.getConfig().openaiModel || 'gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 320,
+          max_tokens: 400,
           temperature: 0.4,
           response_format: { type: 'json_object' },
         }),
@@ -815,11 +849,12 @@ Se o vendedor acabou de mandar bem, use priority "good", reforce o acerto e diga
           // gerada, o assunto provavelmente mudou — descarta (exceto urgente).
           const grewBy = transcript.length - sinceCount;
           if (grewBy < 3 || parsed.priority === 'urgent') {
-            addTip({
+            deliverTip({
               t: Date.now(),
               tip: parsed.tip,
               say: parsed.say || null,
               tone: parsed.tone || null,
+              technique: parsed.technique || null,
               priority: parsed.priority || 'normal',
               icon: parsed.icon || '🎯',
             });
@@ -833,6 +868,42 @@ Se o vendedor acabou de mandar bem, use priority "good", reforce o acerto e diga
     } finally {
       coachBusy = false;
     }
+  }
+
+  // ── Gate de entrega: NUNCA mostra dica enquanto o VENDEDOR está falando ──
+  // Uma dica chegando no meio da fala tira a concentração. A dica fica
+  // segurada e aparece no instante em que ele faz uma pausa. Se ficar
+  // segurada tempo demais, o assunto já mudou — é descartada.
+  function sellerMidSpeech() {
+    if (micPaused) return false;
+    const ch = channels.seller;
+    if (!ch) return false;
+    if (ch.state === 'speaking') return true;
+    return (Date.now() - (ch.lastVoiceAt || 0)) < 700;
+  }
+
+  function deliverTip(tip) {
+    if (!sellerMidSpeech()) { addTip(tip); return; }
+    pendingTip = tip; // dica mais nova substitui a que estava na fila
+    if (!pendingTipTimer) pendingTipTimer = setInterval(tryFlushPendingTip, 400);
+  }
+
+  function tryFlushPendingTip() {
+    if (!pendingTip || !running) {
+      pendingTip = null;
+      if (pendingTipTimer) { clearInterval(pendingTipTimer); pendingTipTimer = null; }
+      return;
+    }
+    if (Date.now() - pendingTip.t > TIP_MAX_HOLD_MS) {
+      pendingTip = null;
+      clearInterval(pendingTipTimer); pendingTipTimer = null;
+      return;
+    }
+    if (sellerMidSpeech()) return;
+    const tip = pendingTip;
+    pendingTip = null;
+    clearInterval(pendingTipTimer); pendingTipTimer = null;
+    addTip(tip);
   }
 
   function addTip(tip) {
@@ -912,12 +983,20 @@ Se o vendedor acabou de mandar bem, use priority "good", reforce o acerto e diga
             <div class="lc-card" style="padding:0.9rem">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;gap:8px;flex-wrap:wrap">
                 <div class="lc-card-title" style="margin:0">🖥 Sua reunião (ao vivo)</div>
-                <div style="display:flex;gap:6px">
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                  ${surfaceControlSupported() ? `
+                    <button class="lc-btn lc-btn-ghost" style="padding:0.35rem 0.9rem;font-size:0.75rem" onclick="LiveCoach.enableSurfaceControl()" id="lc-interact-btn" title="Rolar e dar zoom na aba da reunião daqui de dentro">🖱 Ativar controle da aba</button>
+                    <span id="lc-zoom-ctl" style="display:none;align-items:center;gap:4px">
+                      <button class="lc-btn lc-btn-ghost" style="padding:0.3rem 0.7rem;font-size:0.8rem" onclick="LiveCoach.zoomSurface(-1)" title="Diminuir zoom da aba">−</button>
+                      <span class="lc-muted" id="lc-zoom-val" style="min-width:38px;text-align:center">100%</span>
+                      <button class="lc-btn lc-btn-ghost" style="padding:0.3rem 0.7rem;font-size:0.8rem" onclick="LiveCoach.zoomSurface(1)" title="Aumentar zoom da aba">＋</button>
+                    </span>
+                  ` : ''}
                   <button class="lc-btn lc-btn-ghost" style="padding:0.35rem 0.9rem;font-size:0.75rem" onclick="LiveCoach.toggleTheater()" id="lc-theater-btn">⛶ Ampliar</button>
                   <button class="lc-btn lc-btn-ghost" style="padding:0.35rem 0.9rem;font-size:0.75rem" onclick="LiveCoach.pip()">🗔 Janela flutuante</button>
                 </div>
               </div>
-              <video id="lc-video" class="lc-video" autoplay muted playsinline></video>
+              <video id="lc-video" class="lc-video" autoplay muted playsinline onclick="LiveCoach.videoClicked()"></video>
             </div>
             <div class="lc-card">
               <div class="lc-card-title">📝 Transcrição ao vivo</div>
@@ -982,6 +1061,73 @@ Se o vendedor acabou de mandar bem, use priority "good", reforce o acerto e diga
     const btn = document.getElementById('lc-theater-btn');
     if (grid) grid.classList.toggle('lc-theater', theaterMode);
     if (btn) btn.textContent = theaterMode ? '🗗 Reduzir' : '⛶ Ampliar';
+  }
+
+  // ══════════════════════════════════════
+  // CONTROLE DA ABA CAPTURADA (Captured Surface Control, Chrome 136+)
+  // Rolar com o mouse sobre o espelho da reunião rola a ABA REAL da
+  // reunião; botões de zoom ajustam o zoom da aba. Cliques dentro do
+  // espelho não são repassados — nenhum navegador permite injetar
+  // cliques numa aba capturada (segurança); o clique aqui ativa o modo.
+  // ══════════════════════════════════════
+  function surfaceControlSupported() {
+    return !!(captureController && typeof captureController.forwardWheel === 'function' && sharedSurface === 'browser');
+  }
+
+  async function enableSurfaceControl() {
+    if (!surfaceControlSupported()) {
+      try { UI.toast('Controle da aba indisponível: use Chrome 136+ e compartilhe a ABA da reunião.', 'warning'); } catch (e) {}
+      return;
+    }
+    const video = document.getElementById('lc-video');
+    if (!video) return;
+    try {
+      await captureController.forwardWheel(video);
+      surfaceCtlEnabled = true;
+      const btn = document.getElementById('lc-interact-btn');
+      if (btn) { btn.textContent = '🖱 Controle ativo'; btn.style.borderColor = 'rgba(0,212,170,0.5)'; btn.style.color = '#7dead0'; }
+      refreshZoomUI();
+      try { UI.toast('Controle ativo: role o mouse sobre o vídeo para rolar a página da reunião. Cliques dentro do espelho não são permitidos pelo navegador.', 'success'); } catch (e) {}
+    } catch (e) {
+      console.warn('[LiveCoach] surface control fail', e);
+      try { UI.toast('Não foi possível ativar o controle da aba: ' + (e?.message || 'permissão negada'), 'warning'); } catch (e2) {}
+    }
+  }
+
+  function refreshZoomUI() {
+    const ctl = document.getElementById('lc-zoom-ctl');
+    if (!ctl) return;
+    if (!surfaceCtlEnabled || typeof captureController?.getZoomLevel !== 'function') { ctl.style.display = 'none'; return; }
+    ctl.style.display = 'inline-flex';
+    try {
+      const val = document.getElementById('lc-zoom-val');
+      if (val) val.textContent = captureController.getZoomLevel() + '%';
+    } catch (e) {}
+  }
+
+  async function zoomSurface(dir) {
+    if (!surfaceCtlEnabled || typeof captureController?.setZoomLevel !== 'function') return;
+    try {
+      const levels = captureController.getSupportedZoomLevels();
+      const cur = captureController.getZoomLevel();
+      let idx = levels.indexOf(cur);
+      if (idx === -1) idx = levels.findIndex(l => l >= cur);
+      const next = levels[Math.max(0, Math.min(levels.length - 1, idx + dir))];
+      if (next && next !== cur) await captureController.setZoomLevel(next);
+      refreshZoomUI();
+    } catch (e) { console.warn('[LiveCoach] zoom fail', e); }
+  }
+
+  function videoClicked() {
+    if (!surfaceCtlEnabled && surfaceControlSupported()) { enableSurfaceControl(); return; }
+    if (!clickHintShown) {
+      clickHintShown = true;
+      try {
+        UI.toast(surfaceCtlEnabled
+          ? 'Rolagem e zoom funcionam aqui; para CLICAR em algo, use a própria aba da reunião (o navegador não permite repassar cliques).'
+          : 'Este é um espelho da reunião — para clicar em algo, vá até a aba da reunião (Alt+Tab / Ctrl+Tab).', 'info');
+      } catch (e) {}
+    }
   }
 
   function renderStage() {
@@ -1078,8 +1224,19 @@ Se o vendedor acabou de mandar bem, use priority "good", reforce o acerto e diga
         `;
         const v = d.getElementById('pip-video');
         if (displayStream) { v.srcObject = displayStream; v.play().catch(() => {}); }
+        // Se o controle da aba está ativo, a rolagem passa a funcionar também
+        // sobre o vídeo da janela flutuante (o forwardWheel aponta para 1 elemento).
+        if (surfaceCtlEnabled && captureController) {
+          try { Promise.resolve(captureController.forwardWheel(v)).catch(() => {}); } catch (e) {}
+        }
         d.getElementById('pip-mic').addEventListener('click', () => toggleMicPause());
-        pipWin.addEventListener('pagehide', () => { pipWin = null; });
+        pipWin.addEventListener('pagehide', () => {
+          pipWin = null;
+          if (surfaceCtlEnabled && captureController) {
+            const mainV = document.getElementById('lc-video');
+            if (mainV) { try { Promise.resolve(captureController.forwardWheel(mainV)).catch(() => {}); } catch (e) {} }
+          }
+        });
         updatePip();
       } catch (e) {
         console.warn('[LiveCoach] doc-pip fail', e);
@@ -1134,7 +1291,7 @@ Se o vendedor acabou de mandar bem, use priority "good", reforce o acerto e diga
         const box = d.getElementById('pip-tip-box');
         if (box) { box.style.borderColor = theme.border; box.style.background = theme.bg; box.style.boxShadow = `0 0 16px ${theme.bg}`; }
         const lbl = d.getElementById('pip-tip-label');
-        if (lbl) { lbl.style.display = 'block'; lbl.textContent = theme.label; lbl.style.background = theme.labelBg; lbl.style.color = theme.labelFg; }
+        if (lbl) { lbl.style.display = 'block'; lbl.textContent = theme.label + (t.technique ? ` · ${t.technique}` : ''); lbl.style.background = theme.labelBg; lbl.style.color = theme.labelFg; }
         const pf = d.getElementById('pip-fresh');
         if (pf) pf.textContent = freshLabel(t.t);
       }
@@ -1196,7 +1353,7 @@ Se o vendedor acabou de mandar bem, use priority "good", reforce o acerto e diga
     const history = tips.slice(1, 7);
     el.innerHTML = `
       <div class="lc-hero ${hero.priority}${(Date.now() - hero.t) > 45000 ? ' stale' : ''}" id="lc-hero">
-        <span class="lc-hero-label">${HERO_LABELS[hero.priority] || HERO_LABELS.normal}</span>
+        <span class="lc-hero-label">${HERO_LABELS[hero.priority] || HERO_LABELS.normal}</span>${hero.technique ? `<span class="lc-tech-chip">📐 ${esc(hero.technique)}</span>` : ''}
         <div class="lc-hero-body">
           <span class="lc-hero-icon">${hero.icon || '🎯'}</span>
           <div class="lc-hero-text">${esc(hero.tip)}</div>
@@ -1215,7 +1372,7 @@ Se o vendedor acabou de mandar bem, use priority "good", reforce o acerto e diga
       ${history.map((t, i) => `
         <div class="lc-hist" style="opacity:${Math.max(0.35, 0.85 - i * 0.12)}">
           <span>${t.icon || '🎯'}</span>
-          <span>${esc(t.tip)}</span>
+          <span>${esc(t.tip)}${t.technique ? ` <em style="color:#6b6b8f;font-style:normal">· ${esc(t.technique)}</em>` : ''}</span>
           <span class="lc-hist-time">${new Date(t.t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
       `).join('')}
@@ -1249,6 +1406,10 @@ Se o vendedor acabou de mandar bem, use priority "good", reforce o acerto e diga
     try { if (document.pictureInPictureElement) document.exitPictureInPicture(); } catch (e) {}
     [micStream, displayStream].forEach(s => { if (s) s.getTracks().forEach(t => t.stop()); });
     micStream = null; displayStream = null;
+    captureController = null;
+    surfaceCtlEnabled = false;
+    pendingTip = null;
+    if (pendingTipTimer) { clearInterval(pendingTipTimer); pendingTipTimer = null; }
     if (audioCtx) { try { audioCtx.close(); } catch (e) {} audioCtx = null; }
     if (coachTimer) { clearInterval(coachTimer); coachTimer = null; }
     if (saveTimer) { clearInterval(saveTimer); saveTimer = null; }
@@ -1479,7 +1640,7 @@ ${convo}`;
       </div>`;
   }
 
-  return { open, close, start, stop, toggleMicPause, pip, toggleTheater, toggleSound, toggleProduct, learnFromTraining };
+  return { open, close, start, stop, toggleMicPause, pip, toggleTheater, toggleSound, toggleProduct, learnFromTraining, enableSurfaceControl, zoomSurface, videoClicked };
 })();
 
 window.LiveCoach = LiveCoach;

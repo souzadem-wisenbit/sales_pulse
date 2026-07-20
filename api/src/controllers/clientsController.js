@@ -65,11 +65,12 @@ async function createClient(req, res) {
         usa_emojis, faz_perguntas, skepticism, urgency, price_sensitivity,
         product_knowledge, negotiation_will, trick_frequency, trick_types,
         vendedores_atribuidos, archetype, hidden_agenda, market_segment,
-        hostile_mode, hostile_competitors, session_constraints, custom_behavior, manager_id
+        hostile_mode, hostile_competitors, session_constraints, custom_behavior,
+        gender, voice, manager_id
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
         $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
-        $31, $32, $33, $34
+        $31, $32, $33, $34, $35, $36
       )
     `, [
       id, data.name, data.emoji, data.difficulty, data.description, data.humanidade, data.formalidade,
@@ -78,7 +79,8 @@ async function createClient(req, res) {
       data.usaEmojis, data.fazPerguntas, data.skepticism, data.urgency, data.priceSensitivity,
       data.productKnowledge, data.negotiationWill, data.trickFrequency, JSON.stringify(data.trickTypes || []),
       JSON.stringify(data.vendedoresAtribuidos || []), data.archetype, data.hiddenAgenda, data.marketSegment,
-      data.hostileMode, JSON.stringify(data.hostileCompetitors || []), JSON.stringify(data.sessionConstraints || {}), data.customBehavior, managerId
+      data.hostileMode, JSON.stringify(data.hostileCompetitors || []), JSON.stringify(data.sessionConstraints || {}), data.customBehavior,
+      data.gender || null, data.voice || null, managerId
     ]);
     res.status(201).json({ ...data, id });
   } catch (err) {
@@ -107,8 +109,9 @@ async function updateClient(req, res) {
         product_knowledge = $21, negotiation_will = $22, trick_frequency = $23, trick_types = $24,
         vendedores_atribuidos = $25, archetype = $26, hidden_agenda = $27, market_segment = $28,
         hostile_mode = $29, hostile_competitors = $30, session_constraints = $31, custom_behavior = $32,
+        gender = $33, voice = $34,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $33
+      WHERE id = $35
     `, [
       data.name, data.emoji, data.difficulty, data.description, data.humanidade, data.formalidade,
       data.nivelErros, data.nivelGirias, data.emotividade, data.objetividade, data.sotaqueRegiao,
@@ -117,6 +120,7 @@ async function updateClient(req, res) {
       data.productKnowledge, data.negotiationWill, data.trickFrequency, JSON.stringify(data.trickTypes || []),
       JSON.stringify(data.vendedoresAtribuidos || []), data.archetype, data.hiddenAgenda, data.marketSegment,
       data.hostileMode, JSON.stringify(data.hostileCompetitors || []), JSON.stringify(data.sessionConstraints || {}), data.customBehavior,
+      data.gender || null, data.voice || null,
       id
     ]);
     res.json({ success: true });

@@ -627,6 +627,8 @@ const Manager = (() => {
                     ${diffEmoji[client.difficulty] || '🤔'} ${diffLabel[client.difficulty] || 'Médio'}
                   </span>
                   <span class="badge badge-muted">${sotaqueLabel[client.sotaqueRegiao] || '🗣️ Neutro'}</span>
+                  ${client.gender ? `<span class="badge badge-muted">${client.gender === 'female' ? '👩 Feminino' : '👨 Masculino'}</span>` : ''}
+                  ${client.voice ? `<span class="badge badge-muted">🎙 ${escHtml(((AIEngine.VOICE_CATALOG || []).find(v => v.id === client.voice) || {}).name || client.voice)}</span>` : ''}
                   ${client.customBehavior ? `<span class="badge" style="background:linear-gradient(135deg,rgba(108,99,255,0.2),rgba(0,212,170,0.15));border:1px solid rgba(108,99,255,0.35);color:#a8a4ff">🧠 Comportamento livre</span>` : ''}
                   ${client.usaEmojis ? '<span class="badge badge-muted">😊 Emojis</span>' : ''}
                   ${client.usaGirias || client.nivelGirias > 50 ? '<span class="badge badge-muted">🤙 Gírias</span>' : ''}
@@ -683,6 +685,31 @@ const Manager = (() => {
               <div class="form-group">
                 <label class="form-label">Emoji / Avatar</label>
                 <input type="text" class="form-input" id="cli-emoji" placeholder="👨‍💼" style="font-size:1.4rem;text-align:center">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Gênero</label>
+                <select class="form-select" id="cli-gender">
+                  <option value="">🤖 Automático (deduz pelo nome/emoji)</option>
+                  <option value="male">👨 Masculino</option>
+                  <option value="female">👩 Feminino</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">🎙 Voz na ligação</label>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <select class="form-select" id="cli-voice" style="flex:1;min-width:0">
+                    <option value="">✨ Automática (melhor voz pelo gênero)</option>
+                    <optgroup label="Vozes femininas">
+                      ${(AIEngine.VOICE_CATALOG || []).filter(v => v.gender === 'female').map(v => `<option value="${v.id}">👩 ${v.name} — ${v.desc}</option>`).join('')}
+                    </optgroup>
+                    <optgroup label="Vozes masculinas">
+                      ${(AIEngine.VOICE_CATALOG || []).filter(v => v.gender === 'male').map(v => `<option value="${v.id}">👨 ${v.name} — ${v.desc}</option>`).join('')}
+                    </optgroup>
+                  </select>
+                  <button type="button" class="btn btn-ghost btn-sm" id="cli-voice-preview-btn" onclick="Manager.previewClientVoice()" title="Ouvir uma prévia da voz selecionada" style="flex-shrink:0">▶ Prévia</button>
+                </div>
+                <div class="text-muted fs-xs" style="margin-top:4px">Usada no treinamento por voz. "Automática" escolhe a voz mais natural do gênero do cliente.</div>
               </div>
 
               <div class="form-group">
@@ -1039,6 +1066,8 @@ const Manager = (() => {
         title.textContent = 'Editar Cliente';
         setVal('cli-name', client.name);
         setVal('cli-emoji', client.emoji || '👨‍💼');
+        setVal('cli-gender', client.gender || '');
+        setVal('cli-voice', client.voice || '');
         setVal('cli-difficulty', client.difficulty || 'medium');
         setVal('cli-description', client.description || '');
         setVal('cli-customBehavior', client.customBehavior || '');
@@ -1093,6 +1122,7 @@ const Manager = (() => {
     } else {
       title.textContent = 'Novo Cliente';
       setVal('cli-name', ''); setVal('cli-emoji', '👨‍💼');
+      setVal('cli-gender', ''); setVal('cli-voice', '');
       setVal('cli-difficulty', 'medium');
       setVal('cli-description', '');
       setVal('cli-customBehavior', '');
@@ -1144,6 +1174,8 @@ const Manager = (() => {
     const data = {
       name,
       emoji:               document.getElementById('cli-emoji')?.value?.trim() || '👨‍💼',
+      gender:              document.getElementById('cli-gender')?.value || null,
+      voice:               document.getElementById('cli-voice')?.value || null,
       difficulty:          document.getElementById('cli-difficulty')?.value || 'medium',
       description:         document.getElementById('cli-description')?.value?.trim() || '',
       humanidade:          parseInt(document.getElementById('cli-humanidade')?.value || 50),
@@ -1193,6 +1225,54 @@ const Manager = (() => {
       renderClientsSection(document.getElementById('manager-content'));
     } catch (e) {
       UI.toast('Erro ao salvar cliente', 'error');
+    }
+  }
+
+  // ── Prévia da voz do cliente-bot (TTS) ──
+  // Vozes premium do Realtime (marin/cedar) não existem na API de TTS:
+  // a prévia usa a voz aproximada do catálogo e avisa o gestor.
+  let previewAudio = null;
+  async function previewClientVoice() {
+    const btn = document.getElementById('cli-voice-preview-btn');
+    const apiKey = Storage.getConfig().openaiKey || (Storage.getSettings() || {}).openaiKey;
+    if (!apiKey) { UI.toast('Configure a chave da OpenAI em Configurações para ouvir a prévia.', 'warning'); return; }
+
+    if (previewAudio) { try { previewAudio.pause(); } catch (e) {} previewAudio = null; }
+
+    const gender = document.getElementById('cli-gender')?.value || '';
+    let voiceId = document.getElementById('cli-voice')?.value || '';
+    if (!voiceId) voiceId = gender === 'male' ? 'cedar' : 'marin'; // automática: melhor voz por gênero
+    const cat = (AIEngine.VOICE_CATALOG || []).find(v => v.id === voiceId) || {};
+    const ttsVoice = cat.previewVoice || voiceId;
+    const approx = !!cat.previewVoice;
+
+    const name = document.getElementById('cli-name')?.value?.trim() || 'este cliente';
+    const sample = gender === 'female' || cat.gender === 'female'
+      ? `Alô, bom dia! Aqui é ${name === 'este cliente' ? 'a cliente do treinamento' : name}. É assim que eu vou soar nas ligações com os seus vendedores, tá bom?`
+      : `Alô, bom dia! Aqui é ${name === 'este cliente' ? 'o cliente do treinamento' : name}. É assim que eu vou soar nas ligações com os seus vendedores, tá bom?`;
+
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando...'; }
+    try {
+      const res = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini-tts',
+          voice: ttsVoice,
+          input: sample,
+          instructions: 'Fale em português brasileiro, tom natural de ligação telefônica comercial.',
+          response_format: 'mp3',
+        }),
+      });
+      if (!res.ok) throw new Error('TTS_' + res.status);
+      const blob = await res.blob();
+      previewAudio = new Audio(URL.createObjectURL(blob));
+      previewAudio.play().catch(() => {});
+      if (approx) UI.toast(`Prévia aproximada — na ligação real a voz será ${cat.name} (ainda mais natural).`, 'info');
+    } catch (e) {
+      UI.toast('Não foi possível gerar a prévia da voz. Verifique a chave da OpenAI.', 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ Prévia'; }
     }
   }
 
@@ -2698,7 +2778,7 @@ const Manager = (() => {
     openSellerModal, editSeller, closeSellerModal, saveSeller, deleteSeller,
     openManagerModal, closeManagerModal, saveManager, deleteManager, toggleManagerStatus,
     saveApiSettings, saveManagerAccount, clearAllSessions, resetAllData,
-    openClientModal, closeClientModal, saveClient, deleteClient,
+    openClientModal, closeClientModal, saveClient, deleteClient, previewClientVoice,
     switchClientTab,
     openAssignModal, closeAssignModal, saveAssignment,
     openProductModal, closeProductModal, saveProduct, deleteProduct,

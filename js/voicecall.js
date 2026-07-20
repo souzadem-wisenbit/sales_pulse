@@ -222,14 +222,27 @@ const VoiceCall = (() => {
     await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
   }
 
-  // Voz por heurística de gênero (nome/emoji) — marin/cedar no GA, sage/verse no beta
+  // Voz da ligação, em ordem de prioridade:
+  // 1. Voz escolhida pelo gestor no perfil do cliente (cfg.customerVoice);
+  // 2. Gênero escolhido no perfil (cfg.customerGender) → melhor voz do gênero;
+  // 3. Heurística por nome/emoji (comportamento antigo).
+  // O endpoint beta não tem marin/cedar — cai para a voz equivalente.
   function pickVoice(flavor) {
-    const female = guessFemale();
-    if (flavor === 'ga') return female ? 'marin' : 'cedar';
-    return female ? 'sage' : 'verse';
+    let v = cfg.customerVoice || null;
+    if (!v) {
+      const female = cfg.customerGender ? cfg.customerGender === 'female' : guessFemale();
+      v = female ? 'marin' : 'cedar';
+    }
+    if (flavor !== 'ga') {
+      if (v === 'marin') v = 'sage';
+      if (v === 'cedar') v = 'verse';
+    }
+    return v;
   }
 
   function guessFemale() {
+    if (cfg.customerGender === 'female') return true;
+    if (cfg.customerGender === 'male') return false;
     const femaleEmojis = ['👩', '👧', '👵', '🙍‍♀️', '💁‍♀️', '👩‍💼', '👩‍⚕️', '👩‍🏫', '👩‍🔧', '👩‍🌾', '🧕', '👸'];
     if (cfg.customerEmoji && femaleEmojis.some(e => cfg.customerEmoji.includes(e))) return true;
     const maleEmojis = ['👨', '👦', '👴', '🙍‍♂️', '💁‍♂️', '👨‍💼', '👨‍⚕️', '👨‍🏫', '🤵', '👔'];

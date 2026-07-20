@@ -65,6 +65,8 @@ const Seller = (() => {
       customerRole:       client.role,
       customerCompany:    client.company,
       customerEmoji:      client.emoji || '👤',
+      customerGender:     client.gender || null,
+      customerVoice:      client.voice || null,
       customerStyle:      client.customerStyle || 'formal',
       scenarioIndustry:   client.industry || '',
       difficulty:         client.difficulty || 'medium',
@@ -1356,6 +1358,7 @@ const Seller = (() => {
   // ══════════════════════════════════════
   // COACH TIP
   // ══════════════════════════════════════
+  let coachTipTimer = null;
   function showCoachTip(tip) {
     if (sessionEnded) return;
     const overlay = document.getElementById('coach-tip-overlay');
@@ -1370,15 +1373,19 @@ const Seller = (() => {
 
     inner.innerHTML = `
       <span class="coach-tip-icon">${tip.icon || '🎯'}</span>
-      <span class="coach-tip-text" style="color:${priorityColors[tip.priority] || 'var(--accent)'}">
-        ${tip.tip}
-      </span>
+      <div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+        <span class="coach-tip-text" style="color:${priorityColors[tip.priority] || 'var(--accent)'}">
+          ${escHtml(tip.tip)}${tip.technique ? ` <span style="opacity:0.65;font-size:0.78em;font-weight:600">· ${escHtml(tip.technique)}</span>` : ''}
+        </span>
+        ${tip.say ? `<span style="font-size:0.8rem;color:var(--text-secondary);font-style:italic;line-height:1.4">💬 "${escHtml(tip.say)}"</span>` : ''}
+      </div>
       <button class="coach-tip-dismiss" onclick="document.getElementById('coach-tip-overlay').style.display='none'">✕</button>
     `;
     overlay.style.display = 'flex';
 
-    // Auto-dismiss after 6 seconds
-    setTimeout(() => { overlay.style.display = 'none'; }, 6000);
+    // Dica com script pronto fica mais tempo na tela
+    if (coachTipTimer) clearTimeout(coachTipTimer);
+    coachTipTimer = setTimeout(() => { overlay.style.display = 'none'; }, tip.say ? 12000 : 7000);
   }
 
   // ══════════════════════════════════════

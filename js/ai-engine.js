@@ -21,6 +21,22 @@ LINGUAGEM OFENSIVA: Se o vendedor ofender, adicione [DEALBREAKER].
 `;
 
 
+  // ── Catálogo de vozes do cliente-bot (OpenAI Realtime) ──
+  // "previewVoice" = voz usada na prévia via TTS quando a voz realtime
+  // (cedar/marin) não existe na API de TTS — prévia aproximada.
+  const VOICE_CATALOG = [
+    { id: 'marin',   gender: 'female', name: 'Marin',   desc: 'natural e calorosa (premium)', previewVoice: 'coral' },
+    { id: 'coral',   gender: 'female', name: 'Coral',   desc: 'simpática e expressiva' },
+    { id: 'sage',    gender: 'female', name: 'Sage',    desc: 'serena e madura' },
+    { id: 'shimmer', gender: 'female', name: 'Shimmer', desc: 'enérgica e clara' },
+    { id: 'alloy',   gender: 'female', name: 'Alloy',   desc: 'neutra e equilibrada' },
+    { id: 'cedar',   gender: 'male',   name: 'Cedar',   desc: 'natural e próximo (premium)', previewVoice: 'ash' },
+    { id: 'ash',     gender: 'male',   name: 'Ash',     desc: 'grave e confiante' },
+    { id: 'echo',    gender: 'male',   name: 'Echo',    desc: 'firme e direto' },
+    { id: 'verse',   gender: 'male',   name: 'Verse',   desc: 'expressivo e jovem' },
+    { id: 'ballad',  gender: 'male',   name: 'Ballad',  desc: 'suave e tranquilo' },
+  ];
+
   // ── Arquétipos comportamentais ──
   const ARCHETYPES = {
     desconfiado: {
@@ -289,7 +305,13 @@ LINGUAGEM OFENSIVA: Se o vendedor ofender, adicione [DEALBREAKER].
       ? `VOCÊ entrou em contato com o vendedor (ou com a empresa dele) porque tem uma dor, problema ou necessidade que pode ter relação com o que ele oferece. Mesmo tendo sido você a iniciar o contato, isso NÃO te torna vendedor — você continua sendo o CLIENTE/COMPRADOR. Se ele perguntar por que você entrou em contato, explique brevemente sua necessidade/dor (nunca ofereça nada a ele, nunca descreva um produto seu). Quem tem um produto/serviço para apresentar e vender é SEMPRE ele, nunca você.`
       : `Um vendedor entrou em contato com VOCÊ do nada (prospecção fria/ligação/mensagem inesperada). Você ainda não sabe o que ele vai oferecer — espere ele apresentar.`;
 
-    return `Você é ${config.customerName}, ${config.customerRole} da empresa ${config.customerCompany}.${customBehaviorBlock}
+    const genderLine = config.customerGender === 'female'
+      ? ' Você é uma MULHER — use sempre o feminino ao falar de si ("eu mesma", "obrigada", "sou formada").'
+      : config.customerGender === 'male'
+        ? ' Você é um HOMEM — use sempre o masculino ao falar de si ("eu mesmo", "obrigado", "sou formado").'
+        : '';
+
+    return `Você é ${config.customerName}, ${config.customerRole} da empresa ${config.customerCompany}.${genderLine}${customBehaviorBlock}
 
 SEU PAPEL:
 Você é o CLIENTE/COMPRADOR. ${contactContext} Você OUVE, QUESTIONA, OBJETA e decide se compra ou não. Independentemente de quem iniciou a conversa, você NUNCA assume o papel de vendedor, NUNCA tem um produto/serviço próprio para oferecer, e NUNCA tenta vender ou explicar as funcionalidades do produto de volta para o vendedor — isso é papel exclusivo dele. Não pergunte "como posso ajudar" — quem apresenta é o vendedor, não você.
@@ -384,7 +406,13 @@ ${commStyleBlock}
 6. COMPORTAMENTO DE LIGAÇÃO: se o vendedor ficar mudo por muito tempo, pergunte "alô, tá me ouvindo?". Se não entender algo, peça para repetir ("como é?", "não te ouvi direito"). Você PODE interromper educadamente se o vendedor enrolar demais — pessoas fazem isso ao telefone.
 7. Se o vendedor tentar encerrar ("obrigado, tenha um bom dia"), despeça-se de forma natural e curta, coerente com o rumo da negociação.
 8. Jamais diga que é uma IA, um assistente ou uma simulação. Você é ${config.customerName}, num dia normal de trabalho, atendendo/fazendo uma ligação.
-9. ⚓ ANCORAGEM NO PRODUTO (CRÍTICO): a ligação é sobre o(s) produto(s)/serviço(s) listados em "O QUE O VENDEDOR TEM PARA OFERECER". Se foi você que ligou, o motivo da sua ligação é uma dor/necessidade DIRETAMENTE ligada a esses produtos — cite essa necessidade com as palavras do produto real. É PROIBIDO mencionar interesse em qualquer produto, serviço ou assunto comercial de outra categoria.`;
+9. ⚓ ANCORAGEM NO PRODUTO (CRÍTICO): a ligação é sobre o(s) produto(s)/serviço(s) listados em "O QUE O VENDEDOR TEM PARA OFERECER". Se foi você que ligou, o motivo da sua ligação é uma dor/necessidade DIRETAMENTE ligada a esses produtos — cite essa necessidade com as palavras do produto real. É PROIBIDO mencionar interesse em qualquer produto, serviço ou assunto comercial de outra categoria.${
+      config.customerGender === 'female'
+        ? '\n10. VOCÊ É UMA MULHER ao telefone: fale sempre no feminino ("eu mesma resolvo", "obrigada", "tô ocupada").'
+        : config.customerGender === 'male'
+          ? '\n10. VOCÊ É UM HOMEM ao telefone: fale sempre no masculino ("eu mesmo resolvo", "obrigado", "tô ocupado").'
+          : ''
+    }`;
   }
 
   // ── Parse AI response ──
@@ -560,24 +588,29 @@ ${commStyleBlock}
       .map(m => `${m.role === 'user' ? 'VENDEDOR' : 'CLIENTE'}: ${m.content}`)
       .join('\n');
 
-    const prompt = `Você é um coach de vendas experiente observando uma conversa em tempo real.
-Analise os ÚLTIMOS TURNOS desta conversa de vendas e dê UMA sugestão discreta e específica para o vendedor.
+    const prompt = `Você é um coach de vendas de elite (formado em SPIN Selling, Challenger e Sandler) observando um treinamento em tempo real. O produto em negociação: ${config.productName || '(o vendedor vai apresentar)'}${config.productPrice ? ` (${config.productPrice})` : ''}.
+Analise os ÚLTIMOS TURNOS e dê UMA dica cirúrgica e técnica para o PRÓXIMO turno do vendedor.
 
 ÚLTIMOS TURNOS:
 ${conversationText}
 
-Critério de alerta (verifique na ordem):
-1. O vendedor fez perguntas suficientes antes de apresentar solução?
-2. O vendedor explorou a dor/problema do cliente adequadamente?
-3. O cliente colocou uma objeção que foi mal respondida?
-4. Há sinais de compra que o vendedor ignorou?
-5. O vendedor está usando linguagem fraca, travada ou repetitiva?
-6. Seria hora de conduzir a um próximo passo?
+MÉTODO — classifique a última fala do CLIENTE e ataque exatamente essa categoria:
+- Objeção de preço → reancorar no custo do problema / ROI com números, nunca desconto de cara.
+- Objeção de confiança → prova social específica + inversão de risco (garantia, piloto, teste).
+- "Vou pensar" / "falar com sócio" → isolar a objeção real ("se dependesse só de você, fecharia?") e amarrar próximo passo com data.
+- Sinal de compra (pergunta de prazo, contrato, pagamento) → parar de vender e fechar (fechamento direto ou alternativo) + silêncio.
+- Dor revelada → pergunta de implicação SPIN: fazer o cliente dimensionar o custo da dor em números.
+- Cliente prolixo → espelhamento das últimas palavras-chave ou rotulação de emoção para ele se abrir.
+- Vendedor falando demais / apresentando cedo → mandar voltar para perguntas de descoberta.
+
+REGRAS:
+- Dica ESPECÍFICA sobre a conversa atual, nunca genérica ("seja mais empático" é proibido).
+- "say" traz a mensagem PRONTA que o vendedor pode enviar agora, natural, no clima da conversa.
+- "technique" nomeia a técnica aplicada (ensina enquanto treina).
+- Se o vendedor acabou de mandar bem, priority "good": diga qual técnica ele acertou e a jogada seguinte.
 
 Retorne EXCLUSIVAMENTE um JSON:
-{"tip": "<frase curta e direta para o vendedor, máx 12 palavras>", "priority": "urgent|normal|good", "icon": "<um emoji}"}
-
-Exemplos de tip: "Faltou explorar a dor antes de apresentar", "Hora de propor próximo passo concreto", "Objeção de preço — use ROI ou social proof", "Ótimo rapport! Agora aprofunde a necessidade"`;
+{"tip": "<diagnóstico curto e direto, máx 12 palavras>", "say": "<mensagem pronta para enviar agora, 1-2 frases, máx 35 palavras. null se não se aplicar>", "technique": "<nome da técnica, 2-4 palavras>", "priority": "urgent|normal|good", "icon": "<um emoji>"}`;
 
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -589,7 +622,7 @@ Exemplos de tip: "Faltou explorar a dor antes de apresentar", "Hora de propor pr
         body: JSON.stringify({
           model: config.openaiModel || 'gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 120,
+          max_tokens: 220,
           temperature: 0.4,
           response_format: { type: 'json_object' },
         }),
@@ -693,6 +726,7 @@ Retorne EXCLUSIVAMENTE este JSON (sem markdown, sem explicação extra):
     ARCHETYPES,
     SEGMENTS,
     HIDDEN_AGENDAS,
+    VOICE_CATALOG,
   };
 })();
 
