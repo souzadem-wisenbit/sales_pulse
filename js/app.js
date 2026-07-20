@@ -65,6 +65,14 @@ const App = (() => {
   }
 
   function navigate(page) {
+    // Nunca deixa uma ligação de voz viva ao trocar de tela — o áudio
+    // continuaria tocando "invisível" e uma nova ligação criaria voz dupla.
+    try {
+      if (window.VoiceCall && typeof VoiceCall.isActive === 'function' && VoiceCall.isActive()) {
+        VoiceCall.abort();
+      }
+    } catch (e) {}
+
     // Force-hide ALL pages using direct style (highest specificity)
     ['page-landing', 'page-login', 'page-manager', 'page-seller', 'page-results'].forEach(id => {
       const el = document.getElementById(id);

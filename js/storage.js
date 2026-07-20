@@ -243,7 +243,16 @@ const Storage = (() => {
 
   async function addScheduledSession(data) {
     const created = await API.createScheduledSession(data);
-    if(created) _cache.scheduled_sessions.unshift(created);
+    if (created) {
+      // Normaliza a resposta antes de entrar no cache: sem status a sessão
+      // nova não cai em "pendentes" nem "concluídas" e some da tela do
+      // gestor até o próximo hydrate.
+      if (!created.status) created.status = 'pending';
+      if (!created.createdAt) created.createdAt = created.created_at || new Date().toISOString();
+      if (created.sellerId === undefined && created.seller_id !== undefined) created.sellerId = created.seller_id;
+      if (created.clientId === undefined && created.client_id !== undefined) created.clientId = created.client_id;
+      _cache.scheduled_sessions.unshift(created);
+    }
     return created;
   }
 

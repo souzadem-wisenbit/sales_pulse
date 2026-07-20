@@ -29,6 +29,7 @@ const VoiceCall = (() => {
   let apiFlavor = 'ga';        // 'ga' = /v1/realtime/calls | 'beta' = /v1/realtime
   let voiceUsed = 'cedar';
   let isRedial = false;
+  let dialSeq = 0;             // época da chamada: teardown() invalida qualquer dial() em andamento
 
   // Analisador paralelo (convicção / fechamento / dealbreaker)
   let analyzerBusy = false;
@@ -127,15 +128,28 @@ const VoiceCall = (() => {
     }
 
     if (btn) { btn.disabled = true; btn.textContent = '🎤 Liberando microfone...'; }
+    // Época desta tentativa: se o usuário sair da tela (exit/navegação)
+    // enquanto aguardamos permissão/conexão, o teardown muda a época e
+    // esta continuação assíncrona aborta em vez de conectar uma chamada
+    // "fantasma" fora da sessão (causa de áudio duplicado/persistente).
+    const seq = ++dialSeq;
+    let gotStream = null;
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({
+      gotStream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
     } catch (e) {
+      if (seq !== dialSeq) return;
       if (btn) { btn.disabled = false; btn.textContent = '📞 Tentar novamente'; }
       setPre('⚠️ Microfone bloqueado. Permita o acesso ao microfone e tente de novo.');
       return;
     }
+    if (seq !== dialSeq) {
+      // Usuário abandonou a tela enquanto o navegador pedia permissão
+      try { gotStream.getTracks().forEach(t => t.stop()); } catch (e) {}
+      return;
+    }
+    micStream = gotStream;
 
     running = true;
     renderInCall();
@@ -143,13 +157,15 @@ const VoiceCall = (() => {
     startRingback();
 
     try {
-      await connectRealtime(apiKey);
+      await connectRealtime(apiKey, seq);
     } catch (e) {
+      if (seq !== dialSeq) return;
       console.error('[VoiceCall] connect fail', e);
       stopRingback();
       dropCall('Não foi possível conectar a chamada. ' + friendlyError(e));
       return;
     }
+    if (seq !== dialSeq) { teardown(); return; }
 
     // Marca a sessão como iniciada (uma vez), igual ao fluxo de texto
     if (!sess.startedAt) {
@@ -162,7 +178,10 @@ const VoiceCall = (() => {
     window.addEventListener('beforeunload', beforeUnloadGuard);
   }
 
-  async function connectRealtime(apiKey) {
+  async function connectRealtime(apiKey, seq) {
+    // Nunca deixa uma conexão anterior viva (garantia extra contra áudio duplo)
+    if (pc) { try { pc.close(); } catch (e) {} pc = null; }
+    if (audioEl) { try { audioEl.pause(); audioEl.srcObject = null; } catch (e) {} audioEl = null; }
     pc = new RTCPeerConnection();
 
     audioEl = new Audio();
@@ -665,6 +684,21 @@ Retorne EXCLUSIVAMENTE JSON: {"conviction": <0-100>, "closed": <bool>, "noIntere
     App.navigate('seller');
   }
 
+  // Há chamada (ou conexão) viva? Usado pelo roteador para nunca deixar
+  // áudio tocando fora da tela da sessão.
+  function isActive() {
+    return running || !!pc || !!micStream;
+  }
+
+  // Derruba a chamada silenciosamente (navegação/logout no meio da ligação):
+  // salva o progresso para permitir religar e libera microfone/áudio.
+  function abort() {
+    if (!isActive()) return;
+    try { persistState(); } catch (e) {}
+    ending = false;
+    teardown();
+  }
+
   // ══════════════════════════════════════
   // INFRA
   // ══════════════════════════════════════
@@ -682,6 +716,7 @@ Retorne EXCLUSIVAMENTE JSON: {"conviction": <0-100>, "closed": <bool>, "noIntere
 
   function teardown() {
     running = false;
+    dialSeq++; // invalida qualquer dial()/connect em andamento
     stopRingback();
     if (timerInt) { clearInterval(timerInt); timerInt = null; }
     window.removeEventListener('beforeunload', beforeUnloadGuard);
@@ -738,7 +773,7 @@ Retorne EXCLUSIVAMENTE JSON: {"conviction": <0-100>, "closed": <bool>, "noIntere
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  return { start, dial, hangup, toggleMute, toggleCaptions, redial, finishAfterDrop, exit };
+  return { start, dial, hangup, toggleMute, toggleCaptions, redial, finishAfterDrop, exit, isActive, abort };
 })();
 
 window.VoiceCall = VoiceCall;

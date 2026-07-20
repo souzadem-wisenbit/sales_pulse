@@ -1161,7 +1161,15 @@ const Manager = (() => {
   }
 
   function closeClientModal() {
+    stopVoicePreview();
     document.getElementById('client-modal')?.classList.remove('active');
+  }
+
+  function stopVoicePreview() {
+    if (previewAudio) {
+      try { previewAudio.pause(); previewAudio.src = ''; } catch (e) {}
+      previewAudio = null;
+    }
   }
 
   async function saveClient() {
@@ -1237,7 +1245,7 @@ const Manager = (() => {
     const apiKey = Storage.getConfig().openaiKey || (Storage.getSettings() || {}).openaiKey;
     if (!apiKey) { UI.toast('Configure a chave da OpenAI em Configurações para ouvir a prévia.', 'warning'); return; }
 
-    if (previewAudio) { try { previewAudio.pause(); } catch (e) {} previewAudio = null; }
+    stopVoicePreview();
 
     const gender = document.getElementById('cli-gender')?.value || '';
     let voiceId = document.getElementById('cli-voice')?.value || '';

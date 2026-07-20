@@ -1,6 +1,34 @@
 'use strict';
 const db = require('../db/pool');
 
+// Converte a linha do banco para o formato camelCase que o frontend usa.
+// IMPORTANTE: o POST também responde com este formato — o frontend insere a
+// resposta direto no cache e re-renderiza; sem status/createdAt a sessão nova
+// ficava invisível na tela até um refresh completo.
+function formatRow(r) {
+  return {
+    ...r,
+    sellerId: r.seller_id,
+    clientId: r.client_id,
+    showRealtime: r.show_realtime,
+    showReport: r.show_report,
+    salesApproach: r.sales_approach || 'active',
+    sessionMode: r.session_mode || 'text',
+    productIds: r.product_ids || [],
+    scheduledAt: r.scheduled_at,
+    doneAt: r.done_at,
+    startedAt: r.started_at,
+    createdAt: r.created_at,
+    dueAt: r.due_at || null,
+    notes: r.notes || '',
+    responseTimeSec: r.response_time_sec || 0,
+    messages: r.state?.messages || [],
+    conviction: r.state?.conviction || 0,
+    tricks: r.state?.tricks || 0,
+    criteriaScores: r.state?.criteriaScores || null
+  };
+}
+
 async function listScheduledSessions(req, res) {
   try {
     // Isolamento: gestor vê só sessões dos seus vendedores; vendedor só as suas
@@ -16,24 +44,7 @@ async function listScheduledSessions(req, res) {
       params = [req.user.id];
     }
     const { rows } = await db.query(query, params);
-    const formatted = rows.map(r => ({
-      ...r,
-      sellerId: r.seller_id,
-      clientId: r.client_id,
-      showRealtime: r.show_realtime,
-      showReport: r.show_report,
-      salesApproach: r.sales_approach || 'active',
-      sessionMode: r.session_mode || 'text',
-      productIds: r.product_ids || [],
-      scheduledAt: r.scheduled_at,
-      doneAt: r.done_at,
-      startedAt: r.started_at,
-      messages: r.state?.messages || [],
-      conviction: r.state?.conviction || 0,
-      tricks: r.state?.tricks || 0,
-      criteriaScores: r.state?.criteriaScores || null
-    }));
-    return res.json(formatted);
+    return res.json(rows.map(formatRow));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro ao listar sessoes agendadas' });
@@ -44,19 +55,21 @@ async function createScheduledSession(req, res) {
   try {
     const data = req.body;
     const id = data.id || 'sched_' + Date.now();
-    await db.query(`
+    const { rows } = await db.query(`
       INSERT INTO scheduled_sessions (
-        id, seller_id, client_id, status, show_realtime, show_report, sales_approach, product_ids, session_mode
+        id, seller_id, client_id, status, show_realtime, show_report, sales_approach, product_ids, session_mode,
+        due_at, notes, response_time_sec
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9
-      )
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+      ) RETURNING *
     `, [
       id, data.sellerId, data.clientId, data.status || 'pending',
       data.showRealtime ?? true, data.showReport ?? true, data.salesApproach || 'active',
       JSON.stringify(data.productIds || []),
-      data.sessionMode === 'voice' ? 'voice' : 'text'
+      data.sessionMode === 'voice' ? 'voice' : 'text',
+      data.dueAt || null, data.notes || null, data.responseTimeSec || 0
     ]);
-    res.status(201).json({ ...data, id });
+    res.status(201).json(formatRow(rows[0]));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro ao criar sessao agendada' });
