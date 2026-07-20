@@ -83,6 +83,7 @@ const LiveCoach = (() => {
     ['logistica', '🚚 Logística / Transporte'],
   ];
   let transcribeModelOk = true;    // gpt-4o-mini-transcribe disponível?
+  let coachModelOk = true;         // gpt-4.1-mini disponível para o coach?
 
   const STAGE_LABELS = {
     rapport:      { label: 'Rapport',      icon: '🤝' },
@@ -488,11 +489,11 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
   function adaptiveHang(speechDur, speaker) {
     // Canal do CLIENTE fecha mais rápido: cada fala dele vira dica, e cada
     // 100ms aqui é latência direta na dica. Fragmentação não é problema —
-    // o merge de balões e o detector de "cliente terminou" reagrupam.
+    // o merge de balões e o gate de entrega reagrupam.
     if (speaker === 'client') {
-      if (speechDur < 2500) return 1200;
-      if (speechDur > 15000) return 750;
-      return 950;
+      if (speechDur < 2500) return 900;
+      if (speechDur > 15000) return 600;
+      return 750;
     }
     if (speechDur < 2500) return 1800;   // começo de fala: tolera pausa maior
     if (speechDur > 15000) return 1000;  // monólogo longo: corta mais rápido
@@ -766,11 +767,12 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
 
   // ══════════════════════════════════════
   // COACH — dicas + estágio + temperatura
-  // Disparo ÚNICO: quando o CLIENTE termina de falar. Se a transcrição
-  // chega mas o cliente retomou a fala (respirou e continuou), o coach
-  // espera ele concluir o raciocínio — dica no momento certo, nunca no
-  // meio. Pedido que chega com o coach ocupado entra na fila e roda em
-  // seguida (nada de descartar e deixar a dica para depois).
+  // Modelo do bot de treino (Realtime): não esperar nada que não precise
+  // ser esperado. A GERAÇÃO da dica começa assim que a transcrição do
+  // cliente chega — em paralelo com o fim da fala dele. Só a EXIBIÇÃO
+  // espera: a dica aparece quando o cliente terminou E o vendedor está
+  // em silêncio. Pedido com o coach ocupado entra na fila; bloqueio por
+  // cooldown reagenda — nada é descartado.
   // ══════════════════════════════════════
   function clientStillTalking() {
     const ch = channels.client;
@@ -782,8 +784,7 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
   function scheduleClientCoach() {
     if (clientFinishTimer) { clearTimeout(clientFinishTimer); clientFinishTimer = null; }
     if (!running) return;
-    if (!clientStillTalking()) { requestCoach('client'); return; }
-    clientFinishTimer = setTimeout(scheduleClientCoach, 350);
+    requestCoach('client'); // gera JÁ; a entrega é que espera o momento certo
   }
 
   async function requestCoach(trigger) {
@@ -852,6 +853,7 @@ REGRAS DE OURO (obrigatórias, valem para QUALQUER coach):
 3. CONEXÃO ANTES DA VENDA: no início da chamada o objetivo é conexão GENUÍNA — NÃO mande falar do produto nem cavar dores cedo demais, principalmente em vendas de alto valor. Sugira elogios específicos e sinceros a algo que o cliente disse/conquistou e interesse verdadeiro pelo negócio dele. Só avance quando o rapport estiver construído.
 4. ANCORAGEM NO PRODUTO: o vendedor vende OS PRODUTOS DO BRIEFING. O ramo do cliente é CONTEXTO para vender ESSE produto — JAMAIS desvie a venda para outro serviço/tema. Se o vendedor voltar a falar do produto do briefing, dê munição específica sobre ELE imediatamente.
 5. LEIA O JOGO ANTES DE ACONSELHAR — classifique a última fala do CLIENTE em UMA categoria e ataque exatamente ela:
+   • PEDIDO DE ESCLARECIMENTO / CONSERTO DE CONVERSA ("como assim?", "não entendi", "quanto o quê?", "não peguei") → a ÚNICA dica válida é ajudar o vendedor a completar/reformular COM CLAREZA o que ELE MESMO tentou dizer — zero técnica de vendas aqui. Se a fala do vendedor veio cortada na transcrição ("Quanto que...") e você NÃO sabe o que ele ia dizer, retorne {"tip": null} — jamais presuma.
    • OBJEÇÃO DE PREÇO → nunca sugira desconto de cara. Reancore no custo do problema: quebre o preço em custo por dia/por uso, contraste com o valor da dor já revelada, use ROI com números.
    • OBJEÇÃO DE CONFIANÇA/EFICÁCIA ("será que funciona?") → prova social específica (caso real com número) + inversão de risco (garantia, piloto, teste).
    • OBJEÇÃO DE AUTORIDADE ("preciso falar com meu sócio") → isole a objeção real AGORA ("se dependesse só de você, fecharia?") e amarre próximo passo com data e hora.
@@ -866,10 +868,18 @@ REGRAS DE OURO (obrigatórias, valem para QUALQUER coach):
 10. SILÊNCIO É OURO: dica óbvia, genérica ou parecida com uma anterior é PIOR que nenhuma. Na dúvida, {"tip": null}. Fale somente quando tiver algo NOVO que muda o jogo AGORA. É normal (e desejável) várias falas do cliente passarem sem dica.
 11. PRIORIDADE CALIBRADA: "urgent" é RARO — só quando errar NESTA resposta pode custar o negócio (objeção dura no ar, sinal de compra sendo desperdiçado, cliente prestes a encerrar). Fluxo normal = "normal". Acerto do vendedor = "good". Se está tudo fluindo, prefira null.
 12. LINGUAGEM VIVA NO "say": PROIBIDO abrir com "Entendo sua preocupação..." e PROIBIDO fechar com "Isso faz sentido para você?" (ou variações batidas). Escreva como um vendedor bom fala de verdade: direto, natural, sem fórmula.
+13. REALIDADE ESTRITA (GROUNDING — a regra mais importante do "say"): tudo no say deve apontar para algo que EXISTE na transcrição. PROIBIDO: referência vazia ("isso", "essa dor", "esse impacto", "o problema que você citou") quando a coisa NÃO foi dita; inventar fatos da conversa; presumir o que uma fala cortada ia dizer. Checklist obrigatório antes de entregar: (a) cada referência do say existe na conversa? (b) o say encaixa como a PRÓXIMA fala natural DESTA conversa específica? Se qualquer resposta for "não" → reescreva ou retorne {"tip": null}.
+14. DNA DE FALA REAL AO TELEFONE (escreva o say como se fosse dito, não escrito):
+   • Frases CURTAS, português brasileiro falado: "tá", "pra", "a gente", "olha", "então" — nada de prosa escrita.
+   • ESPELHE O REGISTRO do cliente: se ele fala "mano, de boa", seja leve e coloquial; se ele é formal, seja profissional — sempre uma oitava mais confiante e calmo que ele.
+   • TURNO CURTO: em ligação ninguém faz monólogo — 1 a 3 frases e DEVOLVA a vez (termine com pergunta ou ponto final seco para silêncio estratégico).
+   • ZERO jargão corporativo ("agregar valor", "otimizar processos", "solução robusta") a menos que o CLIENTE use primeiro.
+   • Teste final: lido em voz alta AGORA, soaria como a próxima fala perfeita desta conversa — impossível notar que veio de um coach.
 
-Retorne EXCLUSIVAMENTE JSON:
+Retorne EXCLUSIVAMENTE JSON (preencha "reading" PRIMEIRO — a dica deve derivar dela):
 {
-  "tip": "diagnóstico/direção curta e cirúrgica (máx 14 palavras). null se nada útil ou se o trecho for só ruído.",
+  "reading": "o que a última fala do cliente REALMENTE significa/pede, em até 10 palavras",
+  "tip": "diagnóstico/direção curta e cirúrgica (máx 14 palavras), coerente com a reading. null se nada útil, se o trecho for só ruído, ou se qualquer regra acima mandar silenciar.",
   "say": "fala PRONTA para o vendedor dizer AGORA, natural e fluida, 1-3 frases (máx 45 palavras). null se não se aplicar.",
   "tone": "ENTONAÇÃO da entrega (OBRIGATÓRIO sempre que say existir): 4-9 palavras cobrindo tom, ritmo, pausas e onde dar ênfase — ex: 'calmo e firme, ritmo lento, pausa depois do valor, ênfase em economia'. Combine a entonação com o estado emocional do cliente captado nas nuances.",
   "technique": "nome da técnica aplicada, 2-4 palavras. null se tip for null.",
@@ -881,19 +891,47 @@ Retorne EXCLUSIVAMENTE JSON:
 
 Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele acertou e dê a jogada seguinte pronta para capitalizar em cima do acerto.`;
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getApiKey()}` },
-        body: JSON.stringify({
-          model: Storage.getConfig().openaiModel || 'gpt-4o-mini',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 400,
-          temperature: 0.4,
-          response_format: { type: 'json_object' },
-        }),
-      });
-      if (!response.ok) return;
-      const data = await response.json();
+      // Modelo do coach: gpt-4.1-mini segue instruções finas (grounding,
+      // anti-repetição, DNA de fala) bem melhor que o 4o-mini com latência
+      // parecida. Se a conta não tiver acesso, cai para o modelo
+      // configurado e não insiste nas próximas chamadas.
+      const configuredModel = Storage.getConfig().openaiModel || 'gpt-4o-mini';
+      const modelCandidates = (coachModelOk && configuredModel !== 'gpt-4.1-mini')
+        ? ['gpt-4.1-mini', configuredModel]
+        : [configuredModel];
+      let data = null;
+      for (const model of modelCandidates) {
+        // Timeout curto: um request pendurado segurava o coachBusy e
+        // congelava TODAS as dicas seguintes da chamada.
+        const ctrl = new AbortController();
+        const timeoutId = setTimeout(() => ctrl.abort(), 12000);
+        let response;
+        try {
+          response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getApiKey()}` },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: 'user', content: prompt }],
+              max_tokens: 380,
+              temperature: 0.4,
+              response_format: { type: 'json_object' },
+            }),
+            signal: ctrl.signal,
+          });
+        } catch (e) {
+          clearTimeout(timeoutId);
+          return; // timeout/rede: solta o coachBusy e a próxima fala tenta de novo
+        }
+        clearTimeout(timeoutId);
+        if (response.ok) { data = await response.json(); break; }
+        if (model === 'gpt-4.1-mini' && [400, 403, 404].includes(response.status)) {
+          coachModelOk = false;
+          continue;
+        }
+        return;
+      }
+      if (!data) return;
       const parsed = JSON.parse(data.choices[0]?.message?.content || 'null');
       if (parsed) {
         if (parsed.stage && STAGE_LABELS[parsed.stage]) latestStage = parsed.stage;
@@ -910,6 +948,7 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
               say: parsed.say || null,
               tone: parsed.tone || null,
               technique: parsed.technique || null,
+              reading: parsed.reading || null, // leitura da fala — auditável no histórico
               priority: parsed.priority || 'normal',
               icon: parsed.icon || '🎯',
             });
@@ -963,9 +1002,10 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
 
   function deliverTip(tip) {
     if (tooSimilarToRecent(tip)) return; // repetida = pior que nenhuma
-    if (!sellerMidSpeech()) { addTip(tip); return; }
+    // Exibe só quando o CLIENTE terminou de falar e o VENDEDOR está em silêncio
+    if (!clientStillTalking() && !sellerMidSpeech()) { addTip(tip); return; }
     pendingTip = tip; // dica mais nova substitui a que estava na fila
-    if (!pendingTipTimer) pendingTipTimer = setInterval(tryFlushPendingTip, 400);
+    if (!pendingTipTimer) pendingTipTimer = setInterval(tryFlushPendingTip, 300);
   }
 
   function tryFlushPendingTip() {
@@ -979,7 +1019,7 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
       clearInterval(pendingTipTimer); pendingTipTimer = null;
       return;
     }
-    if (sellerMidSpeech()) return;
+    if (clientStillTalking() || sellerMidSpeech()) return;
     const tip = pendingTip;
     pendingTip = null;
     clearInterval(pendingTipTimer); pendingTipTimer = null;

@@ -599,6 +599,7 @@ Analise os ÚLTIMOS TURNOS e dê UMA dica cirúrgica e técnica para o PRÓXIMO 
 ${conversationText}
 ${givenBlock}
 MÉTODO — classifique a última fala do CLIENTE e ataque exatamente essa categoria:
+- Pedido de esclarecimento ("como assim?", "não entendi") → mande reformular com clareza o que o próprio vendedor tentou dizer; zero técnica de vendas aqui.
 - Objeção de preço → reancorar no custo do problema / ROI com números, nunca desconto de cara.
 - Objeção de confiança → prova social específica + inversão de risco (garantia, piloto, teste).
 - "Vou pensar" / "falar com sócio" → isolar a objeção real ("se dependesse só de você, fecharia?") e amarrar próximo passo com data.
@@ -609,6 +610,7 @@ MÉTODO — classifique a última fala do CLIENTE e ataque exatamente essa categ
 
 REGRAS:
 - Dica ESPECÍFICA sobre a conversa atual, nunca genérica ("seja mais empático" é proibido).
+- GROUNDING: o "say" só pode referenciar o que EXISTE na conversa — proibido "isso", "essa dor", "esse impacto" sem antecedente real dito pelo cliente. Se a referência não existe, reescreva ou retorne null.
 - NÃO SE REPITA: se a dica que você daria já foi dada (ou parecida), retorne {"tip": null} — dica repetida é pior que nenhuma. Se o problema persiste após o vendedor ignorar a dica, mude o ângulo (outra técnica/argumento).
 - SILÊNCIO É OURO: sem nada NOVO e valioso a dizer, retorne {"tip": null}.
 - "urgent" é raro: só quando errar agora pode custar o negócio.
