@@ -43,6 +43,9 @@ const VoiceCall = (() => {
   // ENTRADA — chamada a partir de Seller.startTraining
   // ══════════════════════════════════════
   function start({ session, config }) {
+    // Nunca duas ligações: se alguma conexão anterior ainda vive
+    // (ex: tela foi re-renderizada por cima da chamada), derruba antes.
+    if (isActive()) abort();
     cfg = config;
     sess = session;
     transcript = [];
@@ -56,7 +59,8 @@ const VoiceCall = (() => {
     conviction = { easy: 35, medium: 20, hard: 10, expert: 5 }[cfg.difficulty] || 20;
 
     // Ligação caiu antes? Restaura a conversa e liga de volta com contexto.
-    if (session.startedAt && Array.isArray(session.messages) && session.messages.length > 0) {
+    // (basta haver mensagens salvas — não depende do startedAt ter persistido)
+    if (Array.isArray(session.messages) && session.messages.length > 0) {
       transcript = session.messages
         .filter(m => m.role === 'user' || m.role === 'bot')
         .map(m => ({ role: m.role, content: m.content }));
@@ -310,7 +314,7 @@ const VoiceCall = (() => {
       const recap = transcript.slice(-10)
         .map(t => `${t.role === 'user' ? 'VENDEDOR' : 'VOCÊ'}: ${t.content}`)
         .join('\n');
-      extra = `\n\nCONTEXTO: vocês JÁ ESTAVAM conversando nesta negociação e A LIGAÇÃO CAIU. O vendedor ligou de volta. Últimas falas antes da queda:\n${recap}\nContinue a conversa exatamente de onde parou — não se reapresente, não recomece do zero.`;
+      extra = `\n\nCONTEXTO: vocês JÁ ESTAVAM conversando nesta negociação e A LIGAÇÃO CAIU. O vendedor ligou de volta. Últimas falas REAIS antes da queda:\n${recap}\nContinue a conversa exatamente de onde parou — não se reapresente, não recomece do zero. PROIBIDO alegar que estavam falando de um assunto que não aparece nas falas acima; se não souber, pergunte onde tinham parado.`;
     }
     return AIEngine.buildVoiceInstructions(cfg) + extra;
   }
@@ -325,7 +329,14 @@ const VoiceCall = (() => {
       ...(cfg.productName && !(cfg.products || []).some(p => p.name === cfg.productName) ? [cfg.productName] : []),
     ].filter(Boolean).join(', ');
     if (isRedial) {
-      opening = 'A ligação caiu há pouco e o vendedor acabou de ligar de volta. Atenda de forma natural e curta, comentando a queda ("oi, caiu aqui", "agora sim, te ouço") e retome de onde pararam.';
+      // O recap REAL vai dentro da instrução de abertura: sem ele o modelo
+      // "lembrava" de um assunto inventado (ex: condições de pagamento).
+      const recap = transcript.slice(-8)
+        .map(t => `${t.role === 'user' ? 'VENDEDOR' : 'VOCÊ'}: ${t.content}`)
+        .join('\n');
+      opening = `A ligação caiu há pouco e o vendedor acabou de ligar de volta. Atenda de forma natural e curta, comentando a queda ("oi, caiu aqui", "agora sim, te ouço").
+${recap ? `ÚLTIMAS FALAS REAIS ANTES DA QUEDA (sua memória do assunto — use SOMENTE isso):\n${recap}\n` : ''}
+REGRA CRÍTICA: é PROIBIDO afirmar que vocês estavam falando de um assunto que NÃO aparece nas falas acima (ex: não diga "a gente tava vendo as condições de pagamento" se isso não estiver lá). ${recap ? 'Retome EXATAMENTE do ponto das últimas falas.' : 'Se você não tem registro do assunto, apenas atenda e deixe o vendedor retomar — ou pergunte "onde a gente tinha parado mesmo?".'}`;
     } else if (cfg.salesApproach === 'passive') {
       opening = `Foi VOCÊ que ligou para o vendedor. Ele acabou de atender. Cumprimente e explique em 1-2 frases faladas por que você está ligando, no estilo do seu perfil.${prodNames ? ` O motivo da sua ligação é OBRIGATORIAMENTE uma dor/necessidade real do seu negócio ligada a: ${prodNames}. Não mencione nenhum outro tipo de produto ou interesse.` : ' O motivo é a dor/necessidade do seu perfil.'} Depois espere a resposta dele.`;
     } else {
@@ -376,6 +387,7 @@ const VoiceCall = (() => {
         if (text) {
           transcript.push({ role: 'user', content: text });
           renderCaptions();
+          persistState(); // fala do vendedor também entra no histórico salvo (recap fiel após queda)
         }
         break;
       }

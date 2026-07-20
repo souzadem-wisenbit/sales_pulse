@@ -145,10 +145,16 @@ const Seller = (() => {
     if (_sellerAutoRefreshBound) return;
     _sellerAutoRefreshBound = true;
     let lastRefresh = 0;
+    // Em sessão ativa? NUNCA re-renderizar por cima: destruiria o chat de
+    // texto OU a tela da ligação de voz (a chamada WebRTC continuaria viva
+    // e invisível — áudio "fantasma" + segunda ligação ao clicar Religar).
+    const inActiveSession = () =>
+      !!document.getElementById('chat-messages') ||
+      !!document.querySelector('#page-seller .vc-screen') ||
+      (window.VoiceCall && typeof VoiceCall.isActive === 'function' && VoiceCall.isActive());
     const refresh = async () => {
       if (document.hidden) return;
-      // Em sessão ativa de chat? Não mexer.
-      if (document.getElementById('chat-messages')) return;
+      if (inActiveSession()) return;
       if (!document.getElementById('page-seller')?.classList.contains('active')) return;
       const now = Date.now();
       if (now - lastRefresh < 4000) return;
@@ -156,7 +162,8 @@ const Seller = (() => {
       try {
         if (window.Storage && typeof Storage.hydrate === 'function') await Storage.hydrate();
         const user = Auth.getUser();
-        if (!user || document.getElementById('chat-messages')) return;
+        // Re-checa: o vendedor pode ter iniciado uma sessão enquanto o hydrate rodava
+        if (!user || inActiveSession()) return;
         const pending = (typeof Storage.getScheduledSessionsForSeller === 'function')
           ? Storage.getScheduledSessionsForSeller(user.id) : [];
         showDashboard(user, pending.length);
