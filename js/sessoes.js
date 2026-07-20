@@ -435,6 +435,14 @@ const Sessoes = (() => {
     const resolvedSessionId = scheduledSessionId ||
       Storage.getScheduledSessions().find(s => s.sellerId === sellerId && s.clientId === clientId && s.status === 'pending')?.id;
 
+    // Anti-repetição: renotificar a MESMA sessão substitui o banner antigo
+    // não lido em vez de empilhar outro igual.
+    const deduped = resolvedSessionId
+      ? notifs.filter(n => !(String(n.sessionId) === String(resolvedSessionId) && !n.read))
+      : notifs;
+    notifs.length = 0;
+    notifs.push(...deduped);
+
     notifs.unshift({
       id:        'n_' + Date.now(),
       sessionId: resolvedSessionId,  // Link to the actual scheduled session

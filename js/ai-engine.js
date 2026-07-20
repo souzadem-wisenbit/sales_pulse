@@ -579,7 +579,7 @@ ${commStyleBlock}
   }
 
   // ── Coach in real time (API-based, called every 2-3 messages) ──
-  async function getCoachTip(messages, config) {
+  async function getCoachTip(messages, config, recentTips = []) {
     const apiKey = config.openaiKey || Storage.getSettings().openaiKey;
     if (!apiKey) return null;
 
@@ -588,12 +588,16 @@ ${commStyleBlock}
       .map(m => `${m.role === 'user' ? 'VENDEDOR' : 'CLIENTE'}: ${m.content}`)
       .join('\n');
 
+    const givenBlock = recentTips.length
+      ? `\nDICAS QUE VOCÊ JÁ DEU NESTA SESSÃO (NÃO repita nenhuma — nem variação; mude o ângulo ou retorne tip null):\n${recentTips.slice(-5).map(t => `- (${t.technique || 'sem técnica'}) ${t.tip}`).join('\n')}\n`
+      : '';
+
     const prompt = `Você é um coach de vendas de elite (formado em SPIN Selling, Challenger e Sandler) observando um treinamento em tempo real. O produto em negociação: ${config.productName || '(o vendedor vai apresentar)'}${config.productPrice ? ` (${config.productPrice})` : ''}.
 Analise os ÚLTIMOS TURNOS e dê UMA dica cirúrgica e técnica para o PRÓXIMO turno do vendedor.
 
 ÚLTIMOS TURNOS:
 ${conversationText}
-
+${givenBlock}
 MÉTODO — classifique a última fala do CLIENTE e ataque exatamente essa categoria:
 - Objeção de preço → reancorar no custo do problema / ROI com números, nunca desconto de cara.
 - Objeção de confiança → prova social específica + inversão de risco (garantia, piloto, teste).
@@ -605,12 +609,15 @@ MÉTODO — classifique a última fala do CLIENTE e ataque exatamente essa categ
 
 REGRAS:
 - Dica ESPECÍFICA sobre a conversa atual, nunca genérica ("seja mais empático" é proibido).
-- "say" traz a mensagem PRONTA que o vendedor pode enviar agora, natural, no clima da conversa.
+- NÃO SE REPITA: se a dica que você daria já foi dada (ou parecida), retorne {"tip": null} — dica repetida é pior que nenhuma. Se o problema persiste após o vendedor ignorar a dica, mude o ângulo (outra técnica/argumento).
+- SILÊNCIO É OURO: sem nada NOVO e valioso a dizer, retorne {"tip": null}.
+- "urgent" é raro: só quando errar agora pode custar o negócio.
+- "say" traz a mensagem PRONTA que o vendedor pode enviar agora, natural, no clima da conversa — sem fórmulas batidas ("Entendo sua preocupação", "Isso faz sentido para você?").
 - "technique" nomeia a técnica aplicada (ensina enquanto treina).
 - Se o vendedor acabou de mandar bem, priority "good": diga qual técnica ele acertou e a jogada seguinte.
 
 Retorne EXCLUSIVAMENTE um JSON:
-{"tip": "<diagnóstico curto e direto, máx 12 palavras>", "say": "<mensagem pronta para enviar agora, 1-2 frases, máx 35 palavras. null se não se aplicar>", "technique": "<nome da técnica, 2-4 palavras>", "priority": "urgent|normal|good", "icon": "<um emoji>"}`;
+{"tip": "<diagnóstico curto e direto, máx 12 palavras — ou null>", "say": "<mensagem pronta para enviar agora, 1-2 frases, máx 35 palavras. null se não se aplicar>", "technique": "<nome da técnica, 2-4 palavras>", "priority": "urgent|normal|good", "icon": "<um emoji>"}`;
 
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {

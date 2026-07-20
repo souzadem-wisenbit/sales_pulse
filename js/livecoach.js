@@ -813,6 +813,14 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
         ? `\nPERFIL CONHECIDO DO VENDEDOR (aprendido em chamadas anteriores — personalize a dica com base nele):\n${JSON.stringify(profile)}\n`
         : '';
 
+      // Memória das próprias dicas: sem isso o coach repetia o mesmo
+      // argumento (ex: o mesmo ROI) em sequência, chamada inteira.
+      const tipHistoryBlock = tips.length
+        ? `\nDICAS QUE VOCÊ JÁ DEU NESTA CHAMADA (mais recente primeiro — NÃO as repita):\n${tips.slice(0, 6)
+            .map(t => `- [${new Date(t.t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · ${t.technique || 'sem técnica'} · ${t.priority}] ${t.tip}${t.say ? ` | say: "${String(t.say).slice(0, 90)}"` : ''}`)
+            .join('\n')}\n`
+        : '';
+
       const triggerBlock = `
 ⚡ O CLIENTE ACABOU DE TERMINAR DE FALAR e o vendedor vai responder AGORA. Sua dica é para ESTA resposta imediata.
 🔬 LEITURA DE NUANCES (obrigatória antes de aconselhar): releia a última fala do cliente palavra por palavra e capte o SUBTEXTO — o que ele sinalizou sem dizer:
@@ -834,7 +842,7 @@ Quando ajudar, ESPELHE as palavras exatas do cliente dentro do "say" (a palavra 
       }
 
       const prompt = `${coachPersona}, acompanhando em silêncio uma chamada de vendas REAL em videochamada. O VENDEDOR é seu aluno; o CLIENTE é o outro lado (pode haver mais de uma pessoa no canal do cliente).
-${briefBlock()}${profileBlock}${triggerBlock}
+${briefBlock()}${profileBlock}${tipHistoryBlock}${triggerBlock}
 TRECHO MAIS RECENTE DA CONVERSA (com a idade de cada fala — transcrição automática, pode conter pequenos erros):
 ${recent}
 
@@ -854,6 +862,10 @@ REGRAS DE OURO (obrigatórias, valem para QUALQUER coach):
 6. MUNIÇÃO CONCRETA: nunca dê ordem vaga ("reforce o valor", "gere conexão"). Entregue o conteúdo PRONTO no campo "say": a frase exata que o vendedor pode falar em voz alta AGORA, com argumentos, dados e números reais e específicos (se citar fatos, use fatos verdadeiros e notórios). A frase deve encaixar na conversa como continuação natural do que acabou de ser dito.
 7. TÉCNICA NOMEADA: toda dica aplica UMA técnica de vendas reconhecida e a nomeia no campo "technique" (ex: "Pergunta de implicação SPIN", "Ancoragem de ROI", "Espelhamento", "Rotulação de emoção", "Inversão de risco", "Fechamento alternativo", "Isolamento de objeção", "Prova social", "Silêncio estratégico"). Isso ensina o vendedor ENQUANTO ele vende.
 8. FECHAMENTO PARRUDO: em estágio de fechamento, dê o script exato — a pergunta de fechamento pronta, o tom de entrega, e instrua a fazer silêncio absoluto após perguntar (quem fala primeiro depois da pergunta de fechamento, perde).
+9. NÃO SE REPITA (CRÍTICO): você vê acima as dicas que JÁ deu nesta chamada. É PROIBIDO repetir dica, técnica, argumento ou número que você já entregou — inclusive variação cosmética do mesmo conselho. Se o vendedor está APLICANDO sua última dica, retorne {"tip": null} e deixe-o trabalhar. Se ele IGNOROU a dica e o problema persiste, mude o ÂNGULO: outra técnica, outro argumento, abordagem mais direta — nunca a mesma dica reescrita.
+10. SILÊNCIO É OURO: dica óbvia, genérica ou parecida com uma anterior é PIOR que nenhuma. Na dúvida, {"tip": null}. Fale somente quando tiver algo NOVO que muda o jogo AGORA. É normal (e desejável) várias falas do cliente passarem sem dica.
+11. PRIORIDADE CALIBRADA: "urgent" é RARO — só quando errar NESTA resposta pode custar o negócio (objeção dura no ar, sinal de compra sendo desperdiçado, cliente prestes a encerrar). Fluxo normal = "normal". Acerto do vendedor = "good". Se está tudo fluindo, prefira null.
+12. LINGUAGEM VIVA NO "say": PROIBIDO abrir com "Entendo sua preocupação..." e PROIBIDO fechar com "Isso faz sentido para você?" (ou variações batidas). Escreva como um vendedor bom fala de verdade: direto, natural, sem fórmula.
 
 Retorne EXCLUSIVAMENTE JSON:
 {
@@ -930,7 +942,27 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
     return (Date.now() - (ch.lastVoiceAt || 0)) < 700;
   }
 
+  // Rede de segurança final contra repetição: mesmo que o modelo insista
+  // numa dica parecida com as recentes, ela é descartada aqui (Jaccard
+  // sobre as palavras significativas de tip+say).
+  function tooSimilarToRecent(tip) {
+    const words = (s) => new Set(
+      String(s || '').toLowerCase().replace(/[^\wà-úçãõ ]/gi, ' ').split(/\s+/).filter(w => w.length > 3)
+    );
+    const a = words(tip.tip + ' ' + (tip.say || ''));
+    if (!a.size) return false;
+    for (const prev of tips.slice(0, 3)) {
+      const b = words(prev.tip + ' ' + (prev.say || ''));
+      if (!b.size) continue;
+      let inter = 0;
+      for (const w of a) if (b.has(w)) inter++;
+      if (inter / (a.size + b.size - inter) > 0.45) return true;
+    }
+    return false;
+  }
+
   function deliverTip(tip) {
+    if (tooSimilarToRecent(tip)) return; // repetida = pior que nenhuma
     if (!sellerMidSpeech()) { addTip(tip); return; }
     pendingTip = tip; // dica mais nova substitui a que estava na fila
     if (!pendingTipTimer) pendingTipTimer = setInterval(tryFlushPendingTip, 400);
@@ -954,13 +986,22 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
     addTip(tip);
   }
 
+  let lastChimeAt = 0;
   function addTip(tip) {
     tips.unshift(tip);
     renderTips();
     updatePip();
-    playChime(tip.priority);
+    // Som com disciplina: urgent/good sempre tocam; "normal" no máximo a
+    // cada 25s — dica é ajuda, não alarme.
+    const now = Date.now();
+    if (tip.priority !== 'normal' || now - lastChimeAt > 25000) {
+      playChime(tip.priority);
+      lastChimeAt = now;
+    }
     try {
-      if (document.hidden && Notification.permission === 'granted') {
+      // Notificação do navegador só quando estiver em OUTRA aba e a dica
+      // for urgente (ou a primeira da chamada) — nada de spam repetitivo.
+      if (document.hidden && Notification.permission === 'granted' && (tip.priority === 'urgent' || tips.length === 1)) {
         const body = `${tip.icon} ${tip.tip}${tip.say ? `\n💬 "${tip.say}"` : ''}`.slice(0, 180);
         new Notification('🎧 Live Coach', { body, tag: 'livecoach-tip' });
       }

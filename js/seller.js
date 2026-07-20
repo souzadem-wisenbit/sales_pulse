@@ -607,6 +607,7 @@ const Seller = (() => {
     isWaiting       = false;
     durationSeconds = 0;
     coachMsgCount   = 0;
+    shownCoachTips  = [];
     agendaHinted    = false;
     agendaRevealed  = false;
     xrayMsgCount    = 0;
@@ -1249,8 +1250,11 @@ const Seller = (() => {
       if (coachMsgCount >= 2 && userMsgs.length >= 2) {
         coachMsgCount = 0;
         // Fetch coach tip asynchronously (non-blocking)
-        AIEngine.getCoachTip(messages, config).then(tip => {
-          if (tip) showCoachTip(tip);
+        AIEngine.getCoachTip(messages, config, shownCoachTips).then(tip => {
+          if (tip && tip.tip) {
+            shownCoachTips.push({ tip: tip.tip, technique: tip.technique || null });
+            showCoachTip(tip);
+          }
         }).catch(() => {}); // silently ignore errors
       }
 
@@ -1366,6 +1370,7 @@ const Seller = (() => {
   // COACH TIP
   // ══════════════════════════════════════
   let coachTipTimer = null;
+  let shownCoachTips = [];   // dicas já exibidas na sessão — o coach não se repete
   function showCoachTip(tip) {
     if (sessionEnded) return;
     const overlay = document.getElementById('coach-tip-overlay');
