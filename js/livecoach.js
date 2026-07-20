@@ -12,16 +12,16 @@
 //  - Vídeo da reunião exibido dentro do SalesPulse (modo teatro) e em
 //    janela flutuante (Document Picture-in-Picture) com controles:
 //    mute do microfone, última dica, estágio e temperatura da venda.
-//  - Coach de IA: dica acionável + estágio da venda + temperatura
-//    (0-100) a cada intervalo, personalizado pelo perfil aprendido.
+//  - Coach de IA: acionado quando o CLIENTE termina de falar — dica
+//    técnica com script pronto e entonação, + estágio e temperatura,
+//    personalizado pelo perfil aprendido. A entrega espera o vendedor
+//    estar em silêncio (nunca interrompe quem está falando).
 //  - Ao encerrar: análise completa + consolidação do perfil do vendedor.
 // ================================================
 
 const LiveCoach = (() => {
 
-  const COACH_GAP_CLIENT_MS = 7000;    // cooldown após dica reativa (cliente falou → resposta rápida)
-  const COACH_GAP_PERIODIC_MS = 14000; // cooldown das verificações periódicas (anti-spam)
-  const COACH_FALLBACK_MS = 10000; // verificação periódica (rede de segurança)
+  const COACH_GAP_CLIENT_MS = 2500;  // cooldown mínimo entre chamadas do coach (anti-duplicata)
   const TIP_MAX_HOLD_MS = 45000;   // dica segurada por mais que isso = assunto já mudou, descarta
   const SAVE_INTERVAL_MS = 12000;  // frequência de persistência no backend
   const PREROLL_MS = 400;          // áudio guardado ANTES da voz começar (não corta a 1ª sílaba)
@@ -45,7 +45,6 @@ const LiveCoach = (() => {
   let tips = [];                   // { t, tip, priority, icon }
   let latestStage = null;          // rapport|descoberta|apresentacao|objecoes|fechamento
   let latestTemp = null;           // 0-100 temperatura da negociação
-  let coachTimer = null;
   let saveTimer = null;
   let clockTimer = null;
   let healthTimer = null;
@@ -59,6 +58,8 @@ const LiveCoach = (() => {
   let availableProducts = [];
   let selectedProductIds = new Set();
   let coachBusy = false;
+  let coachQueued = false;         // pedido chegou com o coach ocupado → roda logo em seguida
+  let clientFinishTimer = null;    // aguarda o cliente TERMINAR de falar antes de acionar o coach
   let pendingTip = null;           // dica pronta aguardando o vendedor PARAR de falar
   let pendingTipTimer = null;
   let captureController = null;    // Captured Surface Control (rolagem/zoom na aba capturada)
@@ -167,6 +168,8 @@ const LiveCoach = (() => {
         .lc-say { margin-top: 10px; padding: 11px 13px; border-radius: 10px; background: rgba(7,7,15,0.55); border: 1px dashed rgba(255,255,255,0.22); }
         .lc-say-label { font-size: 0.6rem; font-weight: 800; letter-spacing: 1.4px; color: #8a8aad; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
         .lc-say-tone { font-style: italic; font-weight: 600; text-transform: none; letter-spacing: 0.2px; color: #b0aed6; }
+        .lc-say-tone-line { margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.14); font-size: 0.8rem; line-height: 1.45; color: #ffd28a; }
+        .lc-say-tone-line strong { color: #ffde9e; letter-spacing: 0.4px; }
         .lc-say-text { font-size: 0.96rem; line-height: 1.55; color: #ffffff; }
         .lc-fresh-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #2ed573; margin-right: 5px; animation: lcPulse 1.2s infinite; }
         /* ── Histórico: dicas antigas encolhem e apagam ── */
@@ -448,7 +451,9 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
       if (vTrack) vTrack.addEventListener('ended', () => { if (running) stop(); });
 
       lastCoachAt = 0;
-      coachTimer = setInterval(() => requestCoach('periodic'), COACH_FALLBACK_MS);
+      coachQueued = false;
+      // Sem timer periódico: o coach é acionado EXCLUSIVAMENTE quando o
+      // cliente termina de falar — dica na hora certa, nunca no meio.
       saveTimer = setInterval(persist, SAVE_INTERVAL_MS);
       healthTimer = setInterval(renderHealth, 3000);
 
@@ -480,7 +485,15 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
   //    continuamente e o limiar de voz se ajusta sozinho ao ambiente.
   // Cada fala completa vira um WAV 16kHz e vai para transcrição.
   // ══════════════════════════════════════
-  function adaptiveHang(speechDur) {
+  function adaptiveHang(speechDur, speaker) {
+    // Canal do CLIENTE fecha mais rápido: cada fala dele vira dica, e cada
+    // 100ms aqui é latência direta na dica. Fragmentação não é problema —
+    // o merge de balões e o detector de "cliente terminou" reagrupam.
+    if (speaker === 'client') {
+      if (speechDur < 2500) return 1200;
+      if (speechDur > 15000) return 750;
+      return 950;
+    }
     if (speechDur < 2500) return 1800;   // começo de fala: tolera pausa maior
     if (speechDur > 15000) return 1000;  // monólogo longo: corta mais rápido
     return 1400;                          // meio de fala: tolerância padrão
@@ -560,7 +573,7 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
 
         const silence = now - ch.lastVoiceAt;
         const dur = now - ch.speechStartAt;
-        if (silence > adaptiveHang(dur) || dur > MAX_UTTERANCE_MS) {
+        if (silence > adaptiveHang(dur, speaker) || dur > MAX_UTTERANCE_MS) {
           closeUtterance(ch, speaker, sampleRate);
         }
       }
@@ -721,9 +734,9 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
       }
       renderTranscript();
 
-      // Cliente acabou de falar → o vendedor precisa de ajuda AGORA:
-      // dispara o coach imediatamente (com cooldown anti-spam).
-      if (speaker === 'client') requestCoach('client');
+      // Cliente falou → aciona o coach assim que ele TERMINAR a fala
+      // (se ele só respirou e continuou, espera concluir o raciocínio).
+      if (speaker === 'client') scheduleClientCoach();
     } catch (e) {
       console.warn('[LiveCoach] transcribe fail', e?.message);
     }
@@ -753,15 +766,37 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
 
   // ══════════════════════════════════════
   // COACH — dicas + estágio + temperatura
-  // Disparo reativo: assim que o CLIENTE termina uma fala, o coach é
-  // acionado na hora (cooldown de 6s anti-spam). Um timer de 10s cobre
-  // os demais casos (ex: avaliar a última fala do vendedor).
+  // Disparo ÚNICO: quando o CLIENTE termina de falar. Se a transcrição
+  // chega mas o cliente retomou a fala (respirou e continuou), o coach
+  // espera ele concluir o raciocínio — dica no momento certo, nunca no
+  // meio. Pedido que chega com o coach ocupado entra na fila e roda em
+  // seguida (nada de descartar e deixar a dica para depois).
   // ══════════════════════════════════════
+  function clientStillTalking() {
+    const ch = channels.client;
+    if (!ch) return false;
+    if (ch.state === 'speaking') return true;
+    return (Date.now() - (ch.lastVoiceAt || 0)) < 600;
+  }
+
+  function scheduleClientCoach() {
+    if (clientFinishTimer) { clearTimeout(clientFinishTimer); clientFinishTimer = null; }
+    if (!running) return;
+    if (!clientStillTalking()) { requestCoach('client'); return; }
+    clientFinishTimer = setTimeout(scheduleClientCoach, 350);
+  }
+
   async function requestCoach(trigger) {
-    if (!running || coachBusy) return;
+    if (!running) return;
+    if (coachBusy) { coachQueued = true; return; }
     if (transcript.length - lastCoachedCount < 1) return;
-    const minGap = trigger === 'client' ? COACH_GAP_CLIENT_MS : COACH_GAP_PERIODIC_MS;
-    if (Date.now() - lastCoachAt < minGap) return;
+    const sinceGap = Date.now() - lastCoachAt;
+    if (sinceGap < COACH_GAP_CLIENT_MS) {
+      // Nunca descarta: reagenda para o instante em que o cooldown expira
+      if (clientFinishTimer) clearTimeout(clientFinishTimer);
+      clientFinishTimer = setTimeout(scheduleClientCoach, COACH_GAP_CLIENT_MS - sinceGap + 60);
+      return;
+    }
     coachBusy = true;
     lastCoachAt = Date.now();
     const sinceCount = transcript.length;
@@ -778,9 +813,17 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
         ? `\nPERFIL CONHECIDO DO VENDEDOR (aprendido em chamadas anteriores — personalize a dica com base nele):\n${JSON.stringify(profile)}\n`
         : '';
 
-      const triggerBlock = trigger === 'client'
-        ? '\n⚡ O CLIENTE ACABOU DE FALAR e o vendedor vai responder AGORA. Priorize: o que ele deve dizer/fazer nesta resposta imediata (tratar a objeção, aproveitar o sinal de compra, fazer a pergunta certa).\n'
-        : '';
+      const triggerBlock = `
+⚡ O CLIENTE ACABOU DE TERMINAR DE FALAR e o vendedor vai responder AGORA. Sua dica é para ESTA resposta imediata.
+🔬 LEITURA DE NUANCES (obrigatória antes de aconselhar): releia a última fala do cliente palavra por palavra e capte o SUBTEXTO — o que ele sinalizou sem dizer:
+- Hesitação ("não sei...", "talvez", "é que...", frase inacabada) → insegurança: descubra o medo por trás antes de argumentar.
+- Resposta seca/curta depois de respostas longas → desconforto, pressa ou desinteresse: mude de abordagem, não insista no mesmo ponto.
+- Pergunta sobre detalhe prático (prazo, contrato, implantação, pagamento) → sinal de compra, mesmo que dito em tom neutro.
+- Entusiasmo súbito, riso, "interessante..." → abertura: aprofunde ali mesmo.
+- Repetição de um tema (voltou a falar de preço/prazo) → essa é A objeção real, mesmo disfarçada.
+- Reclamação do dia a dia dele → dor não verbalizada como dor: transforme em pergunta de implicação.
+Quando ajudar, ESPELHE as palavras exatas do cliente dentro do "say" (a palavra dele na sua boca gera conexão instantânea).
+`;
 
       // Persona do coach atribuído pelo gestor
       let coachPersona = 'Você é um coach de vendas de elite (formado em SPIN Selling, Challenger e Sandler)';
@@ -816,7 +859,7 @@ Retorne EXCLUSIVAMENTE JSON:
 {
   "tip": "diagnóstico/direção curta e cirúrgica (máx 14 palavras). null se nada útil ou se o trecho for só ruído.",
   "say": "fala PRONTA para o vendedor dizer AGORA, natural e fluida, 1-3 frases (máx 45 palavras). null se não se aplicar.",
-  "tone": "tom de entrega em 2-4 palavras (ex: 'confiante e calmo'). null se não se aplicar.",
+  "tone": "ENTONAÇÃO da entrega (OBRIGATÓRIO sempre que say existir): 4-9 palavras cobrindo tom, ritmo, pausas e onde dar ênfase — ex: 'calmo e firme, ritmo lento, pausa depois do valor, ênfase em economia'. Combine a entonação com o estado emocional do cliente captado nas nuances.",
   "technique": "nome da técnica aplicada, 2-4 palavras. null se tip for null.",
   "priority": "urgent|normal|good",
   "icon": "um emoji",
@@ -867,6 +910,11 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
       console.warn('[LiveCoach] coach fail', e?.message);
     } finally {
       coachBusy = false;
+      // Pedido que chegou enquanto o coach rodava: atende agora, sem descartar
+      if (coachQueued) {
+        coachQueued = false;
+        setTimeout(() => scheduleClientCoach(), 60);
+      }
     }
   }
 
@@ -1283,7 +1331,7 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
         if (sayEl) {
           if (t.say) {
             sayEl.style.display = 'block';
-            sayEl.innerHTML = `<span style="font-size:0.58rem;font-weight:800;letter-spacing:1.2px;color:#8a8aad">💬 FALE ASSIM${t.tone ? ` · <i style="text-transform:none">${esc(t.tone)}</i>` : ''}</span><br>"${esc(t.say)}"`;
+            sayEl.innerHTML = `<span style="font-size:0.58rem;font-weight:800;letter-spacing:1.2px;color:#8a8aad">💬 FALE ASSIM</span><br>"${esc(t.say)}"${t.tone ? `<br><span style="font-size:0.78rem;color:#ffd28a">🎭 <b>Entonação:</b> ${esc(t.tone)}</span>` : ''}`;
           } else {
             sayEl.style.display = 'none';
           }
@@ -1360,8 +1408,9 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
         </div>
         ${hero.say ? `
         <div class="lc-say">
-          <div class="lc-say-label"><span>💬 FALE ASSIM</span>${hero.tone ? `<span class="lc-say-tone">${esc(hero.tone)}</span>` : ''}</div>
+          <div class="lc-say-label"><span>💬 FALE ASSIM</span></div>
           <div class="lc-say-text">"${esc(hero.say)}"</div>
+          ${hero.tone ? `<div class="lc-say-tone-line">🎭 <strong>Entonação:</strong> ${esc(hero.tone)}</div>` : ''}
         </div>` : ''}
         <div class="lc-hero-fresh">
           <span><span class="lc-fresh-dot"></span><span id="lc-tip-fresh">${freshLabel(hero.t)}</span></span>
@@ -1410,8 +1459,9 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
     surfaceCtlEnabled = false;
     pendingTip = null;
     if (pendingTipTimer) { clearInterval(pendingTipTimer); pendingTipTimer = null; }
+    if (clientFinishTimer) { clearTimeout(clientFinishTimer); clientFinishTimer = null; }
+    coachQueued = false;
     if (audioCtx) { try { audioCtx.close(); } catch (e) {} audioCtx = null; }
-    if (coachTimer) { clearInterval(coachTimer); coachTimer = null; }
     if (saveTimer) { clearInterval(saveTimer); saveTimer = null; }
     if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
     if (healthTimer) { clearInterval(healthTimer); healthTimer = null; }
