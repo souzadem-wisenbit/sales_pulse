@@ -610,12 +610,12 @@ FORMATO DO "say" (é a mensagem que o vendedor vai COPIAR e COLAR no WhatsApp �
 
 REGRA DE OURO DO OUTPUT: tip e say andam JUNTOS. Ou você retorna os dois preenchidos (o diagnóstico E a mensagem pronta), ou retorna tip=null e say=null (silêncio). NUNCA retorne um tip sem say — dica sem a mensagem pronta é inútil e será descartada pelo sistema.
 
-Retorne SÓ JSON:
+Retorne SÓ JSON (nunca escreva meta-texto, instruções ou a palavra "null" dentro dos textos):
 {
- "tip": "diagnóstico interno curtíssimo (máx 10 palavras). null → então say também null",
+ "tip": "diagnóstico interno em até 10 palavras SUAS (ex: 'Adiamento — descobrir a dúvida escondida')",
  "say": "a mensagem pronta do vendedor, texto puro colável no WhatsApp (máx 45 palavras). OBRIGATÓRIO sempre que tip existir.",
- "grounded": <false APENAS se o say afirma número/fato/promessa SEM fonte no briefing/conversa. Say sem números/fatos (rapport, pergunta, esclarecimento) = sempre true>,
- "technique": "técnica aplicada, 2-4 palavras",
+ "grounded": <false se o say afirma número/fato/promessa SEM fonte no briefing/conversa; true se todos têm fonte OU se o say não afirma número/fato>,
+ "technique": "NOME da técnica do SEU SISTEMA (ex: Fechamento 'Eu Vou Pensar', Gatilho da Escassez) — diferente das 3 últimas dicas",
  "priority": "urgent|normal|good",
  "stage": "rapport|descoberta|apresentacao|objecoes|fechamento",
  "temperature": <0-100 quão quente está a negociação>
@@ -639,7 +639,16 @@ ${recent}
       if (typeof parsed.temperature === 'number') chat.temp = Math.max(0, Math.min(100, Math.round(parsed.temperature)));
 
       if (parsed.tip) {
-        const say = CoachCore.validSay(parsed.say, parsed.grounded);
+        let say = CoachCore.validSay(parsed.say, parsed.grounded);
+        // Vacina anti-alucinação: número em dígitos sem fonte no briefing
+        // ou na conversa = inventado → mensagem morre.
+        if (say) {
+          const sourceText = JSON.stringify(brief || {}) + ' ' + chat.messages.map(m => m.text).join(' ');
+          if (CoachCore.hasUngroundedNumbers(say, sourceText)) {
+            console.warn('[WhatsAppCoach] dica morta: número sem fonte:', say);
+            say = null;
+          }
+        }
         // Sem mensagem pronta não há dica. E se a conversa andou muito
         // enquanto gerava, o assunto mudou — descarta (exceto urgente).
         const grewBy = chat.messages.length - sinceCount;
@@ -653,7 +662,11 @@ ${recent}
             priority: prio,
             icon: prio === 'urgent' ? '🔥' : prio === 'good' ? '✅' : '💬',
           };
-          if (!CoachCore.tooSimilar(tip, chat.tips)) addTip(chat, tip);
+          if (CoachCore.repeatsTechnique(tip, chat.tips)) {
+            console.log('[WhatsAppCoach] dica descartada: técnica repetida —', tip.technique);
+          } else if (!CoachCore.tooSimilar(tip, chat.tips)) {
+            addTip(chat, tip);
+          }
         }
       }
       chat.lastCoachedCount = sinceCount;

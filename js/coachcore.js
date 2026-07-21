@@ -160,14 +160,16 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
 • Cliente pede um produto/serviço DIFERENTE do briefing (ex.: pede "plano de internet" e o briefing vende BI) → NÃO embarque no assunto dele: o say deve esclarecer com honestidade o que o vendedor de fato oferece e reposicionar para o produto do briefing (conectando à necessidade que o cliente revelou), ou qualificar se há fit. Se não há relação nenhuma, ajude o vendedor a encerrar com elegância.
 
 REGRAS INVIOLÁVEIS:
-1. GROUNDING: só afirme número/fato/promessa (preço, ROI, %, prazo, garantia, SLA, suporte, case) que esteja no briefing ou tenha sido dito NESTA conversa. Sem fonte → contorne com honestidade ("isso eu deixo firmado no contrato") ou peça o número ao cliente. NUNCA invente, NUNCA placeholder ("X reais", "[valor]").
+1. GROUNDING ABSOLUTO: só afirme número/fato/promessa (preço, ROI, %, prazo, garantia, SLA, suporte, case) que esteja ESCRITO no briefing ou tenha sido DITO nesta conversa. Se a fonte não existe, o say NÃO PODE conter número nenhum — redirecione com honestidade ("o número exato eu te passo fechado") ou pergunte ao cliente. Inventar ROI, case, garantia ou devolução é a falha MAIS GRAVE possível: o vendedor vai repetir sua mentira ao vivo. NUNCA placeholder ("X reais", "R$ X", "[valor]"). O sistema descarta automaticamente qualquer say com número sem fonte.
 2. VENDA SÓ O QUE ESTÁ NO BRIEFING: o produto em venda é EXCLUSIVAMENTE o do briefing. O cliente mencionar outro produto/desejo NÃO muda o que se vende — jamais descreva, precifique ou prometa algo que o briefing não oferece.
 3. NÃO CONTRADIGA o que o vendedor já disse (ele ${wpp ? 'já enviou' : 'ouviu'}). Resposta fraca dele → dica de recuperação honesta.
 4. NÃO REPITA dica/técnica/argumento do histórico — nem em VARIAÇÃO (mesma intenção = repetição). Em especial: NUNCA repita a mesma pergunta de fechamento/CTA (ex.: "posso te enviar o contrato?") — se já foi feita e o cliente não respondeu, a repetição queima o vendedor; avance por OUTRO caminho (descubra a objeção escondida). Se ele está aplicando sua dica, ou nada novo → tip null. Silêncio é melhor que dica óbvia/repetida.
 5. ${wpp
-      ? 'TEXTO REAL DE WHATSAPP: PT-BR informal de conversa ("tá", "pra", "a gente"), espelhe o registro e o nível de formalidade do cliente. 1-3 frases curtas, no máximo ~45 palavras — mensagem de WhatsApp, não e-mail. Sem saudação repetida ("Bom dia" só na primeira), sem assinatura, sem bullet points, sem emoji em excesso (no máximo 1, e só se o cliente usar). Zero jargão corporativo. PROIBIDO "Entendo sua preocupação" e "Quer que eu te explique como funciona?".'
-      : 'FALA REAL: frases curtas em PT-BR falado ("tá", "pra", "a gente"), espelhe o registro do cliente, 1-3 frases que devolvem a vez. Zero jargão corporativo. PROIBIDO "Entendo sua preocupação" e "Quer que eu te explique como funciona?".'}
-6. PRIORIDADE: "urgent" é raro (errar AGORA custa o negócio); normal = "normal"; acerto do vendedor = "good".`;
+      ? 'TEXTO REAL DE WHATSAPP: PT-BR informal de conversa ("tá", "pra", "a gente"), espelhe o registro e o nível de formalidade do cliente. 1-3 frases curtas, no máximo ~45 palavras — mensagem de WhatsApp, não e-mail. Sem saudação repetida ("Bom dia" só na primeira), sem assinatura, sem bullet points, sem emoji em excesso (no máximo 1, e só se o cliente usar). Zero jargão corporativo.'
+      : 'FALA REAL: frases curtas em PT-BR falado ("tá", "pra", "a gente"), espelhe o registro do cliente, 1-3 frases que devolvem a vez. Zero jargão corporativo.'}
+6. ABERTURA VARIADA: PROIBIDO começar o say com muleta de atendente — "Entendo", "Entendi", "Compreendo", "Ótima pergunta", "Claro", "Que bom", "Olha, eu entendo", "Entendo sua preocupação". Comece pela SUBSTÂNCIA (a resposta, a pergunta, o número com fonte, a virada). Também PROIBIDO "Quer que eu te explique como funciona?".
+7. ROTAÇÃO DE TÉCNICA: NUNCA use a mesma técnica de nenhuma das 3 últimas dicas (o sistema descarta se repetir). Seu sistema tem dezenas de jogadas — varie de verdade: se acabou de ancorar valor, a próxima é pergunta calibrada, fechamento nomeado, leitura do cliente, gatilho diferente…
+8. PRIORIDADE: "urgent" é raro (errar AGORA custa o negócio); normal = "normal"; acerto do vendedor = "good".`;
   }
 
   // ── Chamada ao modelo, com timeout e parse tolerante ──
@@ -175,7 +177,9 @@ REGRAS INVIOLÁVEIS:
   // ATENÇÃO ao maxTokens: com response_format json_object, teto apertado
   // TRUNCA o JSON → parse falha → dica morre em silêncio (aconteceu com 200).
   // O modelo para sozinho ao fechar o JSON; teto folgado não custa latência.
-  async function ask(prompt, apiKey, { maxTokens = 320, temperature = 0.4, timeoutMs = 9000, model = 'gpt-4o-mini' } = {}) {
+  // Temperatura 0.6: em 0.4 os says saíam com a mesma carcaça ("Entendo...
+  // (PAUSA)...") — um pouco mais de variância lexical, regras seguram o resto.
+  async function ask(prompt, apiKey, { maxTokens = 320, temperature = 0.6, timeoutMs = 9000, model = 'gpt-4o-mini' } = {}) {
     const ctrl = new AbortController();
     const timeoutId = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
@@ -207,8 +211,26 @@ REGRAS INVIOLÁVEIS:
     if (grounded === false) return null;
     if (/[\[\]{}]/.test(say)) return null;
     if (/\bX\s*(reais|mil|%|por\s*cento)/i.test(say)) return null;
+    if (/R\$\s*X\b/i.test(say)) return null;
     if (/\b(N|Y)%/.test(say)) return null;
     return say;
+  }
+
+  // ── Verificador numérico de grounding ──
+  // A auditoria de chamadas reais mostrou o coach INVENTANDO números ("ROI de
+  // 30%", "R$ 15 mil", "garantia de devolução") com grounded=true. Vacina de
+  // código: todo número em dígitos do say precisa existir no briefing ou na
+  // conversa — número órfão mata o say inteiro. (Números por extenso escapam;
+  // é o custo de não matar dica boa. Pega os piores casos.)
+  function hasUngroundedNumbers(say, sourceText) {
+    const digits = String(say || '').match(/\d+(?:[.,]\d+)?/g);
+    if (!digits || !digits.length) return false;
+    const norm = (s) => String(s).replace(/[.,]/g, '');
+    const source = norm(sourceText || '');
+    for (const d of digits) {
+      if (!source.includes(norm(d))) return true;
+    }
+    return false;
   }
 
   // ── Rede de segurança contra repetição (Jaccard sobre palavras longas) ──
@@ -251,7 +273,21 @@ REGRAS INVIOLÁVEIS:
     } catch (e) { return null; }
   }
 
-  return { INDUSTRIES, STAGE_LABELS, persona, briefBlock, playbook, ask, validSay, tooSimilar, esc, tempColor, knowledgeBlock, createKnowledgeFetcher, warmup, coreBlock, fetchCore };
+  // Rotação de técnica forçada: mesma técnica de uma das N últimas dicas
+  // (e não-urgente) = repetição estrutural — descarta. A variação que o
+  // prompt pede vira garantia de código.
+  function repeatsTechnique(tip, recentTips, n = 2) {
+    const norm = (s) => String(s || '').toLowerCase().replace(/[^a-zà-úç ]/gi, ' ').replace(/\s+/g, ' ').trim();
+    const t = norm(tip.technique);
+    if (!t) return false;
+    if (tip.priority === 'urgent') return false;
+    return (recentTips || []).slice(0, n).some(prev => {
+      const p = norm(prev.technique);
+      return p && (p === t || p.includes(t) || t.includes(p));
+    });
+  }
+
+  return { INDUSTRIES, STAGE_LABELS, persona, briefBlock, playbook, ask, validSay, tooSimilar, esc, tempColor, knowledgeBlock, createKnowledgeFetcher, warmup, coreBlock, fetchCore, hasUngroundedNumbers, repeatsTechnique };
 })();
 
 window.CoachCore = CoachCore;

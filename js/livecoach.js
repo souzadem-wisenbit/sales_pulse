@@ -989,12 +989,12 @@ MARCAÇÃO DO "say" (é o que o vendedor LÊ ao vivo — ele precisa usar em 1 s
 
 REGRA DE OURO DO OUTPUT: tip e say andam JUNTOS. Ou você retorna os dois preenchidos (uma dica COM o script pronto), ou retorna tip=null e say=null (silêncio). NUNCA retorne um tip sem say — dica sem a fala pronta é inútil e será descartada pelo sistema.
 
-Retorne SÓ JSON:
+Retorne SÓ JSON (nunca escreva meta-texto, instruções ou a palavra "null" dentro dos textos):
 {
- "tip": "diagnóstico interno curtíssimo (máx 10 palavras). null → então say também null",
+ "tip": "diagnóstico interno em até 10 palavras SUAS (ex: 'Objeção de preço disfarçada — ancorar valor')",
  "say": "a fala pronta do vendedor, 1-3 frases faladas (máx 42 palavras), com **palavras-chave** e (PAUSA) embutidos. OBRIGATÓRIO sempre que tip existir.",
- "grounded": <false APENAS se o say afirma número/fato/promessa SEM fonte no briefing/conversa. Say sem números/fatos (rapport, pergunta, esclarecimento) = sempre true>,
- "technique": "técnica aplicada, 2-4 palavras",
+ "grounded": <false se o say afirma número/fato/promessa SEM fonte no briefing/conversa; true se todos têm fonte OU se o say não afirma número/fato>,
+ "technique": "NOME da técnica do SEU SISTEMA (ex: Fechamento 'Eu Vou Pensar', Gatilho da Escassez) — diferente das 3 últimas dicas",
  "priority": "urgent|normal|good",
  "stage": "rapport|descoberta|apresentacao|objecoes|fechamento",
  "temperature": <0-100 quão quente está a negociação>
@@ -1026,8 +1026,18 @@ ${tips.length === 0 ? '\n🚀 PRIMEIRA DICA DA CHAMADA: ainda não existe nenhum
         if (parsed.tip) {
           // Kill-switch do say: placeholder ("X reais", "[valor]") ou
           // autocertificação grounded=false → script inválido.
-          const say = CoachCore.validSay(parsed.say, parsed.grounded);
+          let say = CoachCore.validSay(parsed.say, parsed.grounded);
           if (!say) console.warn('[LiveCoach] dica morta no kill-switch do say:', JSON.stringify({ say: parsed.say, grounded: parsed.grounded }));
+          // Vacina anti-alucinação: número em dígitos que não existe no
+          // briefing nem na conversa = inventado → say morre (auditoria
+          // pegou "ROI de 30%", "R$ 15 mil" e "garantia de devolução" falsos).
+          if (say) {
+            const sourceText = JSON.stringify(brief || {}) + ' ' + transcript.map(s => s.text).join(' ');
+            if (CoachCore.hasUngroundedNumbers(say, sourceText)) {
+              console.warn('[LiveCoach] dica morta: número sem fonte no say:', say);
+              say = null;
+            }
+          }
           // Dica é SEMPRE script pronto: sem say, não há dica (nunca o
           // cartão-resumo de fallback). Anti-obsolescência: se a conversa
           // andou muito enquanto gerava, o assunto mudou — descarta (exceto urgente).
@@ -1081,6 +1091,8 @@ ${tips.length === 0 ? '\n🚀 PRIMEIRA DICA DA CHAMADA: ainda não existe nenhum
 
   function deliverTip(tip) {
     if (tooSimilarToRecent(tip)) { console.log('[LiveCoach] dica descartada: parecida demais com recentes'); return; }
+    // Rotação de técnica: repetiu a técnica de uma das 2 últimas = descartada
+    if (CoachCore.repeatsTechnique(tip, tips)) { console.log('[LiveCoach] dica descartada: técnica repetida —', tip.technique); return; }
     // PRIMEIRA dica da chamada: entrega imediata, sem esperar pausa — o
     // vendedor precisa ver o coach vivo desde a primeira fala do cliente.
     if (tips.length === 0) { addTip(tip); return; }
