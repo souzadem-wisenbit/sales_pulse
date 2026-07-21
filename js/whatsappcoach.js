@@ -542,8 +542,9 @@ const WhatsAppCoach = (() => {
   // antes de acionar o coach (equivale ao "cliente parou de falar" do áudio).
   function scheduleCoach(chat) {
     // A busca de metodologia roda DURANTE o debounce: quando a dica dispara,
-    // o bloco certo já está em cache — latência de busca = zero.
-    if (knowledge) knowledge.refresh(chatKnowledgeQuery(chat));
+    // o bloco certo já está em cache — latência de busca = zero. Falha aqui
+    // jamais pode impedir o agendamento da dica.
+    try { if (knowledge) knowledge.refresh(chatKnowledgeQuery(chat)); } catch (e) {}
     if (chat.coachTimer) clearTimeout(chat.coachTimer);
     chat.coachTimer = setTimeout(() => {
       chat.coachTimer = null;
@@ -584,9 +585,13 @@ const WhatsAppCoach = (() => {
             .join('\n')}\n`
         : '';
 
-      // Metodologia do coach: bloco já buscado durante o debounce (zero espera)
-      const methodologyBlock = knowledge ? knowledge.getCached() : '';
-      if (knowledge) knowledge.refresh(chatKnowledgeQuery(chat));
+      // Metodologia do coach: bloco já buscado durante o debounce (zero
+      // espera). Falha aqui degrada para "sem metodologia", nunca "sem dica".
+      let methodologyBlock = '';
+      try {
+        methodologyBlock = knowledge ? knowledge.getCached() : '';
+        if (knowledge) knowledge.refresh(chatKnowledgeQuery(chat));
+      } catch (e) { methodologyBlock = ''; }
 
       // Bloco estático primeiro (persona + playbook + formato) e dinâmico por
       // último: ativa o cache de prompt da OpenAI e derruba a latência.
@@ -606,7 +611,7 @@ Retorne SÓ JSON:
 {
  "tip": "diagnóstico interno curtíssimo (máx 10 palavras). null → então say também null",
  "say": "a mensagem pronta do vendedor, texto puro colável no WhatsApp (máx 45 palavras). OBRIGATÓRIO sempre que tip existir.",
- "grounded": <true só se cada número/fato/promessa do say tem fonte; senão false — say descartado>,
+ "grounded": <false APENAS se o say afirma número/fato/promessa SEM fonte no briefing/conversa. Say sem números/fatos (rapport, pergunta, esclarecimento) = sempre true>,
  "technique": "técnica aplicada, 2-4 palavras",
  "priority": "urgent|normal|good",
  "stage": "rapport|descoberta|apresentacao|objecoes|fechamento",
@@ -622,7 +627,10 @@ ${recent}
 ⚡ O CLIENTE ACABOU DE ESCREVER. Escreva a mensagem que o vendedor deve enviar AGORA.`;
 
       const parsed = await CoachCore.ask(prompt, getApiKey());
-      if (!parsed) return;
+      if (!parsed) {
+        console.warn('[WhatsAppCoach] sem dica: resposta nula (timeout, rede, chave ou JSON truncado)');
+        return;
+      }
 
       if (parsed.stage && STAGE_LABELS[parsed.stage]) chat.stage = parsed.stage;
       if (typeof parsed.temperature === 'number') chat.temp = Math.max(0, Math.min(100, Math.round(parsed.temperature)));

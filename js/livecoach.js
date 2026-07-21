@@ -23,6 +23,7 @@ const LiveCoach = (() => {
 
   const COACH_GAP_CLIENT_MS = 1200;  // cooldown mínimo entre chamadas do coach (anti-duplicata)
   const TIP_MAX_HOLD_MS = 45000;   // dica segurada por mais que isso = assunto já mudou, descarta
+  const TIP_FORCE_SHOW_MS = 4000;  // sem pausa na conversa até aqui: mostra assim mesmo — dica sumida é pior
   const SAVE_INTERVAL_MS = 12000;  // frequência de persistência no backend
   const PREROLL_MS = 400;          // áudio guardado ANTES da voz começar (não corta a 1ª sílaba)
   const MIN_SPEECH_MS = 350;       // fala mínima para valer uma transcrição
@@ -855,13 +856,15 @@ const LiveCoach = (() => {
       }
       renderTranscript();
 
-      // Toda fala nova (dos DOIS lados) atualiza a metodologia em segundo
-      // plano: enquanto o vendedor responde, a busca da próxima dica já roda.
-      if (knowledge) knowledge.refresh(buildKnowledgeQuery());
-
       // Cliente falou → aciona o coach assim que ele TERMINAR a fala
       // (se ele só respirou e continuou, espera concluir o raciocínio).
+      // SEMPRE antes de qualquer acessório: nada pode ficar entre a fala
+      // e o acionamento do coach.
       if (speaker === 'client') scheduleClientCoach();
+
+      // Toda fala nova (dos DOIS lados) atualiza a metodologia em segundo
+      // plano: enquanto o vendedor responde, a busca da próxima dica já roda.
+      try { if (knowledge) knowledge.refresh(buildKnowledgeQuery()); } catch (e) {}
     } catch (e) {
       console.warn('[LiveCoach] transcribe fail', e?.message);
     }
@@ -956,10 +959,12 @@ const LiveCoach = (() => {
 
       // Metodologia do coach: SEMPRE o bloco já em cache (zero espera — a
       // busca roda em segundo plano a cada fala nova, ver hook no transcript).
-      // Dispara aqui também a atualização com a fala que acabou de chegar,
-      // para a PRÓXIMA dica já ter o bloco exato deste momento.
-      const methodologyBlock = knowledge ? knowledge.getCached() : '';
-      if (knowledge) knowledge.refresh(buildKnowledgeQuery());
+      // Qualquer falha aqui degrada para "sem metodologia", nunca "sem dica".
+      let methodologyBlock = '';
+      try {
+        methodologyBlock = knowledge ? knowledge.getCached() : '';
+        if (knowledge) knowledge.refresh(buildKnowledgeQuery());
+      } catch (e) { methodologyBlock = ''; }
 
       // Persona do coach atribuído pelo gestor (compartilhada com o WhatsApp Coach)
       const coachPersona = CoachCore.persona(coach);
@@ -983,7 +988,7 @@ Retorne SÓ JSON:
 {
  "tip": "diagnóstico interno curtíssimo (máx 10 palavras). null → então say também null",
  "say": "a fala pronta do vendedor, 1-3 frases faladas (máx 42 palavras), com **palavras-chave** e (PAUSA) embutidos. OBRIGATÓRIO sempre que tip existir.",
- "grounded": <true só se cada número/fato/promessa do say tem fonte; senão false — say descartado>,
+ "grounded": <false APENAS se o say afirma número/fato/promessa SEM fonte no briefing/conversa. Say sem números/fatos (rapport, pergunta, esclarecimento) = sempre true>,
  "technique": "técnica aplicada, 2-4 palavras",
  "priority": "urgent|normal|good",
  "stage": "rapport|descoberta|apresentacao|objecoes|fechamento",
@@ -1004,19 +1009,25 @@ ${tips.length === 0 ? '\n🚀 PRIMEIRA DICA DA CHAMADA: ainda não existe nenhum
       // Timeout curto: um request pendurado segurava o coachBusy e
       // congelava TODAS as dicas seguintes da chamada.
       const parsed = await CoachCore.ask(prompt, getApiKey());
-      if (!parsed) return; // timeout/rede/erro: solta o coachBusy e a próxima fala tenta de novo
+      if (!parsed) {
+        console.warn('[LiveCoach] sem dica: resposta nula (timeout, rede, chave ou JSON truncado)');
+        return; // solta o coachBusy e a próxima fala tenta de novo
+      }
       {
         if (parsed.stage && STAGE_LABELS[parsed.stage]) latestStage = parsed.stage;
         if (typeof parsed.temperature === 'number') latestTemp = Math.max(0, Math.min(100, Math.round(parsed.temperature)));
         renderStage();
+        if (!parsed.tip) console.log('[LiveCoach] coach optou por silêncio (tip null)');
         if (parsed.tip) {
           // Kill-switch do say: placeholder ("X reais", "[valor]") ou
           // autocertificação grounded=false → script inválido.
           const say = CoachCore.validSay(parsed.say, parsed.grounded);
+          if (!say) console.warn('[LiveCoach] dica morta no kill-switch do say:', JSON.stringify({ say: parsed.say, grounded: parsed.grounded }));
           // Dica é SEMPRE script pronto: sem say, não há dica (nunca o
           // cartão-resumo de fallback). Anti-obsolescência: se a conversa
           // andou muito enquanto gerava, o assunto mudou — descarta (exceto urgente).
           const grewBy = transcript.length - sinceCount;
+          if (say && grewBy >= 3 && parsed.priority !== 'urgent') console.warn('[LiveCoach] dica descartada: conversa andou', grewBy, 'falas durante a geração');
           if (say && (grewBy < 3 || parsed.priority === 'urgent')) {
             const prio = parsed.priority || 'normal';
             deliverTip({
@@ -1064,7 +1075,10 @@ ${tips.length === 0 ? '\n🚀 PRIMEIRA DICA DA CHAMADA: ainda não existe nenhum
   }
 
   function deliverTip(tip) {
-    if (tooSimilarToRecent(tip)) return; // repetida = pior que nenhuma
+    if (tooSimilarToRecent(tip)) { console.log('[LiveCoach] dica descartada: parecida demais com recentes'); return; }
+    // PRIMEIRA dica da chamada: entrega imediata, sem esperar pausa — o
+    // vendedor precisa ver o coach vivo desde a primeira fala do cliente.
+    if (tips.length === 0) { addTip(tip); return; }
     // Exibe só quando o CLIENTE terminou de falar e o VENDEDOR está em silêncio
     if (!clientStillTalking() && !sellerMidSpeech()) { addTip(tip); return; }
     pendingTip = tip; // dica mais nova substitui a que estava na fila
@@ -1077,12 +1091,16 @@ ${tips.length === 0 ? '\n🚀 PRIMEIRA DICA DA CHAMADA: ainda não existe nenhum
       if (pendingTipTimer) { clearInterval(pendingTipTimer); pendingTipTimer = null; }
       return;
     }
-    if (Date.now() - pendingTip.t > TIP_MAX_HOLD_MS) {
+    const heldMs = Date.now() - pendingTip.t;
+    if (heldMs > TIP_MAX_HOLD_MS) {
+      console.warn('[LiveCoach] dica descartada: segurada por', Math.round(heldMs / 1000), 's sem pausa');
       pendingTip = null;
       clearInterval(pendingTipTimer); pendingTipTimer = null;
       return;
     }
-    if (clientStillTalking() || sellerMidSpeech()) return;
+    // Conversa sem pausa não pode esconder o coach: passado o teto, a dica
+    // aparece mesmo com alguém falando (ver é melhor que perder o momento).
+    if ((clientStillTalking() || sellerMidSpeech()) && heldMs < TIP_FORCE_SHOW_MS) return;
     const tip = pendingTip;
     pendingTip = null;
     clearInterval(pendingTipTimer); pendingTipTimer = null;

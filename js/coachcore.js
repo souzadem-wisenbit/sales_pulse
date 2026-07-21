@@ -72,14 +72,20 @@ ${chunks.map((c, i) => `[${i + 1}] ${String(c.content).slice(0, 700)}`).join('\n
     let lastFailAt = 0;
 
     function refresh(query) {
-      const q = String(query || '').trim();
-      if (q.length < 8 || q === cached.key || q === inflightKey) return;
-      if (Date.now() - lastFailAt < 30000) return; // backend fora: não martela
-      inflightKey = q;
-      window.API.retrieveKnowledge(q)
-        .then(res => { cached = { key: q, block: knowledgeBlock(res?.chunks) }; })
-        .catch(() => { lastFailAt = Date.now(); })
-        .finally(() => { if (inflightKey === q) inflightKey = null; });
+      // À prova de tudo: NENHUM erro daqui (API ausente, rede, o que for)
+      // pode escapar para o caminho da dica — conhecimento é acessório.
+      try {
+        const q = String(query || '').trim();
+        if (q.length < 8 || q === cached.key || q === inflightKey) return;
+        if (Date.now() - lastFailAt < 30000) return; // backend fora: não martela
+        inflightKey = q;
+        window.API.retrieveKnowledge(q)
+          .then(res => { cached = { key: q, block: knowledgeBlock(res?.chunks) }; })
+          .catch(() => { lastFailAt = Date.now(); })
+          .finally(() => { if (inflightKey === q) inflightKey = null; });
+      } catch (e) {
+        lastFailAt = Date.now();
+      }
     }
 
     return {
@@ -146,17 +152,18 @@ REGRAS INVIOLÁVEIS:
 2. VENDA SÓ O QUE ESTÁ NO BRIEFING: o produto em venda é EXCLUSIVAMENTE o do briefing. O cliente mencionar outro produto/desejo NÃO muda o que se vende — jamais descreva, precifique ou prometa algo que o briefing não oferece.
 3. NÃO CONTRADIGA o que o vendedor já disse (ele ${wpp ? 'já enviou' : 'ouviu'}). Resposta fraca dele → dica de recuperação honesta.
 4. NÃO REPITA dica/técnica/argumento do histórico — nem em VARIAÇÃO (mesma intenção = repetição). Em especial: NUNCA repita a mesma pergunta de fechamento/CTA (ex.: "posso te enviar o contrato?") — se já foi feita e o cliente não respondeu, a repetição queima o vendedor; avance por OUTRO caminho (descubra a objeção escondida). Se ele está aplicando sua dica, ou nada novo → tip null. Silêncio é melhor que dica óbvia/repetida.
-4. ${wpp
+5. ${wpp
       ? 'TEXTO REAL DE WHATSAPP: PT-BR informal de conversa ("tá", "pra", "a gente"), espelhe o registro e o nível de formalidade do cliente. 1-3 frases curtas, no máximo ~45 palavras — mensagem de WhatsApp, não e-mail. Sem saudação repetida ("Bom dia" só na primeira), sem assinatura, sem bullet points, sem emoji em excesso (no máximo 1, e só se o cliente usar). Zero jargão corporativo. PROIBIDO "Entendo sua preocupação" e "Quer que eu te explique como funciona?".'
       : 'FALA REAL: frases curtas em PT-BR falado ("tá", "pra", "a gente"), espelhe o registro do cliente, 1-3 frases que devolvem a vez. Zero jargão corporativo. PROIBIDO "Entendo sua preocupação" e "Quer que eu te explique como funciona?".'}
-5. PRIORIDADE: "urgent" é raro (errar AGORA custa o negócio); normal = "normal"; acerto do vendedor = "good".`;
+6. PRIORIDADE: "urgent" é raro (errar AGORA custa o negócio); normal = "normal"; acerto do vendedor = "good".`;
   }
 
   // ── Chamada ao modelo, com timeout e parse tolerante ──
   // Timeout curto: um request pendurado congelava todas as dicas seguintes.
-  // maxTokens apertado: o JSON da dica usa ~120-160 tokens — cada token a
-  // menos de teto é geração (e latência) a menos no pior caso.
-  async function ask(prompt, apiKey, { maxTokens = 200, temperature = 0.4, timeoutMs = 9000, model = 'gpt-4o-mini' } = {}) {
+  // ATENÇÃO ao maxTokens: com response_format json_object, teto apertado
+  // TRUNCA o JSON → parse falha → dica morre em silêncio (aconteceu com 200).
+  // O modelo para sozinho ao fechar o JSON; teto folgado não custa latência.
+  async function ask(prompt, apiKey, { maxTokens = 320, temperature = 0.4, timeoutMs = 9000, model = 'gpt-4o-mini' } = {}) {
     const ctrl = new AbortController();
     const timeoutId = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
