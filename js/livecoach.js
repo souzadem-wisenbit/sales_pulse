@@ -143,15 +143,19 @@ const LiveCoach = (() => {
         .lc-title { font-size: 1.3rem; font-weight: 800; }
         .lc-live-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff4757; animation: lcPulse 1.2s infinite; display: inline-block; margin-right: 6px; }
         @keyframes lcPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-        .lc-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(400px, 470px); gap: 1.25rem; align-items: start; }
+        .lc-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(390px, 460px); gap: 1.25rem; align-items: stretch; }
         .lc-grid.lc-theater { grid-template-columns: 1fr; }
         @media (max-width: 1000px) { .lc-grid { grid-template-columns: 1fr; } }
         .lc-card { background: rgba(14,14,26,0.85); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 1.25rem; }
         .lc-card + .lc-card { margin-top: 1.25rem; }
         .lc-card-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #5a5a7a; margin-bottom: 0.9rem; }
-        .lc-video { width: 100%; max-height: 56vh; border-radius: 10px; background: #000; display: block; object-fit: contain; }
-        .lc-theater .lc-video { max-height: 74vh; }
-        .lc-transcript { max-height: 48vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .lc-video { width: 100%; max-height: 42vh; border-radius: 10px; background: #000; display: block; object-fit: contain; }
+        .lc-theater .lc-video { max-height: 72vh; }
+        .lc-transcript { max-height: 34vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        /* Coach fica sempre visível (fixo) mesmo rolando a transcrição */
+        .lc-coach-card { position: sticky; top: 12px; }
+        #lc-tips { max-height: 62vh; overflow-y: auto; }
+        @media (max-width: 1000px) { .lc-coach-card { position: static; } #lc-tips { max-height: none; } }
         .lc-seg { padding: 8px 12px; border-radius: 10px; font-size: 0.86rem; line-height: 1.45; max-width: 92%; }
         .lc-seg.seller { background: rgba(108,99,255,0.14); border: 1px solid rgba(108,99,255,0.25); align-self: flex-end; }
         .lc-seg.client { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); align-self: flex-start; }
@@ -1133,15 +1137,13 @@ ${recent}
             </div>
           </div>
           <div>
-            ${brief ? `
-            <div class="lc-card" style="padding:0.9rem 1.25rem">
-              <div class="lc-card-title" style="margin-bottom:0.5rem">🎯 Briefing ativo</div>
-              ${(brief.products || []).map(p => `<span class="lc-brief-chip">📦 ${esc(p.name)}</span>`).join('')}
-              ${brief.extraProduct ? `<span class="lc-brief-chip">📦 ${esc(brief.extraProduct)}</span>` : ''}
-              <span class="lc-brief-chip" style="border-color:rgba(108,99,255,0.35);background:rgba(108,99,255,0.1);color:#c3beff">${esc(brief.industryLabel)}</span>
-              ${brief.directives ? `<div class="lc-muted" style="margin-top:6px;line-height:1.45">📋 ${esc(brief.directives.slice(0, 160))}${brief.directives.length > 160 ? '…' : ''}</div>` : ''}
+            <div class="lc-card lc-coach-card">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div class="lc-card-title" style="margin-bottom:0.9rem">💡 Coach em tempo real</div>
+                <button class="lc-sound-btn" id="lc-sound-btn" onclick="LiveCoach.toggleSound()" title="Som de dica ligado">🔔</button>
+              </div>
+              <div id="lc-tips"><div class="lc-muted">As dicas aparecem aqui conforme a conversa evolui.</div></div>
             </div>
-            ` : ''}
             <div class="lc-card">
               <div class="lc-card-title">🌡 Termômetro da negociação</div>
               <div id="lc-stage"><div class="lc-muted">Analisando os primeiros minutos...</div></div>
@@ -1152,13 +1154,15 @@ ${recent}
               <button class="lc-btn lc-btn-ghost lc-btn-block" id="lc-mic-btn" onclick="LiveCoach.toggleMicPause()">🎤 Microfone do coach LIGADO — clique para desligar</button>
               <div style="margin-top:0.75rem" id="lc-health"></div>
             </div>
-            <div class="lc-card">
-              <div style="display:flex;align-items:center;justify-content:space-between">
-                <div class="lc-card-title" style="margin-bottom:0.9rem">💡 Coach em tempo real</div>
-                <button class="lc-sound-btn" id="lc-sound-btn" onclick="LiveCoach.toggleSound()" title="Som de dica ligado">🔔</button>
-              </div>
-              <div id="lc-tips"><div class="lc-muted">As dicas aparecem aqui conforme a conversa evolui.</div></div>
+            ${brief ? `
+            <div class="lc-card" style="padding:0.9rem 1.25rem">
+              <div class="lc-card-title" style="margin-bottom:0.5rem">🎯 Briefing ativo</div>
+              ${(brief.products || []).map(p => `<span class="lc-brief-chip">📦 ${esc(p.name)}</span>`).join('')}
+              ${brief.extraProduct ? `<span class="lc-brief-chip">📦 ${esc(brief.extraProduct)}</span>` : ''}
+              <span class="lc-brief-chip" style="border-color:rgba(108,99,255,0.35);background:rgba(108,99,255,0.1);color:#c3beff">${esc(brief.industryLabel)}</span>
+              ${brief.directives ? `<div class="lc-muted" style="margin-top:6px;line-height:1.45">📋 ${esc(brief.directives.slice(0, 160))}${brief.directives.length > 160 ? '…' : ''}</div>` : ''}
             </div>
+            ` : ''}
           </div>
         </div>
       </div>`;
