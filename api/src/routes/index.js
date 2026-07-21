@@ -12,6 +12,7 @@ const productsCtrl = require('../controllers/productsController');
 const schedCtrl = require('../controllers/scheduledSessionsController');
 const liveCtrl = require('../controllers/liveCallsController');
 const waCtrl = require('../controllers/whatsappController');
+const knowCtrl = require('../controllers/knowledgeController');
 
 const syncRouter = express.Router();
 syncRouter.use(authenticate);
@@ -79,6 +80,16 @@ liveProfilesRouter.get('/:userId', authorize('manager', 'seller'), liveCtrl.getP
 liveProfilesRouter.put('/:userId', authorize('manager', 'seller'), liveCtrl.upsertProfile);
 liveProfilesRouter.put('/:userId/coach', authorize('manager'), liveCtrl.assignCoach);
 
+// Conhecimento do coach: gestor sobe documentos de metodologia; o Live Coach
+// (áudio e WhatsApp) busca os trechos relevantes a cada dica via /retrieve.
+const uploadDoc = multer({ limits: { fileSize: 30 * 1024 * 1024 } });
+const knowledgeRouter = express.Router();
+knowledgeRouter.use(authenticate);
+knowledgeRouter.get('/docs', authorize('manager'), knowCtrl.listDocs);
+knowledgeRouter.post('/docs', authorize('manager'), uploadDoc.single('file'), knowCtrl.uploadDoc);
+knowledgeRouter.delete('/docs/:id', authorize('manager'), knowCtrl.deleteDoc);
+knowledgeRouter.post('/retrieve', authorize('manager', 'seller'), knowCtrl.retrieveChunks);
+
 // WhatsApp Coach: sessão SEMPRE do próprio usuário autenticado (req.user.id).
 // Nenhuma rota aceita userId de fora — um vendedor não alcança o WhatsApp de outro.
 const whatsappRouter = express.Router();
@@ -90,4 +101,4 @@ whatsappRouter.post('/disconnect', authorize('manager', 'seller'), waCtrl.discon
 whatsappRouter.get('/briefing', authorize('manager', 'seller'), waCtrl.getBriefing);
 whatsappRouter.put('/briefing', authorize('manager', 'seller'), waCtrl.putBriefing);
 
-module.exports = { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter, liveCallsRouter, liveProfilesRouter, whatsappRouter };
+module.exports = { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter, liveCallsRouter, liveProfilesRouter, whatsappRouter, knowledgeRouter };

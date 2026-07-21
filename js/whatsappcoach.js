@@ -46,6 +46,7 @@ const WhatsAppCoach = (() => {
 
   let coach = null;                 // coach atribuído pelo gestor
   let profile = null;               // perfil aprendido do vendedor
+  let knowledge = null;             // busca de metodologia (RAG), compartilha o cérebro do modo áudio
   let tipSoundOn = true;
   let audioCtx = null;
 
@@ -223,6 +224,7 @@ const WhatsAppCoach = (() => {
       coach = p?.coach || null;
       profile = (p && p.profile && Object.keys(p.profile).length > 0) ? p.profile : null;
     } catch (e) { coach = null; profile = null; }
+    knowledge = CoachCore.createKnowledgeFetcher();
     try {
       const saved = await API.waGetBriefing();
       globalBrief = (saved && (saved.products || saved.extraProduct)) ? saved : null;
@@ -573,6 +575,11 @@ const WhatsAppCoach = (() => {
             .join('\n')}\n`
         : '';
 
+      // Metodologia do coach pelos últimos textos do cliente (no WhatsApp a
+      // conversa é mais lenta — dá para esperar a busca um pouco mais)
+      const clientQuery = chat.messages.filter(m => m.speaker === 'client').slice(-3).map(m => m.text).join(' ');
+      const methodologyBlock = knowledge ? await knowledge.get(clientQuery, 1500) : '';
+
       // Bloco estático primeiro (persona + playbook + formato) e dinâmico por
       // último: ativa o cache de prompt da OpenAI e derruba a latência.
       const prompt = `${CoachCore.persona(coach)}, acompanhando em silêncio uma conversa de vendas REAL por WhatsApp. O VENDEDOR é seu aluno; você escreve a MENSAGEM PRONTA que ele deve enviar AGORA. Quando o cliente escreve, capte o subtexto (resposta seca ou monossilábica = desinteresse ou pressa; "vou ver", "depois te falo" = objeção não dita; pergunta sobre preço/prazo/contrato = sinal de compra; áudio/vídeo enviado = quer atenção e detalhe; tema que volta = objeção real disfarçada) e escreva a resposta perfeita, espelhando as palavras dele.
@@ -599,7 +606,7 @@ Retorne SÓ JSON:
 }
 Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acertou e no say a jogada seguinte.
 
-━━━━━ BRIEFING DESTA CONVERSA ━━━━━${CoachCore.briefBlock(brief)}${profileBlock}
+━━━━━ BRIEFING DESTA CONVERSA ━━━━━${CoachCore.briefBlock(brief)}${profileBlock}${methodologyBlock}
 ━━━━━ CONVERSA NO WHATSAPP — contato: ${chat.name} ━━━━━${tipHistoryBlock}
 Mensagens recentes (mais recente por último):
 ${recent}

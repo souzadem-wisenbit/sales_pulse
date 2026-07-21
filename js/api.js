@@ -289,6 +289,27 @@ const API = (() => {
   async function saveLiveProfile(userId, profile, event) { return await put(`/api/live_profiles/${userId}`, { profile, event: event || null }); }
   async function assignCoach(userId, coachId) { return await put(`/api/live_profiles/${userId}/coach`, { coachId }); }
 
+  // Conhecimento do coach (metodologia em documentos — RAG)
+  async function listKnowledgeDocs() { return await get('/api/knowledge/docs'); }
+  async function deleteKnowledgeDoc(id) { return await del(`/api/knowledge/docs/${id}`); }
+  // Sem retry: chamada por dica, sensível a latência — melhor perder uma busca que atrasar
+  async function retrieveKnowledge(query, k) { return await post('/api/knowledge/retrieve', { query, k: k || 4 }, 0); }
+  async function uploadKnowledgeDoc(file, coachId) {
+    const base = getBaseUrl();
+    if (base === null) return null;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('coachId', coachId || 'junior');
+    const headers = buildHeaders();
+    delete headers['Content-Type']; // FormData define o boundary sozinho
+    const res = await fetchWithTimeout(`${base}/api/knowledge/docs`, { method: 'POST', headers, body: fd });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || `HTTP_${res.status}`);
+    }
+    return await res.json();
+  }
+
   // WhatsApp Coach (modalidade escrita) — sempre a sessão do próprio usuário
   async function waConnect() { return await post('/api/whatsapp/connect', {}, 0); }
   async function waStatus() { return await get('/api/whatsapp/status'); }
@@ -371,6 +392,10 @@ const API = (() => {
     waGetBriefing,
     waSaveBriefing,
     assignCoach,
+    listKnowledgeDocs,
+    uploadKnowledgeDoc,
+    deleteKnowledgeDoc,
+    retrieveKnowledge,
   };
 
 })();

@@ -129,10 +129,11 @@ async function getProfile(req, res) {
     const { rows } = await db.query('SELECT * FROM seller_profiles WHERE user_id = $1', [userId]);
     const result = rows[0] || { user_id: userId, profile: {}, calls_analyzed: 0 };
 
-    // Resolve o coach atribuído ao vendedor (usado para personalizar as dicas)
+    // Resolve o coach atribuído ao vendedor (usado para personalizar as dicas).
+    // Sem atribuição, o coach padrão da ferramenta é o Júnior Smarzaro.
     const { rows: urows } = await db.query('SELECT coach_id FROM users WHERE id = $1', [userId]);
     const coachId = urows[0]?.coach_id || null;
-    if (coachId === 'junior') {
+    if (coachId === 'junior' || !coachId) {
       result.coach = { id: 'junior', name: 'Júnior Smarzaro', special: true };
     } else if (coachId) {
       const { rows: crows } = await db.query(`

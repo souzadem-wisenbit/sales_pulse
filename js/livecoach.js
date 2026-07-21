@@ -54,6 +54,7 @@ const LiveCoach = (() => {
   let profile = null;
   let profileHistory = [];         // histórico cumulativo de aprendizados (live + treinos)
   let coach = null;                // coach atribuído pelo gestor: {id, name, special?, profile?}
+  let knowledge = null;            // busca de metodologia (RAG) — trechos por momento da conversa
   let brief = null;                // briefing pré-chamada: produtos, ramo do cliente, diretrizes
   let availableProducts = [];
   let selectedProductIds = new Set();
@@ -506,6 +507,15 @@ const LiveCoach = (() => {
         coach = p?.coach || null;
       } catch (e) { profile = null; profileHistory = []; coach = null; }
 
+      // Metodologia do coach: aquece o cache com o briefing para a primeira
+      // dica já sair fundamentada (as seguintes refinam pela fala do cliente)
+      knowledge = CoachCore.createKnowledgeFetcher();
+      knowledge.prefetch([
+        (brief?.products || []).map(p => p.name).join(' '),
+        brief?.industryLabel || '',
+        'abertura rapport conexão início da conversa',
+      ].join(' ').trim());
+
       running = true;
       startedAt = Date.now();
       transcript = [];
@@ -904,6 +914,12 @@ const LiveCoach = (() => {
             .join('\n')}\n`
         : '';
 
+      // Metodologia do coach: trechos escolhidos pela última fala do cliente.
+      // Espera no máx. ~900ms — se a busca não voltar, usa o bloco anterior
+      // (a metodologia é por estágio da venda; um turno de atraso não dói).
+      const clientQuery = transcript.filter(s => s.speaker === 'client').slice(-3).map(s => s.text).join(' ');
+      const methodologyBlock = knowledge ? await knowledge.get(clientQuery) : '';
+
       // Persona do coach atribuído pelo gestor (compartilhada com o WhatsApp Coach)
       const coachPersona = CoachCore.persona(coach);
 
@@ -934,7 +950,7 @@ Retorne SÓ JSON:
 }
 Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acertou e no say a jogada seguinte.
 
-━━━━━ BRIEFING DESTA CHAMADA ━━━━━${briefBlock()}${profileBlock}
+━━━━━ BRIEFING DESTA CHAMADA ━━━━━${briefBlock()}${profileBlock}${methodologyBlock}
 ━━━━━ CONVERSA AO VIVO ━━━━━${tipHistoryBlock}
 Falas recentes (mais recente por último; transcrição automática, pode ter erros):
 ${recent}

@@ -2225,10 +2225,12 @@ const Manager = (() => {
   // LIVE COACH SECTION — paginado, com busca (ranking + relatórios + coach)
   // ══════════════════════════════════════
   const LC_PAGE_SIZE = 5;
-  let lcData = null;      // cache da seção: { sellers, profiles, calls }
+  let lcData = null;      // cache da seção: { sellers, profiles, calls, kdocs }
   let lcPage = 1;
   let lcSearch = '';
   let lcContainer = null;
+  let kCoachTargetId = 'junior'; // coach que recebe os próximos uploads de metodologia
+  let kPollTimer = null;         // acompanha docs em processamento
 
   async function renderLiveCoachSection(container) {
     lcContainer = container;
@@ -2243,8 +2245,10 @@ const Manager = (() => {
     } catch (e) { sellers = Storage.getSellers(); }
     try { profiles = (await API.listLiveProfiles()) || []; } catch (e) { console.warn(e); }
     try { calls = (await API.listLiveCalls()) || []; } catch (e) { console.warn(e); }
+    let kdocs = [];
+    try { kdocs = (await API.listKnowledgeDocs()) || []; } catch (e) { console.warn(e); }
 
-    lcData = { sellers, profiles, calls };
+    lcData = { sellers, profiles, calls, kdocs };
     lcPage = 1;
     lcSearch = '';
     paintLiveCoach();
@@ -2305,22 +2309,17 @@ const Manager = (() => {
     const medals = ['🥇', '🥈', '🥉'];
 
     const coachBadge = (s) => {
-      if (s.coach_id === 'junior') {
-        return `<div class="coach-badge coach-badge-junior" onclick="Manager.openCoachPicker('${s.id}')">
-          <img src="img/junior.jpg" alt="">
-          <div><div class="cb-name">⭐ Júnior Smarzaro</div><div class="cb-sub">Coach Master · trocar</div></div>
-        </div>`;
-      }
-      const styleOf = s.coach_id ? ranked.find(o => String(o.id) === String(s.coach_id)) : null;
+      const styleOf = (s.coach_id && s.coach_id !== 'junior') ? ranked.find(o => String(o.id) === String(s.coach_id)) : null;
       if (styleOf) {
         return `<div class="coach-badge coach-badge-style" onclick="Manager.openCoachPicker('${s.id}')">
           <img src="img/avatar_generic.svg" alt="">
           <div><div class="cb-name">🧬 Estilo de ${escHtml(styleOf.name)}</div><div class="cb-sub">trocar coach</div></div>
         </div>`;
       }
-      return `<div class="coach-badge coach-badge-default" onclick="Manager.openCoachPicker('${s.id}')">
-        <img src="img/salespulse_logo.png" alt="">
-        <div><div class="cb-name">Coach Padrão SalesPulse</div><div class="cb-sub">trocar coach</div></div>
+      // Padrão da ferramenta: Júnior Smarzaro (sem atribuição = Júnior)
+      return `<div class="coach-badge coach-badge-junior" onclick="Manager.openCoachPicker('${s.id}')">
+        <img src="img/junior.jpg" alt="">
+        <div><div class="cb-name">⭐ Júnior Smarzaro</div><div class="cb-sub">${s.coach_id === 'junior' ? 'Coach Master' : 'Coach padrão'} · trocar</div></div>
       </div>`;
     };
 
@@ -2378,10 +2377,63 @@ const Manager = (() => {
         <button class="btn btn-sm btn-ghost" ${lcPage >= totalPages ? 'disabled' : ''} onclick="Manager.lcSetPage(${lcPage + 1})">Próximo ›</button>
       </div>` : '';
 
+    // ── Metodologia dos coaches (documentos que alimentam as dicas) ──
+    const kdocs = lcData.kdocs || [];
+    const baseDocs = kdocs.filter(d => !d.manager_id);
+    const myDocs = kdocs.filter(d => d.manager_id);
+    const baseChunks = baseDocs.reduce((a, d) => a + (d.chunk_count || 0), 0);
+    const coachTargets = ranked.filter(s => s.hasProfile);
+    const kStatusChip = (d) => {
+      if (d.status === 'processing') return `<span style="color:var(--warning);font-size:0.72rem">⏳ processando…</span>`;
+      if (d.status === 'error') return `<span style="color:var(--danger);font-size:0.72rem" title="${escHtml(d.error || '')}">⚠️ erro no processamento</span>`;
+      return `<span style="color:var(--success);font-size:0.72rem">✅ ${d.chunk_count || 0} trechos</span>`;
+    };
+    const kCoachLabel = (d) => d.coach_id === 'junior' ? '⭐ Júnior (padrão)' : `🧬 Estilo de ${escHtml(d.coach_name || 'colega')}`;
+    const knowledgeSection = `
+      <div class="config-section" style="border-color:rgba(255,200,50,0.25)">
+        <div class="config-section-header" style="flex-wrap:wrap;gap:var(--sp-3)">
+          <div class="config-section-icon purple">📚</div>
+          <div style="flex:1;min-width:220px">
+            <div class="config-section-title">Metodologia dos coaches</div>
+            <div class="config-section-desc">Suba PDFs, imagens ou textos com metodologia de vendas — o material vira conhecimento do coach escolhido e passa a alimentar as dicas ao vivo. A metodologia oficial do ⭐ Júnior é a base de todos e nunca é descartada: o que você enviar entra como complemento.</div>
+          </div>
+        </div>
+        <div class="flex gap-3 flex-wrap" style="align-items:center;margin-bottom:var(--sp-4)">
+          <div>
+            <label class="form-label" style="font-size:0.68rem">Adicionar ao coach</label>
+            <select id="k-coach-target" class="form-select" style="min-width:230px" onchange="Manager.kSetCoachTarget(this.value)">
+              <option value="junior"${kCoachTargetId === 'junior' ? ' selected' : ''}>⭐ Júnior Smarzaro (padrão)</option>
+              ${coachTargets.map(s => `<option value="${s.id}"${String(kCoachTargetId) === String(s.id) ? ' selected' : ''}>🧬 Estilo de ${escHtml(s.name)}</option>`).join('')}
+            </select>
+          </div>
+          <label class="btn btn-primary" style="cursor:pointer;margin-top:14px">📤 Enviar arquivos
+            <input type="file" multiple accept=".pdf,.txt,.md,.csv,image/png,image/jpeg,image/webp,image/gif" style="display:none" onchange="Manager.kUploadFiles(this)">
+          </label>
+        </div>
+        <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--r-md);padding:var(--sp-3) var(--sp-4);margin-bottom:${myDocs.length ? 'var(--sp-3)' : '0'}">
+          <details>
+            <summary style="cursor:pointer;font-size:0.85rem;font-weight:600;color:#ffd76a">⭐ Base oficial do Júnior — ${baseDocs.length} documento${baseDocs.length !== 1 ? 's' : ''} · ${baseChunks} trechos indexados</summary>
+            <div style="margin-top:var(--sp-2)">
+              ${baseDocs.map(d => `<div class="fs-xs text-secondary" style="padding:2px 0">📄 ${escHtml(d.filename)} · ${d.chunk_count || 0} trechos</div>`).join('') || '<div class="fs-xs text-muted">Base ainda não ingerida.</div>'}
+            </div>
+          </details>
+        </div>
+        ${myDocs.map(d => `
+          <div style="display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-2) var(--sp-3);background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--r-md);margin-bottom:6px">
+            <div style="flex:1;min-width:0">
+              <div class="fs-sm" style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 ${escHtml(d.filename)}</div>
+              <div class="fs-xs text-muted">${kCoachLabel(d)} · ${new Date(d.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} ${kStatusChip(d)}</div>
+            </div>
+            <button class="btn btn-sm btn-ghost" title="Excluir documento" onclick="Manager.kDeleteDoc('${d.id}', '${escHtml(d.filename).replace(/'/g, '')}')">🗑</button>
+          </div>
+        `).join('')}
+      </div>`;
+
     container.innerHTML = `
       <div class="api-config-info mb-6">
-        <strong>🎧 Live Coach:</strong> seus vendedores iniciam o assistente durante chamadas reais. A IA transcreve, envia dicas ao vivo moldadas pelo briefing da chamada e aprende o estilo de cada um. Atribua a cada vendedor o coach que quiser — inclusive o ⭐ Coach Master Júnior Smarzaro.
+        <strong>🎧 Live Coach:</strong> seus vendedores iniciam o assistente durante chamadas reais. A IA transcreve, envia dicas ao vivo moldadas pelo briefing da chamada e aprende o estilo de cada um. O coach padrão de todos é o ⭐ Júnior Smarzaro, com a metodologia oficial dele embarcada — ou atribua o estilo aprendido de um colega da equipe.
       </div>
+      ${knowledgeSection}
       ${isSuper ? `
       <div class="config-section" style="border-color:rgba(0,212,170,0.3)">
         <div class="config-section-header">
@@ -2441,8 +2493,8 @@ const Manager = (() => {
   // Atribui o coach escolhido pelo gestor ao vendedor
   // ══════════════════════════════════════
   // COACH PICKER — modal de cards premium (foto + bio) para escolher o
-  // coach de cada vendedor: Padrão SalesPulse, ⭐ Júnior Smarzaro (Coach
-  // Master) ou o estilo aprendido de qualquer colega da equipe.
+  // coach de cada vendedor: ⭐ Júnior Smarzaro (Coach Master, o PADRÃO da
+  // ferramenta) ou o estilo aprendido de qualquer colega da equipe.
   // ══════════════════════════════════════
   let coachPickerSellerId = null;
 
@@ -2494,23 +2546,15 @@ const Manager = (() => {
           <h3>🎓 Escolher Coach — ${escHtml(seller.name)}</h3>
           <button class="btn btn-ghost btn-icon" onclick="Manager.closeCoachPicker()">✕</button>
         </div>
-        <p class="text-muted fs-sm" style="margin:0">Todos os coaches seguem as mesmas regras de ouro (conexão antes da venda, munição concreta, foco no produto certo) — a diferença é o estilo e a persona.</p>
+        <p class="text-muted fs-sm" style="margin:0">Todos os coaches seguem as mesmas regras de ouro (conexão antes da venda, munição concreta, foco no produto certo) — a diferença é o estilo e a persona. A metodologia oficial do Júnior é sempre a base; documentos enviados em 📚 Metodologia complementam o coach escolhido.</p>
         <div class="cp-grid">
-          <div class="cp-card cp-default ${isSel(null) || !seller.coach_id ? 'cp-selected' : ''}" onclick="Manager.selectCoach(${JSON.stringify(null)})">
+          <div class="cp-card cp-junior ${isSel('junior') || !seller.coach_id ? 'cp-selected' : ''}" onclick="Manager.selectCoach('junior')">
             <span class="cp-check">✓</span>
-            <img class="cp-avatar" src="img/salespulse_logo.png" alt="">
-            <div class="cp-name">Coach Padrão SalesPulse</div>
-            <div class="cp-role">Metodologia Base</div>
-            <div class="cp-bio">SPIN Selling, Challenger e Sandler combinados — a experiência oficial do SalesPulse.</div>
-          </div>
-
-          <div class="cp-card cp-junior ${isSel('junior') ? 'cp-selected' : ''}" onclick="Manager.selectCoach('junior')">
-            <span class="cp-check">✓</span>
-            <span class="cp-badge">⭐ COACH MASTER</span>
+            <span class="cp-badge">⭐ COACH MASTER · PADRÃO</span>
             <img class="cp-avatar" src="img/junior.jpg" alt="Júnior Smarzaro">
             <div class="cp-name">Júnior Smarzaro</div>
             <div class="cp-role">Alta Performance Comercial</div>
-            <div class="cp-bio">Júnior Smarzaro é um dos maiores especialistas em alta performance comercial do Brasil, reconhecido por transformar equipes comuns em máquinas de vendas por meio de técnicas práticas, mudança de comportamento e execução de excelência.</div>
+            <div class="cp-bio">Júnior Smarzaro é um dos maiores especialistas em alta performance comercial do Brasil, reconhecido por transformar equipes comuns em máquinas de vendas por meio de técnicas práticas, mudança de comportamento e execução de excelência. Coach padrão da ferramenta, com toda a metodologia oficial dele embarcada.</div>
           </div>
 
           ${teammates.map(t => `
@@ -2533,13 +2577,55 @@ const Manager = (() => {
     document.getElementById('coach-picker-modal')?.classList.remove('active');
   }
 
+  // ── Metodologia dos coaches: upload e gestão de documentos ──
+  function kSetCoachTarget(v) { kCoachTargetId = v || 'junior'; }
+
+  async function kRefreshDocs() {
+    if (!lcData) return;
+    try { lcData.kdocs = (await API.listKnowledgeDocs()) || []; } catch (e) { return; }
+    paintLiveCoach();
+    // Docs ainda processando (extração + indexação rodam no servidor): repinta sozinho
+    if (kPollTimer) { clearTimeout(kPollTimer); kPollTimer = null; }
+    if ((lcData.kdocs || []).some(d => d.status === 'processing')) {
+      kPollTimer = setTimeout(kRefreshDocs, 4000);
+    }
+  }
+
+  async function kUploadFiles(input) {
+    const files = Array.from(input.files || []);
+    input.value = '';
+    if (!files.length) return;
+    let sent = 0;
+    for (const f of files) {
+      try {
+        await API.uploadKnowledgeDoc(f, kCoachTargetId);
+        sent++;
+      } catch (e) {
+        UI.toast(`Erro em ${f.name}: ${e.message}`, 'error');
+      }
+    }
+    if (sent) UI.toast(`📚 ${sent} arquivo${sent !== 1 ? 's' : ''} enviado${sent !== 1 ? 's' : ''} — processando metodologia...`, 'success');
+    kRefreshDocs();
+  }
+
+  async function kDeleteDoc(id, name) {
+    if (!confirm(`Excluir "${name}" da metodologia do coach?`)) return;
+    try {
+      await API.deleteKnowledgeDoc(id);
+      UI.toast('🗑 Documento removido', 'success');
+      kRefreshDocs();
+    } catch (e) {
+      UI.toast('Erro ao excluir documento', 'error');
+    }
+  }
+
   async function selectCoach(coachId) {
     const sellerId = coachPickerSellerId;
     if (!sellerId) return;
     try {
-      await API.assignCoach(sellerId, coachId || null);
+      await API.assignCoach(sellerId, coachId || 'junior');
       const cached = lcData?.sellers?.find(x => String(x.id) === String(sellerId));
-      if (cached) cached.coach_id = coachId || null;
+      if (cached) cached.coach_id = coachId || 'junior';
       UI.toast(coachId === 'junior' ? '⭐ Júnior Smarzaro atribuído como Coach Master!' : '✅ Coach atualizado!', 'success');
       closeCoachPicker();
       paintLiveCoach();
@@ -2794,6 +2880,7 @@ const Manager = (() => {
     selectArchetype,
     viewSessionReport, generateFakeReports,
     openCoachPicker, closeCoachPicker, selectCoach, lcSetPage, lcSearchInput,
+    kSetCoachTarget, kUploadFiles, kDeleteDoc, kRefreshDocs,
   };
 })();
 
