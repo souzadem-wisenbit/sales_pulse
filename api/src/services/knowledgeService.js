@@ -14,12 +14,17 @@ const CHUNK_TARGET = 1400;   // chars por trecho — grande o bastante p/ técni
 const CHUNK_OVERLAP = 200;   // continuidade entre trechos vizinhos
 const MAX_DOC_CHARS = 1200000;
 
+// Cliente cacheado (TTL 5 min): o retrieve roda a cada dica do Live Coach —
+// sem cache seriam uma ida ao banco + um client novo por dica, latência pura.
+let _openaiCache = { at: 0, client: null };
 async function getOpenAI() {
+  if (_openaiCache.client && Date.now() - _openaiCache.at < 5 * 60 * 1000) return _openaiCache.client;
   const { rows } = await db.query('SELECT openai_key FROM ai_settings LIMIT 1');
   if (rows.length === 0 || !rows[0].openai_key) {
     throw new Error('Chave OpenAI não configurada nas Configurações.');
   }
-  return new OpenAI({ apiKey: rows[0].openai_key });
+  _openaiCache = { at: Date.now(), client: new OpenAI({ apiKey: rows[0].openai_key }) };
+  return _openaiCache.client;
 }
 
 // ── Extração de texto ──
@@ -237,8 +242,9 @@ async function retrieve({ coachId, managerId, query, k = 4 }) {
   const openai = await getOpenAI();
   const emb = await openai.embeddings.create({ model: EMBED_MODEL, input: [String(query).slice(0, 4000)] });
   const qvec = toVectorLiteral(emb.data[0].embedding);
+  const kk = Math.min(8, Math.max(1, k));
   const { rows } = await db.query(`
-    SELECT c.content, d.filename, (c.embedding <=> $1::vector) AS dist
+    SELECT c.content, c.doc_id, (c.embedding <=> $1::vector) AS dist
     FROM coach_chunks c
     JOIN coach_documents d ON d.id = c.doc_id
     WHERE d.status = 'ready' AND (
@@ -247,9 +253,19 @@ async function retrieve({ coachId, managerId, query, k = 4 }) {
     )
     ORDER BY c.embedding <=> $1::vector
     LIMIT $4
-  `, [qvec, managerId || null, coachId || 'junior', Math.min(8, Math.max(1, k))]);
-  // Corte de relevância: distância de cosseno acima disso é ruído, melhor não injetar
-  return rows.filter(r => r.dist < 0.72).map(r => ({ content: r.content, source: r.filename }));
+  `, [qvec, managerId || null, coachId || 'junior', kk * 3]);
+  // Corte de relevância (dist alta = ruído) + diversidade: no máx. 2 trechos
+  // por documento — evita a dica virar refém de um único livro de modelos.
+  const perDoc = {};
+  const picked = [];
+  for (const r of rows) {
+    if (r.dist >= 0.72) break;
+    perDoc[r.doc_id] = (perDoc[r.doc_id] || 0) + 1;
+    if (perDoc[r.doc_id] > 2) continue;
+    picked.push({ content: r.content });
+    if (picked.length >= kk) break;
+  }
+  return picked;
 }
 
 module.exports = { getOpenAI, extractText, chunkText, embedMany, toVectorLiteral, needsSpacingFix, fixSpacing, processDocument, retrieve, isSupported };

@@ -27,6 +27,8 @@ const LiveCoach = (() => {
   const PREROLL_MS = 400;          // áudio guardado ANTES da voz começar (não corta a 1ª sílaba)
   const MIN_SPEECH_MS = 350;       // fala mínima para valer uma transcrição
   const MAX_UTTERANCE_MS = 30000;  // corte de segurança para monólogos sem pausa
+  const MIDFLUSH_MS = 5000;        // fala contínua acima disso: transcreve fatias NO MEIO da fala
+  const MIDFLUSH_PAUSE_MS = 280;   // micro-pausa mínima para cortar a fatia em fim de palavra
   const MERGE_WINDOW_MS = 8000;    // falas do mesmo locutor separadas por menos que isso viram um balão só
 
   let running = false;
@@ -508,13 +510,15 @@ const LiveCoach = (() => {
       } catch (e) { profile = null; profileHistory = []; coach = null; }
 
       // Metodologia do coach: aquece o cache com o briefing para a primeira
-      // dica já sair fundamentada (as seguintes refinam pela fala do cliente)
+      // dica já sair fundamentada (as seguintes refinam pela fala do cliente).
+      // O warmup abre a conexão com a OpenAI: primeira dica sem handshake.
       knowledge = CoachCore.createKnowledgeFetcher();
       knowledge.prefetch([
         (brief?.products || []).map(p => p.name).join(' '),
         brief?.industryLabel || '',
         'abertura rapport conexão início da conversa',
       ].join(' ').trim());
+      CoachCore.warmup(getApiKey());
 
       running = true;
       startedAt = Date.now();
@@ -579,9 +583,9 @@ const LiveCoach = (() => {
     // 100ms aqui é latência direta na dica. Fragmentação não é problema —
     // o merge de balões e o gate de entrega reagrupam.
     if (speaker === 'client') {
-      if (speechDur < 2500) return 700;
-      if (speechDur > 15000) return 500;
-      return 620;
+      if (speechDur < 2500) return 600;
+      if (speechDur > 15000) return 450;
+      return 540;
     }
     if (speechDur < 2500) return 1800;   // começo de fala: tolera pausa maior
     if (speechDur > 15000) return 1000;  // monólogo longo: corta mais rápido
@@ -662,11 +666,35 @@ const LiveCoach = (() => {
 
         const silence = now - ch.lastVoiceAt;
         const dur = now - ch.speechStartAt;
-        if (silence > adaptiveHang(dur, speaker) || dur > MAX_UTTERANCE_MS) {
+        // Fala longa: numa micro-pausa, manda o que JÁ foi dito para o STT sem
+        // fechar a fala. O tip vai sendo pré-gerado durante a fala (a entrega
+        // espera o momento certo) e, quando a pessoa para de verdade, só o
+        // rabo da fala paga transcrição — a dica sai quase instantânea.
+        if (dur > MIDFLUSH_MS && silence >= MIDFLUSH_PAUSE_MS && ch.voicedMs >= 900) {
+          flushUtterance(ch, speaker, sampleRate);
+        } else if (silence > adaptiveHang(dur, speaker) || dur > MAX_UTTERANCE_MS) {
           closeUtterance(ch, speaker, sampleRate);
         }
       }
     };
+  }
+
+  // Fatia intermediária de uma fala longa: transcreve o acumulado e SEGUE
+  // gravando no mesmo estado 'speaking' — o merge de balões reagrupa o texto.
+  function flushUtterance(ch, speaker, sampleRate) {
+    const buffers = ch.utter;
+    const totalLen = ch.utterLen;
+    const voicedMs = ch.voicedMs;
+    ch.utter = [];
+    ch.utterLen = 0;
+    ch.voicedMs = 0;
+    ch.speechStartAt = Date.now(); // janela da PRÓXIMA fatia
+    if (voicedMs < MIN_SPEECH_MS) return;
+    if (speaker === 'seller' && micPaused) return;
+    try {
+      const pcm16k = downsampleTo16k(buffers, totalLen, sampleRate);
+      transcribeChunk(encodeWav(pcm16k, 16000), speaker);
+    } catch (e) { console.warn('[LiveCoach] midflush fail', e); }
   }
 
   function closeUtterance(ch, speaker, sampleRate) {
@@ -827,6 +855,10 @@ const LiveCoach = (() => {
       }
       renderTranscript();
 
+      // Toda fala nova (dos DOIS lados) atualiza a metodologia em segundo
+      // plano: enquanto o vendedor responde, a busca da próxima dica já roda.
+      if (knowledge) knowledge.refresh(buildKnowledgeQuery());
+
       // Cliente falou → aciona o coach assim que ele TERMINAR a fala
       // (se ele só respirou e continuou, espera concluir o raciocínio).
       if (speaker === 'client') scheduleClientCoach();
@@ -879,6 +911,14 @@ const LiveCoach = (() => {
     requestCoach('client'); // gera JÁ; a entrega é que espera o momento certo
   }
 
+  // Consulta de metodologia: últimas falas (os dois lados dão o assunto) +
+  // estágio detectado. Mesma composição no hook do transcript e na dica —
+  // chaves iguais fazem o cache casar.
+  function buildKnowledgeQuery() {
+    const stageWord = latestStage && STAGE_LABELS[latestStage] ? STAGE_LABELS[latestStage].label : '';
+    return (transcript.slice(-4).map(s => s.text).join(' ').slice(-450) + ' ' + stageWord).trim();
+  }
+
   async function requestCoach(trigger) {
     if (!running) return;
     if (coachBusy) { coachQueued = true; return; }
@@ -914,11 +954,12 @@ const LiveCoach = (() => {
             .join('\n')}\n`
         : '';
 
-      // Metodologia do coach: trechos escolhidos pela última fala do cliente.
-      // Espera no máx. ~900ms — se a busca não voltar, usa o bloco anterior
-      // (a metodologia é por estágio da venda; um turno de atraso não dói).
-      const clientQuery = transcript.filter(s => s.speaker === 'client').slice(-3).map(s => s.text).join(' ');
-      const methodologyBlock = knowledge ? await knowledge.get(clientQuery) : '';
+      // Metodologia do coach: SEMPRE o bloco já em cache (zero espera — a
+      // busca roda em segundo plano a cada fala nova, ver hook no transcript).
+      // Dispara aqui também a atualização com a fala que acabou de chegar,
+      // para a PRÓXIMA dica já ter o bloco exato deste momento.
+      const methodologyBlock = knowledge ? knowledge.getCached() : '';
+      if (knowledge) knowledge.refresh(buildKnowledgeQuery());
 
       // Persona do coach atribuído pelo gestor (compartilhada com o WhatsApp Coach)
       const coachPersona = CoachCore.persona(coach);
@@ -954,7 +995,7 @@ Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acerto
 ━━━━━ CONVERSA AO VIVO ━━━━━${tipHistoryBlock}
 Falas recentes (mais recente por último; transcrição automática, pode ter erros):
 ${recent}
-
+${tips.length === 0 ? '\n🚀 PRIMEIRA DICA DA CHAMADA: ainda não existe nenhuma dica — retorne OBRIGATORIAMENTE tip e say preenchidos (abertura/rapport ou reação direta à fala). Nesta primeira resposta, tip null é PROIBIDO: o vendedor precisa sentir o coach ao lado desde o primeiro segundo.\n' : ''}
 ⚡ O CLIENTE ACABOU DE FALAR. Escreva a resposta que o vendedor deve dar AGORA.`;
 
       // Modelo do coach = gpt-4o-mini: o mini de menor latência. Com o

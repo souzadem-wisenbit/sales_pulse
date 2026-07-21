@@ -225,6 +225,7 @@ const WhatsAppCoach = (() => {
       profile = (p && p.profile && Object.keys(p.profile).length > 0) ? p.profile : null;
     } catch (e) { coach = null; profile = null; }
     knowledge = CoachCore.createKnowledgeFetcher();
+    CoachCore.warmup(getApiKey());
     try {
       const saved = await API.waGetBriefing();
       globalBrief = (saved && (saved.products || saved.extraProduct)) ? saved : null;
@@ -540,11 +541,19 @@ const WhatsAppCoach = (() => {
   // Cliente costuma mandar 2-3 mensagens seguidas: espera a rajada terminar
   // antes de acionar o coach (equivale ao "cliente parou de falar" do áudio).
   function scheduleCoach(chat) {
+    // A busca de metodologia roda DURANTE o debounce: quando a dica dispara,
+    // o bloco certo já está em cache — latência de busca = zero.
+    if (knowledge) knowledge.refresh(chatKnowledgeQuery(chat));
     if (chat.coachTimer) clearTimeout(chat.coachTimer);
     chat.coachTimer = setTimeout(() => {
       chat.coachTimer = null;
       requestCoach(chat);
     }, COACH_DEBOUNCE_MS);
+  }
+
+  function chatKnowledgeQuery(chat) {
+    const stageWord = chat.stage && STAGE_LABELS[chat.stage] ? STAGE_LABELS[chat.stage].label : '';
+    return (chat.messages.slice(-4).map(m => m.text).join(' ').slice(-450) + ' ' + stageWord).trim();
   }
 
   // ══════════════════════════════════════
@@ -575,10 +584,9 @@ const WhatsAppCoach = (() => {
             .join('\n')}\n`
         : '';
 
-      // Metodologia do coach pelos últimos textos do cliente (no WhatsApp a
-      // conversa é mais lenta — dá para esperar a busca um pouco mais)
-      const clientQuery = chat.messages.filter(m => m.speaker === 'client').slice(-3).map(m => m.text).join(' ');
-      const methodologyBlock = knowledge ? await knowledge.get(clientQuery, 1500) : '';
+      // Metodologia do coach: bloco já buscado durante o debounce (zero espera)
+      const methodologyBlock = knowledge ? knowledge.getCached() : '';
+      if (knowledge) knowledge.refresh(chatKnowledgeQuery(chat));
 
       // Bloco estático primeiro (persona + playbook + formato) e dinâmico por
       // último: ativa o cache de prompt da OpenAI e derruba a latência.

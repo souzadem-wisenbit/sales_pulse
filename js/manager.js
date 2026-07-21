@@ -2378,15 +2378,14 @@ const Manager = (() => {
       </div>` : '';
 
     // ── Metodologia dos coaches (documentos que alimentam as dicas) ──
-    const kdocs = lcData.kdocs || [];
-    const baseDocs = kdocs.filter(d => !d.manager_id);
-    const myDocs = kdocs.filter(d => d.manager_id);
-    const baseChunks = baseDocs.reduce((a, d) => a + (d.chunk_count || 0), 0);
+    // A base oficial do Júnior é interna ao produto: a API não devolve (e a
+    // UI não mostra) os arquivos dela — só os documentos do próprio gestor.
+    const myDocs = lcData.kdocs || [];
     const coachTargets = ranked.filter(s => s.hasProfile);
     const kStatusChip = (d) => {
       if (d.status === 'processing') return `<span style="color:var(--warning);font-size:0.72rem">⏳ processando…</span>`;
       if (d.status === 'error') return `<span style="color:var(--danger);font-size:0.72rem" title="${escHtml(d.error || '')}">⚠️ erro no processamento</span>`;
-      return `<span style="color:var(--success);font-size:0.72rem">✅ ${d.chunk_count || 0} trechos</span>`;
+      return `<span style="color:var(--success);font-size:0.72rem">✅ pronto — já alimenta as dicas</span>`;
     };
     const kCoachLabel = (d) => d.coach_id === 'junior' ? '⭐ Júnior (padrão)' : `🧬 Estilo de ${escHtml(d.coach_name || 'colega')}`;
     const knowledgeSection = `
@@ -2395,10 +2394,13 @@ const Manager = (() => {
           <div class="config-section-icon purple">📚</div>
           <div style="flex:1;min-width:220px">
             <div class="config-section-title">Metodologia dos coaches</div>
-            <div class="config-section-desc">Suba PDFs, imagens ou textos com metodologia de vendas — o material vira conhecimento do coach escolhido e passa a alimentar as dicas ao vivo. A metodologia oficial do ⭐ Júnior é a base de todos e nunca é descartada: o que você enviar entra como complemento.</div>
+            <div class="config-section-desc">Suba PDFs, imagens ou textos com a metodologia da SUA operação (scripts, tabelas de objeções, playbooks) — o material vira conhecimento do coach escolhido e passa a alimentar as dicas ao vivo.</div>
           </div>
         </div>
-        <div class="flex gap-3 flex-wrap" style="align-items:center;margin-bottom:var(--sp-4)">
+        <div class="api-config-info" style="margin-bottom:var(--sp-4)">
+          ➕ <strong>Seus documentos são um ADICIONAL:</strong> complementam o coach escolhido — <u>não substituem</u> nem o perfil dele, nem a metodologia oficial do ⭐ Júnior Smarzaro, que já vem embarcada como base de todos os coaches.
+        </div>
+        <div class="flex gap-3 flex-wrap" style="align-items:center;margin-bottom:${myDocs.length ? 'var(--sp-4)' : '0'}">
           <div>
             <label class="form-label" style="font-size:0.68rem">Adicionar ao coach</label>
             <select id="k-coach-target" class="form-select" style="min-width:230px" onchange="Manager.kSetCoachTarget(this.value)">
@@ -2409,14 +2411,6 @@ const Manager = (() => {
           <label class="btn btn-primary" style="cursor:pointer;margin-top:14px">📤 Enviar arquivos
             <input type="file" multiple accept=".pdf,.txt,.md,.csv,image/png,image/jpeg,image/webp,image/gif" style="display:none" onchange="Manager.kUploadFiles(this)">
           </label>
-        </div>
-        <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--r-md);padding:var(--sp-3) var(--sp-4);margin-bottom:${myDocs.length ? 'var(--sp-3)' : '0'}">
-          <details>
-            <summary style="cursor:pointer;font-size:0.85rem;font-weight:600;color:#ffd76a">⭐ Base oficial do Júnior — ${baseDocs.length} documento${baseDocs.length !== 1 ? 's' : ''} · ${baseChunks} trechos indexados</summary>
-            <div style="margin-top:var(--sp-2)">
-              ${baseDocs.map(d => `<div class="fs-xs text-secondary" style="padding:2px 0">📄 ${escHtml(d.filename)} · ${d.chunk_count || 0} trechos</div>`).join('') || '<div class="fs-xs text-muted">Base ainda não ingerida.</div>'}
-            </div>
-          </details>
         </div>
         ${myDocs.map(d => `
           <div style="display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-2) var(--sp-3);background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--r-md);margin-bottom:6px">

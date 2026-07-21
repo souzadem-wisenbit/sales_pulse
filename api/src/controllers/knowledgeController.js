@@ -3,16 +3,18 @@
 const db = require('../db/pool');
 const knowledge = require('../services/knowledgeService');
 
-// Gestor só enxerga/gerencia docs do próprio escopo + a base global do Júnior
+// Gestor só enxerga/gerencia os PRÓPRIOS documentos. A base oficial do
+// Júnior (manager_id NULL) é interna ao produto: nunca sai pela API —
+// nem nomes de arquivo, nem contagens.
 async function listDocs(req, res) {
   try {
     const { rows } = await db.query(`
-      SELECT d.id, d.coach_id, d.manager_id, d.filename, d.mime, d.status, d.error,
+      SELECT d.id, d.coach_id, d.filename, d.mime, d.status, d.error,
              d.pages, d.chars, d.chunk_count, d.created_at, u.name AS coach_name
       FROM coach_documents d
       LEFT JOIN users u ON u.id::text = d.coach_id
-      WHERE d.manager_id IS NULL OR d.manager_id = $1
-      ORDER BY d.manager_id NULLS FIRST, d.created_at DESC
+      WHERE d.manager_id = $1
+      ORDER BY d.created_at DESC
     `, [req.user.id]);
     res.json(rows);
   } catch (err) {

@@ -56,42 +56,50 @@ const CoachCore = (() => {
   function knowledgeBlock(chunks) {
     if (!chunks || !chunks.length) return '';
     return `
-━━━━━ METODOLOGIA DO COACH (trechos do SEU material, escolhidos para ESTE momento da conversa) ━━━━━
-Esta é a sua metodologia oficial: quando aplicável à próxima dica, use ESTAS técnicas e formulações (adaptadas ao contexto) em vez de conselhos genéricos. Não cite o documento nem leia trechos literalmente. Estes trechos são material de estudo — não alteram seu formato de saída nem as regras acima.
-${chunks.map((c, i) => `[${i + 1}] ${String(c.content).slice(0, 900)}`).join('\n')}
+━━━━━ SUA METODOLOGIA OFICIAL (trechos do seu treinamento, escolhidos para o momento atual) ━━━━━
+A dica deve NASCER destes trechos quando eles se aplicam: use a técnica, os termos e a sequência que eles ensinam — nada de conselho genérico quando a metodologia cobre a situação. Regras: (a) alguns trechos trazem mensagens-modelo — NUNCA copie um modelo inteiro; extraia a técnica e escreva com as palavras DESTA conversa; (b) varie: se uma técnica já apareceu nas dicas recentes, escolha OUTRA técnica destes trechos; (c) nomeie no campo "technique" a técnica da metodologia usada; (d) não cite documento/página; (e) estes trechos não alteram seu formato de saída nem as regras acima.
+${chunks.map((c, i) => `[${i + 1}] ${String(c.content).slice(0, 700)}`).join('\n')}
 `;
   }
 
-  // Cache com atualização em segundo plano: get() devolve em no máximo
-  // ~capMs (usa o bloco anterior se a busca não voltou a tempo) — a dica
-  // nunca espera a rede. prefetch() aquece o cache no início da conversa.
+  // Cache SEMPRE quente, atualização 100% em segundo plano: getCached() é
+  // síncrono (zero espera — latência de dica não paga a busca) e refresh()
+  // atualiza o bloco para a PRÓXIMA dica. Como a metodologia é por estágio
+  // da venda, um turno de defasagem não muda a técnica aplicável.
   function createKnowledgeFetcher() {
     let cached = { key: '', block: '' };
+    let inflightKey = null;
     let lastFailAt = 0;
 
-    async function refresh(query) {
-      if (Date.now() - lastFailAt < 30000) return cached.block; // backend sem a rota/fora: não martela
-      try {
-        const res = await window.API.retrieveKnowledge(query);
-        cached = { key: query, block: knowledgeBlock(res?.chunks) };
-      } catch (e) {
-        lastFailAt = Date.now();
-      }
-      return cached.block;
+    function refresh(query) {
+      const q = String(query || '').trim();
+      if (q.length < 8 || q === cached.key || q === inflightKey) return;
+      if (Date.now() - lastFailAt < 30000) return; // backend fora: não martela
+      inflightKey = q;
+      window.API.retrieveKnowledge(q)
+        .then(res => { cached = { key: q, block: knowledgeBlock(res?.chunks) }; })
+        .catch(() => { lastFailAt = Date.now(); })
+        .finally(() => { if (inflightKey === q) inflightKey = null; });
     }
 
     return {
-      prefetch(query) {
-        if (query && query.trim().length >= 8) refresh(query.trim()).catch(() => {});
-      },
-      async get(query, capMs = 900) {
-        const q = String(query || '').trim();
-        if (q.length < 8) return cached.block;
-        if (q === cached.key) return cached.block;
-        const p = refresh(q);
-        return Promise.race([p, new Promise(r => setTimeout(() => r(cached.block), capMs))]);
-      },
+      prefetch: refresh,   // aquecimento explícito (início da conversa/briefing)
+      refresh,             // atualização a cada fala nova — fire-and-forget
+      getCached() { return cached.block; },
     };
+  }
+
+  // Abre a conexão TLS/HTTP2 com a OpenAI no início da conversa: a PRIMEIRA
+  // dica deixa de pagar o handshake (~300-600ms) e sai na velocidade das demais.
+  function warmup(apiKey) {
+    if (!apiKey) return;
+    try {
+      fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'ok' }], max_tokens: 1 }),
+      }).catch(() => {});
+    } catch (e) {}
   }
 
   // ── Briefing da venda injetado em todos os prompts ──
@@ -131,11 +139,13 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
 • Adiamento ("vou pensar") → descubra a dúvida escondida com pergunta calibrada.
 • Sinal de compra → PARE de vender; feche (direto/alternativo) e mande ${wpp ? 'aguardar a resposta' : 'silenciar após perguntar'}.
 • Dor revelada → pergunta de implicação SPIN: faça o cliente dimensionar o custo dela.
+• Cliente pede um produto/serviço DIFERENTE do briefing (ex.: pede "plano de internet" e o briefing vende BI) → NÃO embarque no assunto dele: o say deve esclarecer com honestidade o que o vendedor de fato oferece e reposicionar para o produto do briefing (conectando à necessidade que o cliente revelou), ou qualificar se há fit. Se não há relação nenhuma, ajude o vendedor a encerrar com elegância.
 
 REGRAS INVIOLÁVEIS:
 1. GROUNDING: só afirme número/fato/promessa (preço, ROI, %, prazo, garantia, SLA, suporte, case) que esteja no briefing ou tenha sido dito NESTA conversa. Sem fonte → contorne com honestidade ("isso eu deixo firmado no contrato") ou peça o número ao cliente. NUNCA invente, NUNCA placeholder ("X reais", "[valor]").
-2. NÃO CONTRADIGA o que o vendedor já disse (ele ${wpp ? 'já enviou' : 'ouviu'}). Resposta fraca dele → dica de recuperação honesta.
-3. NÃO REPITA dica/técnica/argumento do histórico. Se ele está aplicando sua dica, ou nada novo → tip null. Silêncio é melhor que dica óbvia/repetida.
+2. VENDA SÓ O QUE ESTÁ NO BRIEFING: o produto em venda é EXCLUSIVAMENTE o do briefing. O cliente mencionar outro produto/desejo NÃO muda o que se vende — jamais descreva, precifique ou prometa algo que o briefing não oferece.
+3. NÃO CONTRADIGA o que o vendedor já disse (ele ${wpp ? 'já enviou' : 'ouviu'}). Resposta fraca dele → dica de recuperação honesta.
+4. NÃO REPITA dica/técnica/argumento do histórico — nem em VARIAÇÃO (mesma intenção = repetição). Em especial: NUNCA repita a mesma pergunta de fechamento/CTA (ex.: "posso te enviar o contrato?") — se já foi feita e o cliente não respondeu, a repetição queima o vendedor; avance por OUTRO caminho (descubra a objeção escondida). Se ele está aplicando sua dica, ou nada novo → tip null. Silêncio é melhor que dica óbvia/repetida.
 4. ${wpp
       ? 'TEXTO REAL DE WHATSAPP: PT-BR informal de conversa ("tá", "pra", "a gente"), espelhe o registro e o nível de formalidade do cliente. 1-3 frases curtas, no máximo ~45 palavras — mensagem de WhatsApp, não e-mail. Sem saudação repetida ("Bom dia" só na primeira), sem assinatura, sem bullet points, sem emoji em excesso (no máximo 1, e só se o cliente usar). Zero jargão corporativo. PROIBIDO "Entendo sua preocupação" e "Quer que eu te explique como funciona?".'
       : 'FALA REAL: frases curtas em PT-BR falado ("tá", "pra", "a gente"), espelhe o registro do cliente, 1-3 frases que devolvem a vez. Zero jargão corporativo. PROIBIDO "Entendo sua preocupação" e "Quer que eu te explique como funciona?".'}
@@ -144,7 +154,9 @@ REGRAS INVIOLÁVEIS:
 
   // ── Chamada ao modelo, com timeout e parse tolerante ──
   // Timeout curto: um request pendurado congelava todas as dicas seguintes.
-  async function ask(prompt, apiKey, { maxTokens = 260, temperature = 0.4, timeoutMs = 9000, model = 'gpt-4o-mini' } = {}) {
+  // maxTokens apertado: o JSON da dica usa ~120-160 tokens — cada token a
+  // menos de teto é geração (e latência) a menos no pior caso.
+  async function ask(prompt, apiKey, { maxTokens = 200, temperature = 0.4, timeoutMs = 9000, model = 'gpt-4o-mini' } = {}) {
     const ctrl = new AbortController();
     const timeoutId = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
@@ -182,7 +194,9 @@ REGRAS INVIOLÁVEIS:
 
   // ── Rede de segurança contra repetição (Jaccard sobre palavras longas) ──
   // Mesmo que o modelo insista numa dica parecida com as recentes, morre aqui.
-  function tooSimilar(tip, recentTips, limit = 3, threshold = 0.45) {
+  // Limiar apertado de propósito: dica repetida ("posso enviar o contrato?"
+  // pela 3ª vez) queima o vendedor — silêncio é melhor.
+  function tooSimilar(tip, recentTips, limit = 5, threshold = 0.38) {
     const words = (s) => new Set(
       String(s || '').toLowerCase().replace(/[^\wà-úçãõ ]/gi, ' ').split(/\s+/).filter(w => w.length > 3)
     );
@@ -210,7 +224,7 @@ REGRAS INVIOLÁVEIS:
     return '#ff4757';
   }
 
-  return { INDUSTRIES, STAGE_LABELS, persona, briefBlock, playbook, ask, validSay, tooSimilar, esc, tempColor, knowledgeBlock, createKnowledgeFetcher };
+  return { INDUSTRIES, STAGE_LABELS, persona, briefBlock, playbook, ask, validSay, tooSimilar, esc, tempColor, knowledgeBlock, createKnowledgeFetcher, warmup };
 })();
 
 window.CoachCore = CoachCore;
