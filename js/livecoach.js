@@ -102,6 +102,13 @@ const LiveCoach = (() => {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  // Say com ênfases: **trecho** vira negrito amarelo — as palavras que o
+  // vendedor deve enfatizar na voz. Estilo inline para valer também na
+  // janela flutuante (documento separado).
+  function renderSay(say) {
+    return esc(say).replace(/\*\*(.+?)\*\*/g, '<strong style="color:#ffd25c;font-weight:800">$1</strong>');
+  }
+
   function fmtClock(ms) {
     const s = Math.floor(ms / 1000);
     return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -130,20 +137,20 @@ const LiveCoach = (() => {
     return `
       <style>
         #livecoach-overlay { position: fixed; inset: 0; z-index: 99990; background: #07070f; overflow-y: auto; color: #e8e8f0; font-family: inherit; }
-        .lc-wrap { max-width: 1280px; margin: 0 auto; padding: 1.5rem; }
+        .lc-wrap { max-width: 1720px; margin: 0 auto; padding: 1.25rem 1.75rem; }
         .lc-header { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
         .lc-title { font-size: 1.3rem; font-weight: 800; }
         .lc-live-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff4757; animation: lcPulse 1.2s infinite; display: inline-block; margin-right: 6px; }
         @keyframes lcPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-        .lc-grid { display: grid; grid-template-columns: minmax(0,1fr) 350px; gap: 1.25rem; align-items: start; }
+        .lc-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(400px, 470px); gap: 1.25rem; align-items: start; }
         .lc-grid.lc-theater { grid-template-columns: 1fr; }
-        @media (max-width: 900px) { .lc-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 1000px) { .lc-grid { grid-template-columns: 1fr; } }
         .lc-card { background: rgba(14,14,26,0.85); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 1.25rem; }
         .lc-card + .lc-card { margin-top: 1.25rem; }
         .lc-card-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #5a5a7a; margin-bottom: 0.9rem; }
         .lc-video { width: 100%; max-height: 56vh; border-radius: 10px; background: #000; display: block; object-fit: contain; }
         .lc-theater .lc-video { max-height: 74vh; }
-        .lc-transcript { max-height: 40vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .lc-transcript { max-height: 48vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
         .lc-seg { padding: 8px 12px; border-radius: 10px; font-size: 0.86rem; line-height: 1.45; max-width: 92%; }
         .lc-seg.seller { background: rgba(108,99,255,0.14); border: 1px solid rgba(108,99,255,0.25); align-self: flex-end; }
         .lc-seg.client { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); align-self: flex-start; }
@@ -169,8 +176,8 @@ const LiveCoach = (() => {
         .lc-say { margin-top: 10px; padding: 11px 13px; border-radius: 10px; background: rgba(7,7,15,0.55); border: 1px dashed rgba(255,255,255,0.22); }
         .lc-say-label { font-size: 0.6rem; font-weight: 800; letter-spacing: 1.4px; color: #8a8aad; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
         .lc-say-tone { font-style: italic; font-weight: 600; text-transform: none; letter-spacing: 0.2px; color: #b0aed6; }
-        .lc-say-tone-line { margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.14); font-size: 0.8rem; line-height: 1.45; color: #ffd28a; }
-        .lc-say-tone-line strong { color: #ffde9e; letter-spacing: 0.4px; }
+        .lc-hero-tone { font-size: 1.02rem; font-weight: 700; line-height: 1.45; color: #ffd28a; }
+        .lc-say-text strong { color: #ffd25c; font-weight: 800; }
         .lc-say-text { font-size: 0.96rem; line-height: 1.55; color: #ffffff; }
         .lc-fresh-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #2ed573; margin-right: 5px; animation: lcPulse 1.2s infinite; }
         /* ── Histórico: dicas antigas encolhem e apagam ── */
@@ -644,6 +651,7 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
     // Eco do próprio prompt de contexto da transcrição (whisper devolve o
     // prompt em trechos de silêncio/ruído — virava "fala do cliente")
     'reunião de vendas em português brasileiro', 'termos comuns: proposta',
+    'português brasileiro por videochamada', 'termos comuns:',
     'amara.org', 'legendas pela comunidade', 'legendado por', 'transcrito por',
     'obrigado por assistir', 'não se esqueça de se inscrever', 'inscreva-se no canal',
     'se inscreva no canal', 'curta o vídeo', 'deixe seu like', 'até o próximo vídeo',
@@ -840,7 +848,7 @@ Quando ajudar, ESPELHE as palavras exatas do cliente dentro do "say" (a palavra 
 `;
 
       // Persona do coach atribuído pelo gestor
-      let coachPersona = 'Você é um coach de vendas de elite (formado em SPIN Selling, Challenger e Sandler)';
+      let coachPersona = 'Você é um coach de vendas padrão com um comportamento padrão e é razoávelmente bom em vendas. Usa técnicas de vendas intermediárias.';
       if (coach && coach.id === 'junior') {
         coachPersona = 'Você é JÚNIOR SMARZARO, coach master de vendas — mentor lendário, direto ao ponto, focado em fechamento e em fazer o vendedor performar no mais alto nível (metodologia própria; formado também em SPIN Selling, Challenger e Sandler)';
       } else if (coach && coach.profile && Object.keys(coach.profile).length > 0) {
@@ -872,7 +880,7 @@ REGRAS DE OURO (obrigatórias, valem para QUALQUER coach):
 9. NÃO SE REPITA (CRÍTICO): você vê acima as dicas que JÁ deu nesta chamada. É PROIBIDO repetir dica, técnica, argumento ou número que você já entregou — inclusive variação cosmética do mesmo conselho. Se o vendedor está APLICANDO sua última dica, retorne {"tip": null} e deixe-o trabalhar. Se ele IGNOROU a dica e o problema persiste, mude o ÂNGULO: outra técnica, outro argumento, abordagem mais direta — nunca a mesma dica reescrita.
 10. SILÊNCIO É OURO: dica óbvia, genérica ou parecida com uma anterior é PIOR que nenhuma. Na dúvida, {"tip": null}. Fale somente quando tiver algo NOVO que muda o jogo AGORA. É normal (e desejável) várias falas do cliente passarem sem dica.
 11. PRIORIDADE CALIBRADA: "urgent" é RARO — só quando errar NESTA resposta pode custar o negócio (objeção dura no ar, sinal de compra sendo desperdiçado, cliente prestes a encerrar). Fluxo normal = "normal". Acerto do vendedor = "good". Se está tudo fluindo, prefira null.
-12. LINGUAGEM VIVA NO "say": PROIBIDO abrir com "Entendo sua preocupação..." e PROIBIDO fechar com "Isso faz sentido para você?" (ou variações batidas). Escreva como um vendedor bom fala de verdade: direto, natural, sem fórmula.
+12. LINGUAGEM VIVA NO "say": PROIBIDO abrir com "Entendo sua preocupação..." e PROIBIDO fechar com "Isso faz sentido para você?" ou "Quer que eu te explique/mostre como funciona?" (essas muletas se repetiam em TODA dica). Varie os fechamentos: pergunta de avanço específica, afirmação seca com silêncio, ou devolução da palavra. Escreva como um vendedor bom fala de verdade: direto, natural, sem fórmula.
 13. REALIDADE ESTRITA (GROUNDING — a regra mais importante do "say"): tudo no say deve apontar para algo que EXISTE na transcrição. PROIBIDO: referência vazia ("isso", "essa dor", "esse impacto", "o problema que você citou") quando a coisa NÃO foi dita; inventar fatos da conversa; presumir o que uma fala cortada ia dizer. Checklist obrigatório antes de entregar: (a) cada referência do say existe na conversa? (b) o say encaixa como a PRÓXIMA fala natural DESTA conversa específica? Se qualquer resposta for "não" → reescreva ou retorne {"tip": null}.
 14. DNA DE FALA REAL AO TELEFONE (escreva o say como se fosse dito, não escrito):
    • Frases CURTAS, português brasileiro falado: "tá", "pra", "a gente", "olha", "então" — nada de prosa escrita.
@@ -888,9 +896,9 @@ Retorne EXCLUSIVAMENTE JSON (preencha "reading" PRIMEIRO — a dica deve derivar
 {
   "reading": "o que a última fala do cliente REALMENTE significa/pede, em até 10 palavras",
   "tip": "diagnóstico/direção curta e cirúrgica (máx 14 palavras), coerente com a reading. null se nada útil, se o trecho for só ruído, ou se qualquer regra acima mandar silenciar.",
-  "say": "fala PRONTA para o vendedor dizer AGORA, natural e fluida, 1-3 frases (máx 45 palavras). null se não se aplicar.",
+  "say": "fala PRONTA para o vendedor dizer AGORA, natural e fluida, 1-3 frases (máx 45 palavras). Marque entre **asteriscos duplos** os 1-3 trechos que merecem ÊNFASE na voz (ex: 'quanto isso te custa **por mês** hoje?'). null se não se aplicar.",
   "grounded": <true|false — responda com honestidade: TRUE somente se CADA número, fato e promessa do say tem fonte no briefing ou nesta conversa. Se false, o say será descartado pelo sistema>,
-  "tone": "ENTONAÇÃO da entrega (OBRIGATÓRIO sempre que say existir): 4-9 palavras cobrindo tom, ritmo, pausas e onde dar ênfase — ex: 'calmo e firme, ritmo lento, pausa depois do valor, ênfase em economia'. Combine a entonação com o estado emocional do cliente captado nas nuances.",
+  "tone": "ENTONAÇÃO da entrega (OBRIGATÓRIO sempre que say existir): 4-8 palavras cobrindo tom, ritmo e pausas — ex: 'calmo e firme, ritmo lento, pausa antes do valor'. Combine com o estado emocional do cliente captado nas nuances. (A ênfase já vai marcada no say com **.)",
   "technique": "nome da técnica aplicada, 2-4 palavras. null se tip for null.",
   "priority": "urgent|normal|good",
   "icon": "um emoji",
@@ -1058,7 +1066,7 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
       // Notificação do navegador só quando estiver em OUTRA aba e a dica
       // for urgente (ou a primeira da chamada) — nada de spam repetitivo.
       if (document.hidden && Notification.permission === 'granted' && (tip.priority === 'urgent' || tips.length === 1)) {
-        const body = `${tip.icon} ${tip.tip}${tip.say ? `\n💬 "${tip.say}"` : ''}`.slice(0, 180);
+        const body = `${tip.icon} ${tip.tip}${tip.say ? `\n💬 "${tip.say.replace(/\*\*/g, '')}"` : ''}`.slice(0, 180);
         new Notification('🎧 Live Coach', { body, tag: 'livecoach-tip' });
       }
     } catch (e) {}
@@ -1423,12 +1431,12 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
           : t.priority === 'good'
             ? { fg: '#a9f5c8', border: 'rgba(46,213,115,0.6)', bg: 'rgba(46,213,115,0.10)', label: '✅ MANDOU BEM', labelBg: '#2ed573', labelFg: '#04140b' }
             : { fg: '#d5d1ff', border: 'rgba(108,99,255,0.7)', bg: 'rgba(108,99,255,0.12)', label: '🎯 DICA', labelBg: '#6c63ff', labelFg: '#fff' };
-        tipEl.innerHTML = `<span style="font-size:1.2rem;margin-right:6px">${t.icon || '🎯'}</span><span style="color:${theme.fg}">${esc(t.tip)}</span>`;
+        tipEl.innerHTML = `<span style="font-size:1.2rem;margin-right:6px">${t.icon || '🎯'}</span><span style="color:${t.say && t.tone ? '#ffd28a' : theme.fg}">${t.say && t.tone ? '🎭 ' + esc(t.tone) : esc(t.tip)}</span>`;
         const sayEl = d.getElementById('pip-say');
         if (sayEl) {
           if (t.say) {
             sayEl.style.display = 'block';
-            sayEl.innerHTML = `<span style="font-size:0.58rem;font-weight:800;letter-spacing:1.2px;color:#8a8aad">💬 FALE ASSIM</span><br>"${esc(t.say)}"${t.tone ? `<br><span style="font-size:0.78rem;color:#ffd28a">🎭 <b>Entonação:</b> ${esc(t.tone)}</span>` : ''}`;
+            sayEl.innerHTML = `<span style="font-size:0.58rem;font-weight:800;letter-spacing:1.2px;color:#8a8aad">💬 FALE ASSIM</span><br>"${renderSay(t.say)}"`;
           } else {
             sayEl.style.display = 'none';
           }
@@ -1501,13 +1509,14 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
         <span class="lc-hero-label">${HERO_LABELS[hero.priority] || HERO_LABELS.normal}</span>${hero.technique ? `<span class="lc-tech-chip">📐 ${esc(hero.technique)}</span>` : ''}
         <div class="lc-hero-body">
           <span class="lc-hero-icon">${hero.icon || '🎯'}</span>
-          <div class="lc-hero-text">${esc(hero.tip)}</div>
+          ${hero.say && hero.tone
+            ? `<div class="lc-hero-tone">🎭 ${esc(hero.tone)}</div>`
+            : `<div class="lc-hero-text">${esc(hero.tip)}</div>`}
         </div>
         ${hero.say ? `
         <div class="lc-say">
-          <div class="lc-say-label"><span>💬 FALE ASSIM</span></div>
-          <div class="lc-say-text">"${esc(hero.say)}"</div>
-          ${hero.tone ? `<div class="lc-say-tone-line">🎭 <strong>Entonação:</strong> ${esc(hero.tone)}</div>` : ''}
+          <div class="lc-say-label"><span>💬 FALE ASSIM</span><span class="lc-say-tone">as <strong style="color:#ffd25c">palavras amarelas</strong> levam a ênfase</span></div>
+          <div class="lc-say-text">"${renderSay(hero.say)}"</div>
         </div>` : ''}
         <div class="lc-hero-fresh">
           <span><span class="lc-fresh-dot"></span><span id="lc-tip-fresh">${freshLabel(hero.t)}</span></span>
