@@ -21,7 +21,7 @@
 
 const LiveCoach = (() => {
 
-  const COACH_GAP_CLIENT_MS = 2500;  // cooldown mínimo entre chamadas do coach (anti-duplicata)
+  const COACH_GAP_CLIENT_MS = 1200;  // cooldown mínimo entre chamadas do coach (anti-duplicata)
   const TIP_MAX_HOLD_MS = 45000;   // dica segurada por mais que isso = assunto já mudou, descarta
   const SAVE_INTERVAL_MS = 12000;  // frequência de persistência no backend
   const PREROLL_MS = 400;          // áudio guardado ANTES da voz começar (não corta a 1ª sílaba)
@@ -83,7 +83,6 @@ const LiveCoach = (() => {
     ['logistica', '🚚 Logística / Transporte'],
   ];
   let transcribeModelOk = true;    // gpt-4o-mini-transcribe disponível?
-  let coachModelOk = true;         // gpt-4.1-mini disponível para o coach?
 
   const STAGE_LABELS = {
     rapport:      { label: 'Rapport',      icon: '🤝' },
@@ -102,11 +101,13 @@ const LiveCoach = (() => {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // Say com ênfases: **trecho** vira negrito amarelo — as palavras que o
-  // vendedor deve enfatizar na voz. Estilo inline para valer também na
-  // janela flutuante (documento separado).
+  // Say pronto para leitura ao vivo: **palavra-chave** vira amarelo (onde
+  // dar ênfase na voz) e (PAUSA) fica amarelo (onde pausar). Estilo inline
+  // para valer também na janela flutuante (documento separado).
   function renderSay(say) {
-    return esc(say).replace(/\*\*(.+?)\*\*/g, '<strong style="color:#ffd25c;font-weight:800">$1</strong>');
+    return esc(say)
+      .replace(/\*\*(.+?)\*\*/g, '<strong style="color:#ffd25c;font-weight:800">$1</strong>')
+      .replace(/\(\s*pausa\s*\)/gi, '<strong style="color:#ffd25c;font-weight:800">(PAUSA)</strong>');
   }
 
   function fmtClock(ms) {
@@ -506,9 +507,9 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
     // 100ms aqui é latência direta na dica. Fragmentação não é problema —
     // o merge de balões e o gate de entrega reagrupam.
     if (speaker === 'client') {
-      if (speechDur < 2500) return 900;
-      if (speechDur > 15000) return 600;
-      return 750;
+      if (speechDur < 2500) return 700;
+      if (speechDur > 15000) return 500;
+      return 620;
     }
     if (speechDur < 2500) return 1800;   // começo de fala: tolera pausa maior
     if (speechDur > 15000) return 1000;  // monólogo longo: corta mais rápido
@@ -841,10 +842,6 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
             .join('\n')}\n`
         : '';
 
-      const triggerBlock = `
-⚡ O CLIENTE ACABOU DE FALAR — escreva a fala pronta que o vendedor deve dizer AGORA. Capte o SUBTEXTO da última fala dele: hesitação/frase inacabada = insegurança; resposta seca depois de respostas longas = desinteresse ou pressa; pergunta sobre preço/prazo/contrato/pagamento = sinal de compra (mesmo em tom neutro); tema que volta (preço, prazo) = A objeção real disfarçada. Espelhe as palavras exatas do cliente dentro do "say".
-`;
-
       // Persona do coach atribuído pelo gestor
       let coachPersona = 'Você é um coach de vendas padrão com um comportamento padrão e é razoávelmente bom em vendas. Usa técnicas de vendas intermediárias.';
       if (coach && coach.id === 'junior') {
@@ -853,82 +850,80 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
         coachPersona = `Você é um coach de vendas de elite que treina no ESTILO do vendedor de referência "${coach.name}". Estilo de referência a ser transmitido nas dicas:\n${JSON.stringify(coach.profile)}\nOriente o vendedor a incorporar os pontos fortes desse estilo`;
       }
 
-      const prompt = `${coachPersona}, observando em silêncio uma chamada de vendas REAL por vídeo. O VENDEDOR é seu aluno; você escreve a fala PRONTA que ele deve dizer AGORA.
-${briefBlock()}${profileBlock}${tipHistoryBlock}${triggerBlock}
-CONVERSA (mais recente por último; transcrição automática, pode ter pequenos erros):
-${recent}
+      // Prompt montado com o BLOCO ESTÁTICO primeiro (persona + regras +
+      // formato) e o DINÂMICO por último (briefing/perfil/histórico/
+      // transcrição). Isso ativa o cache automático de prompt da OpenAI:
+      // do 2º disparo em diante o prefixo estático não é reprocessado →
+      // menos latência (TTFT) em toda a chamada.
+      const prompt = `${coachPersona}, observando em silêncio uma chamada de vendas REAL por vídeo. O VENDEDOR é seu aluno; você escreve a fala PRONTA que ele deve dizer AGORA. Quando o cliente termina de falar, capte o subtexto (hesitação/frase inacabada = insegurança; resposta seca = desinteresse/pressa; pergunta sobre preço/prazo/contrato = sinal de compra; tema que volta = objeção real disfarçada) e escreva a resposta perfeita, espelhando as palavras do cliente.
 
 COMO AGIR — classifique a última fala do CLIENTE e ataque essa categoria:
 • Início/rapport → conexão genuína (elogio específico, interesse real pelo negócio dele). NÃO fale de produto nem cave dor cedo demais.
-• Esclarecimento ("como assim?", "não entendi") → ajude o vendedor a reformular COM CLAREZA o que ELE tentou dizer; zero técnica de venda. Se a fala dele veio cortada e você não sabe o que ia dizer → tip null.
-• Preço → nunca desconto de cara; ancore no valor e no custo do problema. Se o briefing traz o preço, use-o. Se NÃO traz, escreva um say que ancora o valor e ENTREGA a deixa pro vendedor dizer o preço dele (ex: "...e nesse valor já vai todo o suporte; deixa eu te passar o número fechado agora") — jamais invente número nem escreva placeholder.
+• Esclarecimento ("como assim?", "não entendi") → ajude o vendedor a reformular COM CLAREZA o que ELE tentou dizer; zero técnica. Se a fala dele veio cortada e você não sabe o que ia dizer → tip null.
+• Preço → nunca desconto de cara; ancore no valor e no custo do problema. Se o briefing traz o preço, use-o. Se NÃO traz, escreva um say que ancora o valor e ENTREGA a deixa pro vendedor dizer o preço ("...e nesse valor já vai o suporte; (PAUSA) deixa eu te passar o número fechado") — jamais invente número nem placeholder.
 • "Será que funciona?" → prova social só se estiver no briefing; senão inversão de risco (piloto/garantia) como oferta que o VENDEDOR pode fazer.
 • Autoridade ("falar com sócio") → isole ("se dependesse só de você, fecharia?") e amarre próximo passo com data.
-• Adiamento ("vou pensar") → descubra a dúvida escondida com pergunta calibrada; não aceite sem mapear.
-• Sinal de compra (prazo, contrato, pagamento) → PARE de vender; feche (direto/alternativo) e mande silenciar após perguntar.
+• Adiamento ("vou pensar") → descubra a dúvida escondida com pergunta calibrada.
+• Sinal de compra → PARE de vender; feche (direto/alternativo) e mande silenciar após perguntar.
 • Dor revelada → pergunta de implicação SPIN: faça o cliente dimensionar o custo dela.
 
 REGRAS INVIOLÁVEIS:
-1. GROUNDING: só afirme número/fato/promessa (preço, ROI, %, prazo, garantia, SLA, suporte, case) que esteja no briefing ou tenha sido dito NESTA conversa. Sem fonte → contorne com honestidade ("isso eu deixo firmado no contrato") ou peça o número ao cliente. NUNCA invente, NUNCA escreva placeholder ("X reais", "[valor]").
-2. NÃO CONTRADIGA o que o vendedor já disse ao cliente (ele ouviu). Resposta fraca dele → dica de recuperação honesta, não reescrever a realidade.
-3. NÃO REPITA dica/técnica/argumento do histórico acima. Se o vendedor está aplicando sua última dica, ou não há nada NOVO que mude o jogo → tip null. Silêncio é melhor que dica óbvia ou repetida.
-4. FALA REAL: frases curtas em PT-BR falado ("tá", "pra", "a gente"), espelhe o registro do cliente (gíria dele = leve; formal = profissional), 1-3 frases que devolvem a vez. Zero jargão corporativo. PROIBIDO "Entendo sua preocupação" e "Quer que eu te explique como funciona?". Lido em voz alta, tem que soar como a próxima fala perfeita — sem parecer roteiro.
-5. PRIORIDADE: "urgent" é raro (errar AGORA custa o negócio); fluxo normal = "normal"; acerto do vendedor = "good".
+1. GROUNDING: só afirme número/fato/promessa (preço, ROI, %, prazo, garantia, SLA, suporte, case) que esteja no briefing ou tenha sido dito NESTA conversa. Sem fonte → contorne com honestidade ("isso eu deixo firmado no contrato") ou peça o número ao cliente. NUNCA invente, NUNCA placeholder ("X reais", "[valor]").
+2. NÃO CONTRADIGA o que o vendedor já disse (ele ouviu). Resposta fraca dele → dica de recuperação honesta.
+3. NÃO REPITA dica/técnica/argumento do histórico. Se ele está aplicando sua dica, ou nada novo → tip null. Silêncio é melhor que dica óbvia/repetida.
+4. FALA REAL: frases curtas em PT-BR falado ("tá", "pra", "a gente"), espelhe o registro do cliente, 1-3 frases que devolvem a vez. Zero jargão corporativo. PROIBIDO "Entendo sua preocupação" e "Quer que eu te explique como funciona?".
+5. PRIORIDADE: "urgent" é raro (errar AGORA custa o negócio); normal = "normal"; acerto do vendedor = "good".
+
+MARCAÇÃO DO "say" (é o que o vendedor LÊ ao vivo — ele precisa usar em 1 segundo):
+- Envolva em **asteriscos** APENAS as 1-3 PALAVRAS-CHAVE que carregam o peso e devem ser enfatizadas na voz (ex: **garantia**, **hoje**, **grátis**, o número). NUNCA marque frases inteiras nem palavras banais.
+- Escreva (PAUSA) exatamente onde ele deve pausar de propósito (antes do preço, antes da pergunta de fechamento). Use com parcimônia.
 
 Retorne SÓ JSON:
 {
- "tip": "diagnóstico interno curtíssimo (máx 12 palavras). null se ruído, repetição, ou nada novo a dizer",
- "say": "a fala PRONTA do vendedor, 1-3 frases faladas (máx 42 palavras). Marque com **asteriscos** as 1-3 palavras/trechos de ÊNFASE na voz. Presente SEMPRE que houver tip.",
- "grounded": <true só se CADA número/fato/promessa do say tem fonte no briefing ou na conversa; senão false — o say será descartado>,
- "tone": "entonação da entrega, 4-8 palavras (tom, ritmo, pausas). Ex: 'calmo e firme, pausa antes do valor'",
+ "tip": "diagnóstico interno curtíssimo (máx 10 palavras). null se ruído/repetição/nada novo",
+ "say": "a fala pronta do vendedor, 1-3 frases faladas (máx 42 palavras), com **palavras-chave** e (PAUSA) embutidos. Presente sempre que houver tip.",
+ "grounded": <true só se cada número/fato/promessa do say tem fonte; senão false — say descartado>,
  "technique": "técnica aplicada, 2-4 palavras",
  "priority": "urgent|normal|good",
  "stage": "rapport|descoberta|apresentacao|objecoes|fechamento",
  "temperature": <0-100 quão quente está a negociação>
 }
-Se o vendedor mandou bem, priority "good": no tip diga qual técnica ele acertou e no say entregue a jogada seguinte pronta.`;
+Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acertou e no say a jogada seguinte.
 
-      // Modelo do coach: gpt-4.1-mini segue instruções finas (grounding,
-      // anti-repetição, DNA de fala) bem melhor que o 4o-mini com latência
-      // parecida. Se a conta não tiver acesso, cai para o modelo
-      // configurado e não insiste nas próximas chamadas.
-      const configuredModel = Storage.getConfig().openaiModel || 'gpt-4o-mini';
-      const modelCandidates = (coachModelOk && configuredModel !== 'gpt-4.1-mini')
-        ? ['gpt-4.1-mini', configuredModel]
-        : [configuredModel];
+━━━━━ BRIEFING DESTA CHAMADA ━━━━━${briefBlock()}${profileBlock}
+━━━━━ CONVERSA AO VIVO ━━━━━${tipHistoryBlock}
+Falas recentes (mais recente por último; transcrição automática, pode ter erros):
+${recent}
+
+⚡ O CLIENTE ACABOU DE FALAR. Escreva a resposta que o vendedor deve dar AGORA.`;
+
+      // Modelo do coach = gpt-4o-mini: o mini de menor latência. Com o
+      // prompt enxuto + grounding + kill-switch, mantém a qualidade e
+      // responde rápido (prioridade máxima aqui é chegar a tempo).
+      // Timeout curto: um request pendurado segurava o coachBusy e
+      // congelava TODAS as dicas seguintes da chamada.
+      const ctrl = new AbortController();
+      const timeoutId = setTimeout(() => ctrl.abort(), 9000);
       let data = null;
-      for (const model of modelCandidates) {
-        // Timeout curto: um request pendurado segurava o coachBusy e
-        // congelava TODAS as dicas seguintes da chamada.
-        const ctrl = new AbortController();
-        const timeoutId = setTimeout(() => ctrl.abort(), 12000);
-        let response;
-        try {
-          response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getApiKey()}` },
-            body: JSON.stringify({
-              model,
-              messages: [{ role: 'user', content: prompt }],
-              max_tokens: 300,
-              temperature: 0.4,
-              response_format: { type: 'json_object' },
-            }),
-            signal: ctrl.signal,
-          });
-        } catch (e) {
-          clearTimeout(timeoutId);
-          return; // timeout/rede: solta o coachBusy e a próxima fala tenta de novo
-        }
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getApiKey()}` },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 260,
+            temperature: 0.4,
+            response_format: { type: 'json_object' },
+          }),
+          signal: ctrl.signal,
+        });
         clearTimeout(timeoutId);
-        if (response.ok) { data = await response.json(); break; }
-        if (model === 'gpt-4.1-mini' && [400, 403, 404].includes(response.status)) {
-          coachModelOk = false;
-          continue;
-        }
-        return;
+        if (response.ok) data = await response.json();
+      } catch (e) {
+        clearTimeout(timeoutId);
       }
-      if (!data) return;
+      if (!data) return; // timeout/rede/erro: solta o coachBusy e a próxima fala tenta de novo
       const parsed = JSON.parse(data.choices[0]?.message?.content || 'null');
       if (parsed) {
         if (parsed.stage && STAGE_LABELS[parsed.stage]) latestStage = parsed.stage;
@@ -951,7 +946,6 @@ Se o vendedor mandou bem, priority "good": no tip diga qual técnica ele acertou
               t: Date.now(),
               tip: parsed.tip,
               say,
-              tone: say ? (parsed.tone || null) : null,
               technique: parsed.technique || null,
               priority: prio,
               icon: prio === 'urgent' ? '🔥' : prio === 'good' ? '✅' : '💬',
@@ -1411,12 +1405,12 @@ Se o vendedor mandou bem, priority "good": no tip diga qual técnica ele acertou
           : t.priority === 'good'
             ? { fg: '#a9f5c8', border: 'rgba(46,213,115,0.6)', bg: 'rgba(46,213,115,0.10)', label: '✅ MANDOU BEM', labelBg: '#2ed573', labelFg: '#04140b' }
             : { fg: '#d5d1ff', border: 'rgba(108,99,255,0.7)', bg: 'rgba(108,99,255,0.12)', label: '🎯 DICA', labelBg: '#6c63ff', labelFg: '#fff' };
-        tipEl.innerHTML = `<span style="font-size:1.2rem;margin-right:6px">${t.icon || '🎯'}</span><span style="color:${t.say && t.tone ? '#ffd28a' : theme.fg}">${t.say && t.tone ? '🎭 ' + esc(t.tone) : esc(t.tip)}</span>`;
+        tipEl.innerHTML = `<span style="font-size:1.2rem;margin-right:6px">${t.icon || '🎯'}</span><span style="color:${theme.fg}">${esc(t.tip)}</span>`;
         const sayEl = d.getElementById('pip-say');
         if (sayEl) {
           if (t.say) {
             sayEl.style.display = 'block';
-            sayEl.innerHTML = `<span style="font-size:0.58rem;font-weight:800;letter-spacing:1.2px;color:#8a8aad">💬 FALE ASSIM</span><br>"${renderSay(t.say)}"`;
+            sayEl.innerHTML = `<span style="font-size:0.58rem;font-weight:800;letter-spacing:1.2px;color:#8a8aad">💬 FALE ASSIM · <span style="color:#ffd25c">amarelo=ênfase</span></span><br>"${renderSay(t.say)}"`;
           } else {
             sayEl.style.display = 'none';
           }
@@ -1493,10 +1487,9 @@ Se o vendedor mandou bem, priority "good": no tip diga qual técnica ele acertou
         </div>
         ${hero.say ? `
           <div class="lc-say">
-            <div class="lc-say-label">💬 FALE ASSIM <span class="lc-say-hint">dê ênfase nas <b>palavras em amarelo</b></span></div>
+            <div class="lc-say-label">💬 FALE ASSIM <span class="lc-say-hint"><b>amarelo</b> = enfatize · <b>(PAUSA)</b> = pause aqui</span></div>
             <div class="lc-say-text">"${renderSay(hero.say)}"</div>
           </div>
-          ${hero.tone ? `<div class="lc-hero-tone"><span class="lc-tone-ic">🎭</span><span><b>Entonação:</b> ${esc(hero.tone)}</span></div>` : ''}
         ` : `
           <div class="lc-hero-body">
             <span class="lc-hero-icon">${hero.icon || '🎯'}</span>
