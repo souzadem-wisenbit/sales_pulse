@@ -394,7 +394,41 @@ ${commStyleBlock}
         ? 'Fale devagar, com pausas longas para pensar ("é...", "deixa eu ver...").'
         : 'Ritmo de fala natural de uma ligação comercial.';
 
-    return `${base}
+    // ── CONTRATO DE VOZ NO TOPO ──
+    // Modelos realtime pesam mais o INÍCIO e o FIM das instruções. O estilo
+    // de fala configurado (gírias, formalidade, sotaque, emoção) vai como
+    // contrato inegociável na abertura + checklist no fim — sem isso, o
+    // cliente-robô falava "neutro executivo" ignorando os sliders.
+    const styleLines = [];
+    const g = config.nivelGirias ?? 20;
+    if (g > 70) styleLines.push('MUITA gíria brasileira em TODA fala: "cara", "mano", "véi", "show", "top", "da hora", "pode crer", "tô ligado". Você fala como num boteco com amigo, não numa reunião.');
+    else if (g > 40) styleLines.push('Gírias moderadas e naturais: "legal", "bacana", "beleza", "tranquilo", "né".');
+    const fo = config.formalidade ?? 70;
+    if (fo > 80) styleLines.push('Fala EXTREMAMENTE formal e cerimoniosa: "prezado", "vossa proposta", frases completas e polidas.');
+    else if (fo < 30) styleLines.push('Fala MUITO informal: tuteia, frases picadas, zero cerimônia — "oi, fala aí", "manda ver".');
+    const hu = config.humanidade ?? 50;
+    if (hu > 75) styleLines.push('Muito humano: ri, suspira, hesita, conta casos pessoais curtos ("outro dia aqui na empresa...").');
+    else if (hu < 25) styleLines.push('Frio e seco: respostas curtas, sem emoção, só negócio.');
+    const em = config.emotividade ?? 40;
+    if (em > 70) styleLines.push('Emocional: demonstra irritação, entusiasmo e decepção NA VOZ ("olha, isso me incomoda, viu?", "aí sim, gostei!").');
+    else if (em < 25) styleLines.push('Racional absoluto: só números e fatos, nenhuma emoção.');
+    const nt = config.nivelTecnico ?? 35;
+    if (nt > 75) styleLines.push('Especialista técnico: usa jargão do setor e faz perguntas técnicas de implementação.');
+    else if (nt < 20) styleLines.push('Leigo total: não entende termo técnico, pede que expliquem "em português".');
+    const ne = config.nivelErros ?? 10;
+    if (ne > 40) styleLines.push('Português popular falado: "nós vai", "a gente fez", "pra mim fazer" — gramática de rua, coloquial de verdade.');
+    if (sotaque) styleLines.push(sotaque);
+    styleLines.push(velocidadeVoz);
+    const styleContract = styleLines.map((s, i) => `${i + 1}. ${s}`).join('\n');
+    const styleSummary = styleLines.slice(0, 3).join(' ').slice(0, 160);
+
+    return `🎭 CONTRATO DE VOZ — QUEM FALA NESTA LIGAÇÃO (INEGOCIÁVEL, VALE PARA TODA FALA):
+Você é ${config.customerName}, ${config.customerRole} da ${config.customerCompany} — uma pessoa brasileira REAL ao telefone, jamais um assistente.
+SEU JEITO DE FALAR (aplique em CADA fala, da primeira à última — se escorregar, volte ao estilo na fala seguinte):
+${styleContract}
+Uma fala sua que soe como "executivo neutro de IA" é ERRO GRAVE de personagem.
+
+${base}
 
 ════════════════════════════════════════
 🎙️ ADAPTAÇÃO OBRIGATÓRIA PARA LIGAÇÃO DE VOZ
@@ -416,7 +450,12 @@ ${commStyleBlock}
         : config.customerGender === 'male'
           ? '\n11. VOCÊ É UM HOMEM ao telefone: fale sempre no masculino ("eu mesmo resolvo", "obrigado", "tô ocupado").'
           : ''
-    }`;
+    }
+
+🔁 CHECKLIST ANTES DE CADA FALA (releia mentalmente SEMPRE):
+1. Soei como ${config.customerName} de verdade? (${styleSummary || 'fala natural de telefone'})
+2. Falei curto (1-3 frases) e devolvi a vez?
+3. Continuei COMPRADOR, no tema do produto do briefing, sem pedir para ver/receber nada?`;
   }
 
   // ── Parse AI response ──

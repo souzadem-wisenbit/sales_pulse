@@ -58,6 +58,7 @@ const LiveCoach = (() => {
   let profileHistory = [];         // histórico cumulativo de aprendizados (live + treinos)
   let coach = null;                // coach atribuído pelo gestor: {id, name, special?, profile?}
   let knowledge = null;            // busca de metodologia (RAG) — trechos por momento da conversa
+  let coachCore = null;            // núcleo destilado da metodologia (prompt-base permanente do coach)
   let brief = null;                // briefing pré-chamada: produtos, ramo do cliente, diretrizes
   let availableProducts = [];
   let selectedProductIds = new Set();
@@ -520,6 +521,10 @@ const LiveCoach = (() => {
         'abertura rapport conexão início da conversa',
       ].join(' ').trim());
       CoachCore.warmup(getApiKey());
+      // Núcleo destilado (sistema de vendas do Júnior): chega em ~200ms e
+      // entra no prompt-base de TODAS as dicas. Sem bloquear o início.
+      coachCore = null;
+      CoachCore.fetchCore().then(c => { coachCore = c; });
 
       running = true;
       startedAt = Date.now();
@@ -975,7 +980,7 @@ const LiveCoach = (() => {
       // do 2º disparo em diante o prefixo estático não é reprocessado →
       // menos latência (TTFT) em toda a chamada.
       const prompt = `${coachPersona}, observando em silêncio uma chamada de vendas REAL por vídeo. O VENDEDOR é seu aluno; você escreve a fala PRONTA que ele deve dizer AGORA. Quando o cliente termina de falar, capte o subtexto (hesitação/frase inacabada = insegurança; resposta seca = desinteresse/pressa; pergunta sobre preço/prazo/contrato = sinal de compra; tema que volta = objeção real disfarçada) e escreva a resposta perfeita, espelhando as palavras do cliente.
-
+${CoachCore.coreBlock(coachCore)}
 ${CoachCore.playbook('audio')}
 
 MARCAÇÃO DO "say" (é o que o vendedor LÊ ao vivo — ele precisa usar em 1 segundo):

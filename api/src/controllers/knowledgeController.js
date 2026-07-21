@@ -101,4 +101,16 @@ async function retrieveChunks(req, res) {
   }
 }
 
-module.exports = { listDocs, uploadDoc, deleteDoc, retrieveChunks };
+// Núcleo destilado da metodologia (base do Júnior): buscado 1x no início de
+// cada chamada/conversa e injetado como prompt-base permanente do coach.
+async function getCore(req, res) {
+  try {
+    const core = await knowledge.getCoachCore('junior');
+    res.json({ core });
+  } catch (err) {
+    console.error('[KNOWLEDGE CORE]', err);
+    res.status(500).json({ error: 'Erro ao buscar núcleo da metodologia' });
+  }
+}
+
+module.exports = { listDocs, uploadDoc, deleteDoc, retrieveChunks, getCore };

@@ -47,6 +47,7 @@ const WhatsAppCoach = (() => {
   let coach = null;                 // coach atribuído pelo gestor
   let profile = null;               // perfil aprendido do vendedor
   let knowledge = null;             // busca de metodologia (RAG), compartilha o cérebro do modo áudio
+  let coachCore = null;             // núcleo destilado da metodologia (prompt-base do coach)
   let tipSoundOn = true;
   let audioCtx = null;
 
@@ -226,6 +227,8 @@ const WhatsAppCoach = (() => {
     } catch (e) { coach = null; profile = null; }
     knowledge = CoachCore.createKnowledgeFetcher();
     CoachCore.warmup(getApiKey());
+    coachCore = null;
+    CoachCore.fetchCore().then(c => { coachCore = c; });
     try {
       const saved = await API.waGetBriefing();
       globalBrief = (saved && (saved.products || saved.extraProduct)) ? saved : null;
@@ -596,7 +599,7 @@ const WhatsAppCoach = (() => {
       // Bloco estático primeiro (persona + playbook + formato) e dinâmico por
       // último: ativa o cache de prompt da OpenAI e derruba a latência.
       const prompt = `${CoachCore.persona(coach)}, acompanhando em silêncio uma conversa de vendas REAL por WhatsApp. O VENDEDOR é seu aluno; você escreve a MENSAGEM PRONTA que ele deve enviar AGORA. Quando o cliente escreve, capte o subtexto (resposta seca ou monossilábica = desinteresse ou pressa; "vou ver", "depois te falo" = objeção não dita; pergunta sobre preço/prazo/contrato = sinal de compra; áudio/vídeo enviado = quer atenção e detalhe; tema que volta = objeção real disfarçada) e escreva a resposta perfeita, espelhando as palavras dele.
-
+${CoachCore.coreBlock(coachCore)}
 ${CoachCore.playbook('whatsapp')}
 
 FORMATO DO "say" (é a mensagem que o vendedor vai COPIAR e COLAR no WhatsApp — precisa servir sem edição):

@@ -45,7 +45,19 @@ const CoachCore = (() => {
     if (coach && coach.id !== 'junior' && coach.profile && Object.keys(coach.profile).length > 0) {
       return `Você é um coach de vendas de elite que treina no ESTILO do vendedor de referência "${coach.name}". Estilo de referência a ser transmitido nas dicas:\n${JSON.stringify(coach.profile)}\nOriente o vendedor a incorporar os pontos fortes desse estilo`;
     }
-    return 'Você é JÚNIOR SMARZARO, coach master de vendas — mentor lendário, direto ao ponto, focado em fechamento e em fazer o vendedor performar no mais alto nível (metodologia própria; formado também em SPIN Selling, Challenger e Sandler)';
+    return 'Você é JÚNIOR SMARZARO, coach master de vendas — mentor lendário, direto ao ponto, focado em fechamento e em fazer o vendedor performar no mais alto nível. Você pensa, fala e decide EXCLUSIVAMENTE pelo SEU sistema de vendas (descrito adiante em "SEU SISTEMA DE VENDAS"): cada dica nasce de uma técnica, pergunta ou virada DELE — nunca de conselho genérico de vendas';
+  }
+
+  // Núcleo destilado da metodologia (compilado dos livros do Júnior no
+  // backend). Entra como bloco ESTÁTICO do prompt — mesma string a chamada
+  // inteira → o prompt cache da OpenAI absorve o custo depois da 1ª dica.
+  function coreBlock(core) {
+    if (!core) return '';
+    return `
+━━━━━ SEU SISTEMA DE VENDAS (a metodologia Júnior Smarzaro — você a ensina e a aplica em CADA dica) ━━━━━
+${core}
+COMO USAR O SISTEMA NAS DICAS: identifique o estágio e o gatilho da conversa → escolha a técnica/virada/pergunta DESTE sistema que ataca esse momento → escreva o say com a formulação característica dele adaptada às palavras desta conversa. No campo "technique", use o NOME da técnica como aparece no sistema. Varie as técnicas entre dicas.
+`;
   }
 
   // ── Metodologia em documentos (RAG) ──
@@ -231,7 +243,15 @@ REGRAS INVIOLÁVEIS:
     return '#ff4757';
   }
 
-  return { INDUSTRIES, STAGE_LABELS, persona, briefBlock, playbook, ask, validSay, tooSimilar, esc, tempColor, knowledgeBlock, createKnowledgeFetcher, warmup };
+  // Busca o núcleo destilado 1x por chamada (falha → coach segue sem ele)
+  async function fetchCore() {
+    try {
+      const res = await window.API.getCoachCore();
+      return res?.core || null;
+    } catch (e) { return null; }
+  }
+
+  return { INDUSTRIES, STAGE_LABELS, persona, briefBlock, playbook, ask, validSay, tooSimilar, esc, tempColor, knowledgeBlock, createKnowledgeFetcher, warmup, coreBlock, fetchCore };
 })();
 
 window.CoachCore = CoachCore;

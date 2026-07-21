@@ -89,6 +89,7 @@ knowledgeRouter.get('/docs', authorize('manager'), knowCtrl.listDocs);
 knowledgeRouter.post('/docs', authorize('manager'), uploadDoc.single('file'), knowCtrl.uploadDoc);
 knowledgeRouter.delete('/docs/:id', authorize('manager'), knowCtrl.deleteDoc);
 knowledgeRouter.post('/retrieve', authorize('manager', 'seller'), knowCtrl.retrieveChunks);
+knowledgeRouter.get('/core', authorize('manager', 'seller'), knowCtrl.getCore);
 
 // WhatsApp Coach: sessão SEMPRE do próprio usuário autenticado (req.user.id).
 // Nenhuma rota aceita userId de fora — um vendedor não alcança o WhatsApp de outro.

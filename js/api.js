@@ -294,6 +294,7 @@ const API = (() => {
   async function deleteKnowledgeDoc(id) { return await del(`/api/knowledge/docs/${id}`); }
   // Sem retry: chamada por dica, sensível a latência — melhor perder uma busca que atrasar
   async function retrieveKnowledge(query, k) { return await post('/api/knowledge/retrieve', { query, k: k || 4 }, 0); }
+  async function getCoachCore() { return await get('/api/knowledge/core'); }
   async function uploadKnowledgeDoc(file, coachId) {
     const base = getBaseUrl();
     if (base === null) return null;
@@ -396,6 +397,7 @@ const API = (() => {
     uploadKnowledgeDoc,
     deleteKnowledgeDoc,
     retrieveKnowledge,
+    getCoachCore,
   };
 
 })();
