@@ -47,7 +47,8 @@ const WhatsAppCoach = (() => {
   let coach = null;                 // coach atribuído pelo gestor
   let profile = null;               // perfil aprendido do vendedor
   let knowledge = null;             // busca de metodologia (RAG), compartilha o cérebro do modo áudio
-  let coachCore = null;             // núcleo destilado da metodologia (prompt-base do coach)
+  let coachCore = null;             // identidade destilada da metodologia (tom + regras de ouro)
+  let coachPlays = [];              // catálogo de jogadas — toda dica escolhe uma por número
   let tipSoundOn = true;
   let audioCtx = null;
 
@@ -228,7 +229,12 @@ const WhatsAppCoach = (() => {
     knowledge = CoachCore.createKnowledgeFetcher();
     CoachCore.warmup(getApiKey());
     coachCore = null;
-    CoachCore.fetchCore().then(c => { coachCore = c; });
+    coachPlays = [];
+    CoachCore.fetchCore().then(r => {
+      coachCore = r.core;
+      coachPlays = r.plays;
+      console.log(`[WhatsAppCoach] núcleo carregado: ${(r.core || '').length} chars, ${r.plays.length} jogadas`);
+    });
     try {
       const saved = await API.waGetBriefing();
       globalBrief = (saved && (saved.products || saved.extraProduct)) ? saved : null;
@@ -599,7 +605,7 @@ const WhatsAppCoach = (() => {
       // Bloco estático primeiro (persona + playbook + formato) e dinâmico por
       // último: ativa o cache de prompt da OpenAI e derruba a latência.
       const prompt = `${CoachCore.persona(coach)}, acompanhando em silêncio uma conversa de vendas REAL por WhatsApp. O VENDEDOR é seu aluno; você escreve a MENSAGEM PRONTA que ele deve enviar AGORA. Quando o cliente escreve, capte o subtexto (resposta seca ou monossilábica = desinteresse ou pressa; "vou ver", "depois te falo" = objeção não dita; pergunta sobre preço/prazo/contrato = sinal de compra; áudio/vídeo enviado = quer atenção e detalhe; tema que volta = objeção real disfarçada) e escreva a resposta perfeita, espelhando as palavras dele.
-${CoachCore.coreBlock(coachCore)}
+${CoachCore.coreBlock(coachCore)}${CoachCore.playsMenu(coachPlays)}
 ${CoachCore.playbook('whatsapp')}
 
 FORMATO DO "say" (é a mensagem que o vendedor vai COPIAR e COLAR no WhatsApp — precisa servir sem edição):
@@ -612,10 +618,11 @@ REGRA DE OURO DO OUTPUT: tip e say andam JUNTOS. Ou você retorna os dois preenc
 
 Retorne SÓ JSON (nunca escreva meta-texto, instruções ou a palavra "null" dentro dos textos):
 {
+ "play": <NÚMERO da jogada do catálogo que esta dica executa — obrigatório quando houver dica>,
  "tip": "diagnóstico interno em até 10 palavras SUAS (ex: 'Adiamento — descobrir a dúvida escondida')",
- "say": "a mensagem pronta do vendedor, texto puro colável no WhatsApp (máx 45 palavras). OBRIGATÓRIO sempre que tip existir.",
+ "say": "a mensagem pronta do vendedor EXECUTANDO a jogada escolhida, texto puro colável no WhatsApp (máx 45 palavras). OBRIGATÓRIO sempre que tip existir.",
  "grounded": <false se o say afirma número/fato/promessa SEM fonte no briefing/conversa; true se todos têm fonte OU se o say não afirma número/fato>,
- "technique": "NOME da técnica do SEU SISTEMA (ex: Fechamento 'Eu Vou Pensar', Gatilho da Escassez) — diferente das 3 últimas dicas",
+ "technique": "o NOME da jogada escolhida (copie do catálogo)",
  "priority": "urgent|normal|good",
  "stage": "rapport|descoberta|apresentacao|objecoes|fechamento",
  "temperature": <0-100 quão quente está a negociação>
@@ -626,7 +633,7 @@ Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acerto
 ━━━━━ CONVERSA NO WHATSAPP — contato: ${chat.name} ━━━━━${tipHistoryBlock}
 Mensagens recentes (mais recente por último):
 ${recent}
-
+${(chat.usedPlays || []).length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco — escolha OUTRA do catálogo): ${chat.usedPlays.slice(-6).join(', ')}\n` : ''}
 ⚡ O CLIENTE ACABOU DE ESCREVER. Escreva a mensagem que o vendedor deve enviar AGORA.`;
 
       const parsed = await CoachCore.ask(prompt, getApiKey());
@@ -649,6 +656,14 @@ ${recent}
             say = null;
           }
         }
+        // Jogada do catálogo: nome da técnica vem do catálogo; jogada
+        // repetida entre as últimas 6 da conversa morre aqui.
+        chat.usedPlays = chat.usedPlays || [];
+        const { play, banned } = CoachCore.resolvePlay(parsed, coachPlays, chat.usedPlays);
+        if (say && banned && parsed.priority !== 'urgent') {
+          console.warn('[WhatsAppCoach] dica descartada: jogada repetida —', play.n, play.name);
+          say = null;
+        }
         // Sem mensagem pronta não há dica. E se a conversa andou muito
         // enquanto gerava, o assunto mudou — descarta (exceto urgente).
         const grewBy = chat.messages.length - sinceCount;
@@ -658,13 +673,14 @@ ${recent}
             t: Date.now(),
             tip: parsed.tip,
             say,
-            technique: parsed.technique || null,
+            technique: play ? play.name : (parsed.technique || null),
             priority: prio,
             icon: prio === 'urgent' ? '🔥' : prio === 'good' ? '✅' : '💬',
           };
           if (CoachCore.repeatsTechnique(tip, chat.tips)) {
             console.log('[WhatsAppCoach] dica descartada: técnica repetida —', tip.technique);
           } else if (!CoachCore.tooSimilar(tip, chat.tips)) {
+            if (play) chat.usedPlays.push(play.n);
             addTip(chat, tip);
           }
         }

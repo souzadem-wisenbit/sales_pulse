@@ -58,7 +58,9 @@ const LiveCoach = (() => {
   let profileHistory = [];         // histórico cumulativo de aprendizados (live + treinos)
   let coach = null;                // coach atribuído pelo gestor: {id, name, special?, profile?}
   let knowledge = null;            // busca de metodologia (RAG) — trechos por momento da conversa
-  let coachCore = null;            // núcleo destilado da metodologia (prompt-base permanente do coach)
+  let coachCore = null;            // identidade destilada da metodologia (tom + regras de ouro)
+  let coachPlays = [];             // catálogo de jogadas — toda dica escolhe uma por número
+  let usedPlays = [];              // jogadas já usadas nesta chamada (rotação: últimas 6 proibidas)
   let brief = null;                // briefing pré-chamada: produtos, ramo do cliente, diretrizes
   let availableProducts = [];
   let selectedProductIds = new Set();
@@ -521,10 +523,16 @@ const LiveCoach = (() => {
         'abertura rapport conexão início da conversa',
       ].join(' ').trim());
       CoachCore.warmup(getApiKey());
-      // Núcleo destilado (sistema de vendas do Júnior): chega em ~200ms e
-      // entra no prompt-base de TODAS as dicas. Sem bloquear o início.
+      // Núcleo destilado (identidade + catálogo de jogadas): chega em ~200ms
+      // e entra no prompt-base de TODAS as dicas. Sem bloquear o início.
       coachCore = null;
-      CoachCore.fetchCore().then(c => { coachCore = c; });
+      coachPlays = [];
+      usedPlays = [];
+      CoachCore.fetchCore().then(r => {
+        coachCore = r.core;
+        coachPlays = r.plays;
+        console.log(`[LiveCoach] núcleo carregado: ${(r.core || '').length} chars de identidade, ${r.plays.length} jogadas no catálogo`);
+      });
 
       running = true;
       startedAt = Date.now();
@@ -980,7 +988,7 @@ const LiveCoach = (() => {
       // do 2º disparo em diante o prefixo estático não é reprocessado →
       // menos latência (TTFT) em toda a chamada.
       const prompt = `${coachPersona}, observando em silêncio uma chamada de vendas REAL por vídeo. O VENDEDOR é seu aluno; você escreve a fala PRONTA que ele deve dizer AGORA. Quando o cliente termina de falar, capte o subtexto (hesitação/frase inacabada = insegurança; resposta seca = desinteresse/pressa; pergunta sobre preço/prazo/contrato = sinal de compra; tema que volta = objeção real disfarçada) e escreva a resposta perfeita, espelhando as palavras do cliente.
-${CoachCore.coreBlock(coachCore)}
+${CoachCore.coreBlock(coachCore)}${CoachCore.playsMenu(coachPlays)}
 ${CoachCore.playbook('audio')}
 
 MARCAÇÃO DO "say" (é o que o vendedor LÊ ao vivo — ele precisa usar em 1 segundo):
@@ -991,10 +999,11 @@ REGRA DE OURO DO OUTPUT: tip e say andam JUNTOS. Ou você retorna os dois preenc
 
 Retorne SÓ JSON (nunca escreva meta-texto, instruções ou a palavra "null" dentro dos textos):
 {
- "tip": "diagnóstico interno em até 10 palavras SUAS (ex: 'Objeção de preço disfarçada — ancorar valor')",
- "say": "a fala pronta do vendedor, 1-3 frases faladas (máx 42 palavras), com **palavras-chave** e (PAUSA) embutidos. OBRIGATÓRIO sempre que tip existir.",
+ "play": <NÚMERO da jogada do catálogo que esta dica executa — obrigatório quando houver dica>,
+ "tip": "diagnóstico interno em até 10 palavras SUAS (ex: 'Objeção de preço disfarçada — virar para valor')",
+ "say": "a fala pronta do vendedor EXECUTANDO a jogada escolhida, 1-3 frases faladas (máx 42 palavras), com **palavras-chave** e (PAUSA) embutidos. OBRIGATÓRIO sempre que tip existir.",
  "grounded": <false se o say afirma número/fato/promessa SEM fonte no briefing/conversa; true se todos têm fonte OU se o say não afirma número/fato>,
- "technique": "NOME da técnica do SEU SISTEMA (ex: Fechamento 'Eu Vou Pensar', Gatilho da Escassez) — diferente das 3 últimas dicas",
+ "technique": "o NOME da jogada escolhida (copie do catálogo)",
  "priority": "urgent|normal|good",
  "stage": "rapport|descoberta|apresentacao|objecoes|fechamento",
  "temperature": <0-100 quão quente está a negociação>
@@ -1005,7 +1014,7 @@ Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acerto
 ━━━━━ CONVERSA AO VIVO ━━━━━${tipHistoryBlock}
 Falas recentes (mais recente por último; transcrição automática, pode ter erros):
 ${recent}
-${tips.length === 0 ? '\n🚀 PRIMEIRA DICA DA CHAMADA: ainda não existe nenhuma dica — retorne OBRIGATORIAMENTE tip e say preenchidos (abertura/rapport ou reação direta à fala). Nesta primeira resposta, tip null é PROIBIDO: o vendedor precisa sentir o coach ao lado desde o primeiro segundo.\n' : ''}
+${usedPlays.length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco — escolha OUTRA do catálogo): ${usedPlays.slice(-6).join(', ')}\n` : ''}${tips.length === 0 ? '\n🚀 PRIMEIRA DICA DA CHAMADA: ainda não existe nenhuma dica — retorne OBRIGATORIAMENTE tip e say preenchidos (abertura/rapport ou reação direta à fala). Nesta primeira resposta, tip null é PROIBIDO: o vendedor precisa sentir o coach ao lado desde o primeiro segundo.\n' : ''}
 ⚡ O CLIENTE ACABOU DE FALAR. Escreva a resposta que o vendedor deve dar AGORA.`;
 
       // Modelo do coach = gpt-4o-mini: o mini de menor latência. Com o
@@ -1041,15 +1050,23 @@ ${tips.length === 0 ? '\n🚀 PRIMEIRA DICA DA CHAMADA: ainda não existe nenhum
           // Dica é SEMPRE script pronto: sem say, não há dica (nunca o
           // cartão-resumo de fallback). Anti-obsolescência: se a conversa
           // andou muito enquanto gerava, o assunto mudou — descarta (exceto urgente).
+          // Jogada do catálogo: o nome da técnica vem do CATÁLOGO (fonte da
+          // verdade), e jogada repetida entre as últimas 6 morre aqui.
+          const { play, banned } = CoachCore.resolvePlay(parsed, coachPlays, usedPlays);
+          if (say && banned && parsed.priority !== 'urgent') {
+            console.warn('[LiveCoach] dica descartada: jogada repetida —', play.n, play.name);
+            say = null;
+          }
           const grewBy = transcript.length - sinceCount;
           if (say && grewBy >= 3 && parsed.priority !== 'urgent') console.warn('[LiveCoach] dica descartada: conversa andou', grewBy, 'falas durante a geração');
           if (say && (grewBy < 3 || parsed.priority === 'urgent')) {
             const prio = parsed.priority || 'normal';
+            if (play) usedPlays.push(play.n);
             deliverTip({
               t: Date.now(),
               tip: parsed.tip,
               say,
-              technique: parsed.technique || null,
+              technique: play ? play.name : (parsed.technique || null),
               priority: prio,
               icon: prio === 'urgent' ? '🔥' : prio === 'good' ? '✅' : '💬',
             });

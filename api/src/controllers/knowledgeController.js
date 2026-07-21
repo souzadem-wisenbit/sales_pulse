@@ -102,11 +102,19 @@ async function retrieveChunks(req, res) {
 }
 
 // Núcleo destilado da metodologia (base do Júnior): buscado 1x no início de
-// cada chamada/conversa e injetado como prompt-base permanente do coach.
+// cada chamada/conversa. Devolve a IDENTIDADE enxuta (tom + regras de ouro)
+// e o catálogo de jogadas — as técnicas vivem no catálogo; mandar o texto
+// completo inflaria todas as dicas sem ganho.
 async function getCore(req, res) {
   try {
-    const core = await knowledge.getCoachCore('junior');
-    res.json({ core });
+    const row = await knowledge.getCoachCore('junior');
+    let identity = null;
+    if (row.core) {
+      const sections = row.core.split(/(?=^# )/m);
+      const picked = sections.filter(s => /^# *(IDENTIDADE|REGRAS DE OURO)/i.test(s.trim()));
+      identity = (picked.length ? picked.join('\n') : row.core).trim();
+    }
+    res.json({ core: identity, plays: row.plays || [] });
   } catch (err) {
     console.error('[KNOWLEDGE CORE]', err);
     res.status(500).json({ error: 'Erro ao buscar núcleo da metodologia' });

@@ -269,17 +269,18 @@ async function retrieve({ coachId, managerId, query, k = 4 }) {
 }
 
 // ── Núcleo destilado do coach (coach_core) ──
-// O "sistema operacional de vendas" compilado dos livros (ver
-// scripts/distill-junior-core.js). Cache de 10 min: é lido 1x por chamada.
+// core = "sistema operacional de vendas" em texto; plays = catálogo
+// estruturado de jogadas (nome + gatilho + frase-modelo) que o coach é
+// obrigado a escolher por número a cada dica. Cache de 10 min.
 let _coreCache = { at: 0, map: {} };
 async function getCoachCore(coachId) {
   const id = coachId || 'junior';
   if (Date.now() - _coreCache.at > 10 * 60 * 1000) _coreCache = { at: Date.now(), map: {} };
   if (id in _coreCache.map) return _coreCache.map[id];
-  const { rows } = await db.query('SELECT core FROM coach_core WHERE coach_id = $1', [id]);
-  const core = rows[0]?.core || null;
-  _coreCache.map[id] = core;
-  return core;
+  const { rows } = await db.query('SELECT core, plays FROM coach_core WHERE coach_id = $1', [id]);
+  const result = { core: rows[0]?.core || null, plays: rows[0]?.plays || [] };
+  _coreCache.map[id] = result;
+  return result;
 }
 
 module.exports = { getOpenAI, extractText, chunkText, embedMany, toVectorLiteral, needsSpacingFix, fixSpacing, processDocument, retrieve, isSupported, getCoachCore };

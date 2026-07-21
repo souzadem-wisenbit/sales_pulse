@@ -206,6 +206,11 @@ REGRAS INVIOLÁVEIS:
   }
 
   // ── Kill-switch do script: placeholder ou grounding negado = inútil ──
+  // Abridores-muleta ("Entendo sua preocupação...") também morrem aqui: o
+  // modelo ignora a proibição de vez em quando, e a repetição desse padrão
+  // foi uma das principais reclamações reais. Melhor perder 1 dica que
+  // entregar a décima com a mesma carcaça.
+  const BAD_OPENERS = /^\s*[*"']*\s*(entendo|entendi|compreendo|[óo]tima pergunta|que bom)/i;
   function validSay(say, grounded) {
     if (!say) return null;
     if (grounded === false) return null;
@@ -213,6 +218,7 @@ REGRAS INVIOLÁVEIS:
     if (/\bX\s*(reais|mil|%|por\s*cento)/i.test(say)) return null;
     if (/R\$\s*X\b/i.test(say)) return null;
     if (/\b(N|Y)%/.test(say)) return null;
+    if (BAD_OPENERS.test(say)) return null;
     return say;
   }
 
@@ -269,8 +275,32 @@ REGRAS INVIOLÁVEIS:
   async function fetchCore() {
     try {
       const res = await window.API.getCoachCore();
-      return res?.core || null;
-    } catch (e) { return null; }
+      return { core: res?.core || null, plays: Array.isArray(res?.plays) ? res.plays : [] };
+    } catch (e) { return { core: null, plays: [] }; }
+  }
+
+  // ── Catálogo de jogadas: menu numerado ESTÁTICO no prompt ──
+  // A identidade da metodologia entra por MECÂNICA: toda dica é obrigada a
+  // escolher uma jogada do catálogo (campo "play"); o nome da técnica vem do
+  // catálogo (não da imaginação do modelo) e a rotação é imposta por código.
+  // O menu não muda durante a chamada → o prompt cache absorve o custo; a
+  // lista de proibidas (dinâmica) vai na zona dinâmica do prompt.
+  function playsMenu(plays) {
+    if (!plays || !plays.length) return '';
+    return `
+━━━━━ CATÁLOGO DE JOGADAS DO SEU SISTEMA (escolha por NÚMERO no campo "play" do JSON) ━━━━━
+Em TODA dica você escolhe UMA jogada deste catálogo — a que melhor ataca o momento — e o say EXECUTA essa jogada com as palavras desta conversa. A frase-modelo é inspiração de formulação (números que apareçam nela são didáticos dos livros — NUNCA os copie). Não anuncie a jogada ao cliente; apenas execute.
+${plays.map(p => `${p.n}. [${p.estagio}] ${p.name} — quando: ${p.gatilho} | frase-modelo: "${p.frase}"`).join('\n')}
+`;
+  }
+
+  // Resolve a jogada escolhida e aplica a rotação (proibidas = usadas há pouco)
+  function resolvePlay(parsed, plays, usedPlays, bannedCount = 6) {
+    const id = Number(parsed?.play) || null;
+    const play = id ? (plays || []).find(p => p.n === id) : null;
+    if (!play) return { play: null, banned: false };
+    const banned = (usedPlays || []).slice(-bannedCount).includes(play.n);
+    return { play, banned };
   }
 
   // Rotação de técnica forçada: mesma técnica de uma das N últimas dicas
@@ -287,7 +317,7 @@ REGRAS INVIOLÁVEIS:
     });
   }
 
-  return { INDUSTRIES, STAGE_LABELS, persona, briefBlock, playbook, ask, validSay, tooSimilar, esc, tempColor, knowledgeBlock, createKnowledgeFetcher, warmup, coreBlock, fetchCore, hasUngroundedNumbers, repeatsTechnique };
+  return { INDUSTRIES, STAGE_LABELS, persona, briefBlock, playbook, ask, validSay, tooSimilar, esc, tempColor, knowledgeBlock, createKnowledgeFetcher, warmup, coreBlock, fetchCore, hasUngroundedNumbers, repeatsTechnique, playsMenu, resolvePlay };
 })();
 
 window.CoachCore = CoachCore;
