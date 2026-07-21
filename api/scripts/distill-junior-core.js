@@ -42,33 +42,72 @@ ${text}`,
   return resp.choices[0]?.message?.content || '';
 }
 
-async function reduceCore(openai, extracts) {
-  const resp = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    temperature: 0.2,
-    max_tokens: 4000,
-    messages: [{
-      role: 'user',
-      content: `Compile o SISTEMA OPERACIONAL DE VENDAS de Júnior Smarzaro a partir dos extratos dos livros dele abaixo. O resultado será o cérebro-base de um coach que sopra dicas EM TEMPO REAL durante chamadas de venda: denso, prático, acionável e 100% fiel ao material — nada de teoria genérica de vendas (mencione outras escolas só se os extratos citarem).
-
-ESTRUTURA OBRIGATÓRIA (markdown, nesta ordem):
-# IDENTIDADE E TOM — como Júnior fala e ensina: bordões, vocabulário, postura
+// Reduce em 3 partes: uma chamada por grupo de seções, cada uma com orçamento
+// próprio — num reduce único o modelo resumia demais (895 e depois 1244
+// palavras para um pedido de 1800+). Por partes, cada seção sai densa.
+const REDUCE_PARTS = [
+  {
+    label: 'identidade + pilares + sequência + leitura',
+    sections: `# IDENTIDADE E TOM — como Júnior fala e ensina: bordões, vocabulário, postura (um parágrafo denso)
 # OS PILARES — 6-8 princípios inegociáveis, 1 linha cada
-# A SEQUÊNCIA DA VENDA — as etapas na ordem, com o objetivo e a jogada-chave de cada uma
-# ARSENAL DE OBJEÇÕES — as ~10 mais importantes: gatilho → a virada de Júnior → frase-modelo característica
-# FECHAMENTOS — técnicas nomeadas com a execução exata
-# PERGUNTAS PODEROSAS — as ~15 melhores, agrupadas por estágio
-# GATILHOS MENTAIS EM VENDAS — os principais e COMO aplicar numa fala
-# REGRAS DE OURO — mandamentos finais (sempre/nunca)
+# A SEQUÊNCIA DA VENDA — as etapas na ordem, e para CADA etapa: objetivo, a jogada-chave e 1 frase-modelo do vendedor
+# LEITURA DO CLIENTE — ~10 sinais (verbais/comportamentais) → o que cada um significa → a reação certa do vendedor`,
+    budget: 'entre 550 e 750 palavras',
+  },
+  {
+    label: 'objeções + fechamentos',
+    sections: `# ARSENAL DE OBJEÇÕES — as ~12 objeções mais importantes. Para CADA uma: o gatilho (a fala típica do cliente) → a virada de Júnior (o raciocínio) → FRASE-MODELO pronta (1-2 frases de vendedor, característica do autor)
+# FECHAMENTOS — TODAS as técnicas de fechamento presentes nos extratos, cada uma com o NOME usado nos livros → quando usar → a fala exata do vendedor`,
+    budget: 'entre 700 e 900 palavras',
+  },
+  {
+    label: 'perguntas + gatilhos + preço + regras',
+    sections: `# PERGUNTAS PODEROSAS — as ~18 melhores perguntas, agrupadas por estágio da venda, quase literais do material
+# GATILHOS MENTAIS EM VENDAS — os ~10 principais: nome → como aplicar numa FALA (exemplo pronto de 1 frase)
+# COBRAR CARO E DEFENDER PREÇO — as jogadas específicas do autor para ancorar valor e não ceder desconto
+# REGRAS DE OURO — os mandamentos finais (sempre/nunca), em bullets curtos`,
+    budget: 'entre 550 e 750 palavras',
+  },
+];
 
-REGRAS: máximo ~2300 palavras; prefira a formulação do próprio autor (frases dele quase literais); não cite livros nem páginas; escreva como manual de operação, não como resenha.
+async function reduceCore(openai, extracts) {
+  const joined = extracts.join('\n\n═══════════════\n\n');
+  const parts = [];
+  for (const part of REDUCE_PARTS) {
+    process.stdout.write(`  ⏳ reduce: ${part.label} ... `);
+    const t0 = Date.now();
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      temperature: 0.2,
+      max_tokens: 3600,
+      messages: [{
+        role: 'user',
+        content: `Você está compilando o SISTEMA OPERACIONAL DE VENDAS de Júnior Smarzaro (o cérebro-base de um coach que sopra dicas EM TEMPO REAL em chamadas de venda) a partir dos extratos dos livros dele. Nesta chamada, escreva SOMENTE as seções abaixo — outras seções serão compiladas separadamente.
+
+SEÇÕES DESTA CHAMADA (markdown, nesta ordem):
+${part.sections}
+
+REGRAS INEGOCIÁVEIS:
+- Escreva ${part.budget}. Menos que o piso = INCOMPLETO. Use o orçamento com conteúdo, não com enrolação.
+- 100% fiel aos extratos: nada de teoria genérica de vendas; toda técnica mantém o NOME PRÓPRIO usado nos livros.
+- Prefira a formulação do próprio autor (frases quase literais).
+- Frases-modelo são falas PRONTAS de vendedor, em PT-BR falado natural.
+- Não cite livros nem páginas. Manual de operação, não resenha.
 
 EXTRATOS DOS LIVROS:
-${extracts.join('\n\n═══════════════\n\n')}`,
-    }],
-  });
-  return resp.choices[0]?.message?.content || '';
+${joined}`,
+      }],
+    });
+    const text = resp.choices[0]?.message?.content || '';
+    parts.push(text);
+    console.log(`OK — ~${text.split(/\s+/).length} palavras (${Math.round((Date.now() - t0) / 1000)}s)`);
+  }
+  return parts.join('\n\n');
 }
+
+const fs = require('fs');
+const path = require('path');
+const EXTRACT_CACHE = path.join(__dirname, '.junior-extracts.json'); // fora do git
 
 (async () => {
   const openai = await getOpenAI();
@@ -76,17 +115,29 @@ ${extracts.join('\n\n═══════════════\n\n')}`,
     "SELECT id, filename FROM coach_documents WHERE manager_id IS NULL AND coach_id = 'junior' AND status = 'ready' ORDER BY filename"
   );
   if (docs.length === 0) throw new Error('Base do Júnior vazia — rode antes o ingest-material-junior.js');
+
+  // Cache do MAP: refazer só o REDUCE (ajuste de prompt) sem repagar 15 livros
+  let cache = {};
+  try { cache = JSON.parse(fs.readFileSync(EXTRACT_CACHE, 'utf8')); } catch (e) {}
   console.log(`MAP: extraindo a essência de ${docs.length} livros...\n`);
 
   const extracts = [];
   for (const doc of docs) {
+    if (cache[doc.filename]) {
+      console.log(`↷ ${doc.filename} — extrato em cache`);
+      extracts.push(`## LIVRO: ${doc.filename}\n${cache[doc.filename]}`);
+      continue;
+    }
     const { rows: chunks } = await db.query('SELECT content FROM coach_chunks WHERE doc_id = $1 ORDER BY seq', [doc.id]);
     const text = chunks.map(c => c.content).join('\n');
     process.stdout.write(`⏳ ${doc.filename} (${text.length} chars) ... `);
     const t0 = Date.now();
     const extract = await mapBook(openai, doc.filename, text);
-    extracts.push(`## LIVRO: ${doc.filename}\n${extract}`);
     console.log(`OK — ${extract.length} chars (${Math.round((Date.now() - t0) / 1000)}s)`);
+    if (extract.length < 200) { console.log(`   ↳ extrato raso demais, livro fora do núcleo`); continue; }
+    cache[doc.filename] = extract;
+    fs.writeFileSync(EXTRACT_CACHE, JSON.stringify(cache, null, 1), 'utf8');
+    extracts.push(`## LIVRO: ${doc.filename}\n${extract}`);
   }
 
   console.log('\nREDUCE: compilando o núcleo (gpt-4o)...');
