@@ -169,16 +169,22 @@ const LiveCoach = (() => {
         .lc-hero.normal .lc-hero-label { background: #6c63ff; color: #fff; }
         .lc-hero.good .lc-hero-label { background: #2ed573; color: #04140b; }
         .lc-tech-chip { display: inline-block; margin-left: 8px; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.6px; padding: 3px 10px; border-radius: 100px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); color: #c9c9dd; vertical-align: middle; text-transform: uppercase; }
+        .lc-hero-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 11px; }
         .lc-hero-body { display: flex; gap: 12px; align-items: flex-start; }
         .lc-hero-icon { font-size: 1.7rem; line-height: 1; flex-shrink: 0; filter: drop-shadow(0 0 8px rgba(255,255,255,0.15)); }
         .lc-hero-text { font-size: 1.04rem; font-weight: 700; line-height: 1.45; color: #f2f2fa; }
-        .lc-hero-fresh { margin-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: #9494b8; }
-        .lc-say { margin-top: 10px; padding: 11px 13px; border-radius: 10px; background: rgba(7,7,15,0.55); border: 1px dashed rgba(255,255,255,0.22); }
-        .lc-say-label { font-size: 0.6rem; font-weight: 800; letter-spacing: 1.4px; color: #8a8aad; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
-        .lc-say-tone { font-style: italic; font-weight: 600; text-transform: none; letter-spacing: 0.2px; color: #b0aed6; }
-        .lc-hero-tone { font-size: 1.02rem; font-weight: 700; line-height: 1.45; color: #ffd28a; }
+        .lc-hero-fresh { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: #9494b8; }
+        /* FALE ASSIM é o herói do cartão: script grande, ênfases em amarelo */
+        .lc-say { padding: 14px 16px; border-radius: 12px; background: rgba(7,7,15,0.6); border: 1px solid rgba(255,255,255,0.16); }
+        .lc-say-label { font-size: 0.62rem; font-weight: 800; letter-spacing: 1.4px; color: #9a9abf; margin-bottom: 9px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+        .lc-say-hint { font-weight: 600; letter-spacing: 0.2px; text-transform: none; font-size: 0.66rem; color: #6f6f92; }
+        .lc-say-hint b { color: #ffd25c; font-weight: 700; }
+        .lc-say-text { font-size: 1.16rem; line-height: 1.62; color: #ffffff; font-weight: 500; }
         .lc-say-text strong { color: #ffd25c; font-weight: 800; }
-        .lc-say-text { font-size: 0.96rem; line-height: 1.55; color: #ffffff; }
+        /* Entonação: instrução de COMO falar, logo abaixo do script */
+        .lc-hero-tone { margin-top: 11px; display: flex; align-items: flex-start; gap: 8px; font-size: 0.92rem; font-weight: 600; line-height: 1.45; color: #ffd28a; }
+        .lc-hero-tone b { color: #ffde9e; font-weight: 800; }
+        .lc-tone-ic { font-size: 1rem; line-height: 1.4; flex-shrink: 0; }
         .lc-fresh-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #2ed573; margin-right: 5px; animation: lcPulse 1.2s infinite; }
         /* ── Histórico: dicas antigas encolhem e apagam ── */
         .lc-hist { display: flex; gap: 8px; align-items: baseline; padding: 7px 10px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); margin-bottom: 5px; font-size: 0.78rem; color: #9a9ab5; line-height: 1.35; }
@@ -836,15 +842,7 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
         : '';
 
       const triggerBlock = `
-⚡ O CLIENTE ACABOU DE TERMINAR DE FALAR e o vendedor vai responder AGORA. Sua dica é para ESTA resposta imediata.
-🔬 LEITURA DE NUANCES (obrigatória antes de aconselhar): releia a última fala do cliente palavra por palavra e capte o SUBTEXTO — o que ele sinalizou sem dizer:
-- Hesitação ("não sei...", "talvez", "é que...", frase inacabada) → insegurança: descubra o medo por trás antes de argumentar.
-- Resposta seca/curta depois de respostas longas → desconforto, pressa ou desinteresse: mude de abordagem, não insista no mesmo ponto.
-- Pergunta sobre detalhe prático (prazo, contrato, implantação, pagamento) → sinal de compra, mesmo que dito em tom neutro.
-- Entusiasmo súbito, riso, "interessante..." → abertura: aprofunde ali mesmo.
-- Repetição de um tema (voltou a falar de preço/prazo) → essa é A objeção real, mesmo disfarçada.
-- Reclamação do dia a dia dele → dor não verbalizada como dor: transforme em pergunta de implicação.
-Quando ajudar, ESPELHE as palavras exatas do cliente dentro do "say" (a palavra dele na sua boca gera conexão instantânea).
+⚡ O CLIENTE ACABOU DE FALAR — escreva a fala pronta que o vendedor deve dizer AGORA. Capte o SUBTEXTO da última fala dele: hesitação/frase inacabada = insegurança; resposta seca depois de respostas longas = desinteresse ou pressa; pergunta sobre preço/prazo/contrato/pagamento = sinal de compra (mesmo em tom neutro); tema que volta (preço, prazo) = A objeção real disfarçada. Espelhe as palavras exatas do cliente dentro do "say".
 `;
 
       // Persona do coach atribuído pelo gestor
@@ -855,58 +853,40 @@ Quando ajudar, ESPELHE as palavras exatas do cliente dentro do "say" (a palavra 
         coachPersona = `Você é um coach de vendas de elite que treina no ESTILO do vendedor de referência "${coach.name}". Estilo de referência a ser transmitido nas dicas:\n${JSON.stringify(coach.profile)}\nOriente o vendedor a incorporar os pontos fortes desse estilo`;
       }
 
-      const prompt = `${coachPersona}, acompanhando em silêncio uma chamada de vendas REAL em videochamada. O VENDEDOR é seu aluno; o CLIENTE é o outro lado (pode haver mais de uma pessoa no canal do cliente).
+      const prompt = `${coachPersona}, observando em silêncio uma chamada de vendas REAL por vídeo. O VENDEDOR é seu aluno; você escreve a fala PRONTA que ele deve dizer AGORA.
 ${briefBlock()}${profileBlock}${tipHistoryBlock}${triggerBlock}
-TRECHO MAIS RECENTE DA CONVERSA (com a idade de cada fala — transcrição automática, pode conter pequenos erros):
+CONVERSA (mais recente por último; transcrição automática, pode ter pequenos erros):
 ${recent}
 
-REGRAS DE OURO (obrigatórias, valem para QUALQUER coach):
-1. RECÊNCIA: comente APENAS o assunto ATUAL (as falas mais recentes). Se a conversa mudou de assunto, NUNCA volte ao anterior — dica atrasada é dica errada.
-2. RUÍDO: ignore completamente small talk operacional ("tá me ouvindo?", "vou compartilhar a tela"), conversas paralelas, ruídos e falas sem relação com a reunião. Se o trecho recente for só isso, retorne {"tip": null}.
-3. CONEXÃO ANTES DA VENDA: no início da chamada o objetivo é conexão GENUÍNA — NÃO mande falar do produto nem cavar dores cedo demais, principalmente em vendas de alto valor. Sugira elogios específicos e sinceros a algo que o cliente disse/conquistou e interesse verdadeiro pelo negócio dele. Só avance quando o rapport estiver construído.
-4. ANCORAGEM NO PRODUTO: o vendedor vende OS PRODUTOS DO BRIEFING. O ramo do cliente é CONTEXTO para vender ESSE produto — JAMAIS desvie a venda para outro serviço/tema. Se o vendedor voltar a falar do produto do briefing, dê munição específica sobre ELE imediatamente.
-5. LEIA O JOGO ANTES DE ACONSELHAR — classifique a última fala do CLIENTE em UMA categoria e ataque exatamente ela:
-   • PEDIDO DE ESCLARECIMENTO / CONSERTO DE CONVERSA ("como assim?", "não entendi", "quanto o quê?", "não peguei") → a ÚNICA dica válida é ajudar o vendedor a completar/reformular COM CLAREZA o que ELE MESMO tentou dizer — zero técnica de vendas aqui. Se a fala do vendedor veio cortada na transcrição ("Quanto que...") e você NÃO sabe o que ele ia dizer, retorne {"tip": null} — jamais presuma.
-   • OBJEÇÃO DE PREÇO → nunca sugira desconto de cara. Reancore no custo do problema: quebre o preço DO BRIEFING em custo por dia/por uso, contraste com o valor da dor já revelada; ROI só com números do briefing ou ditos pelo cliente (regra 15).
-   • OBJEÇÃO DE CONFIANÇA/EFICÁCIA ("será que funciona?") → prova social APENAS se o briefing trouxer casos/números reais; sem isso, inversão de risco (garantia, piloto, teste) como SUGESTÃO de oferta que o VENDEDOR decide fazer — nunca afirmando que "a empresa oferece" algo que não está no briefing.
-   • OBJEÇÃO DE AUTORIDADE ("preciso falar com meu sócio") → isole a objeção real AGORA ("se dependesse só de você, fecharia?") e amarre próximo passo com data e hora.
-   • OBJEÇÃO DE ADIAMENTO ("vou pensar") → descubra a dúvida escondida com pergunta calibrada ("o que ainda te deixa em dúvida?") — nunca aceite o adiamento sem mapear o motivo.
-   • SINAL DE COMPRA (pergunta sobre prazo, implantação, formas de pagamento, "como funciona o contrato?") → PARE de vender. Fechamento direto ou alternativo ("prefere começar dia 1 ou dia 15?") e SILÊNCIO após a pergunta.
-   • DOR REVELADA → aprofunde com pergunta de implicação (SPIN): faça o CLIENTE dimensionar o custo da dor em números ("quanto isso custa por mês hoje?") antes de apresentar solução.
-   • CLIENTE PROLIXO/DESABAFANDO → mande OUVIR: espelhe as 2-3 palavras-chave finais (mirroring) ou rotule a emoção ("parece que isso te frustra bastante...") para ele se abrir mais.
-6. MUNIÇÃO CONCRETA: nunca dê ordem vaga ("reforce o valor", "gere conexão"). Entregue o conteúdo PRONTO no campo "say": a frase exata que o vendedor pode falar em voz alta AGORA, com argumentos concretos. Números e fatos seguem a regra 15 — só com fonte. A frase deve encaixar na conversa como continuação natural do que acabou de ser dito.
-7. TÉCNICA NOMEADA: toda dica aplica UMA técnica de vendas reconhecida e a nomeia no campo "technique" (ex: "Pergunta de implicação SPIN", "Ancoragem de ROI", "Espelhamento", "Rotulação de emoção", "Inversão de risco", "Fechamento alternativo", "Isolamento de objeção", "Prova social", "Silêncio estratégico"). Isso ensina o vendedor ENQUANTO ele vende.
-8. FECHAMENTO PARRUDO: em estágio de fechamento, dê o script exato — a pergunta de fechamento pronta, o tom de entrega, e instrua a fazer silêncio absoluto após perguntar (quem fala primeiro depois da pergunta de fechamento, perde).
-9. NÃO SE REPITA (CRÍTICO): você vê acima as dicas que JÁ deu nesta chamada. É PROIBIDO repetir dica, técnica, argumento ou número que você já entregou — inclusive variação cosmética do mesmo conselho. Se o vendedor está APLICANDO sua última dica, retorne {"tip": null} e deixe-o trabalhar. Se ele IGNOROU a dica e o problema persiste, mude o ÂNGULO: outra técnica, outro argumento, abordagem mais direta — nunca a mesma dica reescrita.
-10. SILÊNCIO É OURO: dica óbvia, genérica ou parecida com uma anterior é PIOR que nenhuma. Na dúvida, {"tip": null}. Fale somente quando tiver algo NOVO que muda o jogo AGORA. É normal (e desejável) várias falas do cliente passarem sem dica.
-11. PRIORIDADE CALIBRADA: "urgent" é RARO — só quando errar NESTA resposta pode custar o negócio (objeção dura no ar, sinal de compra sendo desperdiçado, cliente prestes a encerrar). Fluxo normal = "normal". Acerto do vendedor = "good". Se está tudo fluindo, prefira null.
-12. LINGUAGEM VIVA NO "say": PROIBIDO abrir com "Entendo sua preocupação..." e PROIBIDO fechar com "Isso faz sentido para você?" ou "Quer que eu te explique/mostre como funciona?" (essas muletas se repetiam em TODA dica). Varie os fechamentos: pergunta de avanço específica, afirmação seca com silêncio, ou devolução da palavra. Escreva como um vendedor bom fala de verdade: direto, natural, sem fórmula.
-13. REALIDADE ESTRITA (GROUNDING — a regra mais importante do "say"): tudo no say deve apontar para algo que EXISTE na transcrição. PROIBIDO: referência vazia ("isso", "essa dor", "esse impacto", "o problema que você citou") quando a coisa NÃO foi dita; inventar fatos da conversa; presumir o que uma fala cortada ia dizer. Checklist obrigatório antes de entregar: (a) cada referência do say existe na conversa? (b) o say encaixa como a PRÓXIMA fala natural DESTA conversa específica? Se qualquer resposta for "não" → reescreva ou retorne {"tip": null}.
-14. DNA DE FALA REAL AO TELEFONE (escreva o say como se fosse dito, não escrito):
-   • Frases CURTAS, português brasileiro falado: "tá", "pra", "a gente", "olha", "então" — nada de prosa escrita.
-   • ESPELHE O REGISTRO do cliente: se ele fala "mano, de boa", seja leve e coloquial; se ele é formal, seja profissional — sempre uma oitava mais confiante e calmo que ele.
-   • TURNO CURTO: em ligação ninguém faz monólogo — 1 a 3 frases e DEVOLVA a vez (termine com pergunta ou ponto final seco para silêncio estratégico).
-   • ZERO jargão corporativo ("agregar valor", "otimizar processos", "solução robusta") a menos que o CLIENTE use primeiro.
-   • Teste final: lido em voz alta AGORA, soaria como a próxima fala perfeita desta conversa — impossível notar que veio de um coach.
-15. NÚMEROS, FATOS E PROMESSAS SÓ COM FONTE (INVIOLÁVEL): é TERMINANTEMENTE PROIBIDO inventar QUALQUER número (preço, ROI, porcentagem, economia, prazo, métrica de case) E QUALQUER fato ou promessa sobre a empresa/produto: garantia, devolução de dinheiro, SLA, suporte, prazo de entrega, funcionalidade, case, "temos piloto grátis". Algo só pode ser AFIRMADO no "say" se vier de UMA destas fontes: (a) o BRIEFING desta chamada (preço/descrição/benefícios dos produtos), ou (b) algo DITO NESTA CONVERSA pelo próprio vendedor. Se o cliente pergunta um fato que não tem fonte ("vocês têm SLA?"), você NÃO SABE a resposta — o say deve contornar com honestidade estratégica ("isso eu formalizo ponto a ponto no contrato pra você ficar tranquilo") e o tip manda o vendedor responder com a VERDADE dele. Para números sem fonte: argumento qualitativo — ou, MELHOR, mande o vendedor PERGUNTAR o número ao cliente ("quanto isso te custa por mês hoje?") e ancorar no número que O CLIENTE der. O vendedor repete seu say em voz alta numa chamada REAL — fato inventado vira promessa falsa que ele terá que honrar.
-16. PROIBIDO PLACEHOLDER: nunca escreva "X reais", "[valor]", "N%", "tantos por cento" no say — o vendedor lê em voz alta e trava (ou inventa um número na hora). Se o dado não tem fonte, construa o say SEM ele, contornando com naturalidade, e use o tip para instruir ("diga seu preço real e ancore no custo da decisão errada").
-17. NUNCA CONTRADIGA O VENDEDOR: se o vendedor acabou de afirmar algo ao cliente (ex: "é na confiança mesmo, não temos SLA"), o cliente OUVIU — é PROIBIDO um say que alegue o contrário ("temos SLA em contrato"). Erro ou resposta fraca do vendedor pede dica de RECUPERAÇÃO honesta e viável ("o que eu posso fazer é formalizar em contrato o que combinarmos, com prazos — te dá a mesma segurança"), nunca reescrever a realidade.
+COMO AGIR — classifique a última fala do CLIENTE e ataque essa categoria:
+• Início/rapport → conexão genuína (elogio específico, interesse real pelo negócio dele). NÃO fale de produto nem cave dor cedo demais.
+• Esclarecimento ("como assim?", "não entendi") → ajude o vendedor a reformular COM CLAREZA o que ELE tentou dizer; zero técnica de venda. Se a fala dele veio cortada e você não sabe o que ia dizer → tip null.
+• Preço → nunca desconto de cara; ancore no valor e no custo do problema. Se o briefing traz o preço, use-o. Se NÃO traz, escreva um say que ancora o valor e ENTREGA a deixa pro vendedor dizer o preço dele (ex: "...e nesse valor já vai todo o suporte; deixa eu te passar o número fechado agora") — jamais invente número nem escreva placeholder.
+• "Será que funciona?" → prova social só se estiver no briefing; senão inversão de risco (piloto/garantia) como oferta que o VENDEDOR pode fazer.
+• Autoridade ("falar com sócio") → isole ("se dependesse só de você, fecharia?") e amarre próximo passo com data.
+• Adiamento ("vou pensar") → descubra a dúvida escondida com pergunta calibrada; não aceite sem mapear.
+• Sinal de compra (prazo, contrato, pagamento) → PARE de vender; feche (direto/alternativo) e mande silenciar após perguntar.
+• Dor revelada → pergunta de implicação SPIN: faça o cliente dimensionar o custo dela.
 
-Retorne EXCLUSIVAMENTE JSON (preencha "reading" PRIMEIRO — a dica deve derivar dela):
+REGRAS INVIOLÁVEIS:
+1. GROUNDING: só afirme número/fato/promessa (preço, ROI, %, prazo, garantia, SLA, suporte, case) que esteja no briefing ou tenha sido dito NESTA conversa. Sem fonte → contorne com honestidade ("isso eu deixo firmado no contrato") ou peça o número ao cliente. NUNCA invente, NUNCA escreva placeholder ("X reais", "[valor]").
+2. NÃO CONTRADIGA o que o vendedor já disse ao cliente (ele ouviu). Resposta fraca dele → dica de recuperação honesta, não reescrever a realidade.
+3. NÃO REPITA dica/técnica/argumento do histórico acima. Se o vendedor está aplicando sua última dica, ou não há nada NOVO que mude o jogo → tip null. Silêncio é melhor que dica óbvia ou repetida.
+4. FALA REAL: frases curtas em PT-BR falado ("tá", "pra", "a gente"), espelhe o registro do cliente (gíria dele = leve; formal = profissional), 1-3 frases que devolvem a vez. Zero jargão corporativo. PROIBIDO "Entendo sua preocupação" e "Quer que eu te explique como funciona?". Lido em voz alta, tem que soar como a próxima fala perfeita — sem parecer roteiro.
+5. PRIORIDADE: "urgent" é raro (errar AGORA custa o negócio); fluxo normal = "normal"; acerto do vendedor = "good".
+
+Retorne SÓ JSON:
 {
-  "reading": "o que a última fala do cliente REALMENTE significa/pede, em até 10 palavras",
-  "tip": "diagnóstico/direção curta e cirúrgica (máx 14 palavras), coerente com a reading. null se nada útil, se o trecho for só ruído, ou se qualquer regra acima mandar silenciar.",
-  "say": "fala PRONTA para o vendedor dizer AGORA, natural e fluida, 1-3 frases (máx 45 palavras). Marque entre **asteriscos duplos** os 1-3 trechos que merecem ÊNFASE na voz (ex: 'quanto isso te custa **por mês** hoje?'). null se não se aplicar.",
-  "grounded": <true|false — responda com honestidade: TRUE somente se CADA número, fato e promessa do say tem fonte no briefing ou nesta conversa. Se false, o say será descartado pelo sistema>,
-  "tone": "ENTONAÇÃO da entrega (OBRIGATÓRIO sempre que say existir): 4-8 palavras cobrindo tom, ritmo e pausas — ex: 'calmo e firme, ritmo lento, pausa antes do valor'. Combine com o estado emocional do cliente captado nas nuances. (A ênfase já vai marcada no say com **.)",
-  "technique": "nome da técnica aplicada, 2-4 palavras. null se tip for null.",
-  "priority": "urgent|normal|good",
-  "icon": "um emoji",
-  "stage": "rapport|descoberta|apresentacao|objecoes|fechamento",
-  "temperature": <0-100, o quão quente a negociação está: interesse real, sinais de compra, engajamento do cliente>
+ "tip": "diagnóstico interno curtíssimo (máx 12 palavras). null se ruído, repetição, ou nada novo a dizer",
+ "say": "a fala PRONTA do vendedor, 1-3 frases faladas (máx 42 palavras). Marque com **asteriscos** as 1-3 palavras/trechos de ÊNFASE na voz. Presente SEMPRE que houver tip.",
+ "grounded": <true só se CADA número/fato/promessa do say tem fonte no briefing ou na conversa; senão false — o say será descartado>,
+ "tone": "entonação da entrega, 4-8 palavras (tom, ritmo, pausas). Ex: 'calmo e firme, pausa antes do valor'",
+ "technique": "técnica aplicada, 2-4 palavras",
+ "priority": "urgent|normal|good",
+ "stage": "rapport|descoberta|apresentacao|objecoes|fechamento",
+ "temperature": <0-100 quão quente está a negociação>
 }
-
-Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele acertou e dê a jogada seguinte pronta para capitalizar em cima do acerto.`;
+Se o vendedor mandou bem, priority "good": no tip diga qual técnica ele acertou e no say entregue a jogada seguinte pronta.`;
 
       // Modelo do coach: gpt-4.1-mini segue instruções finas (grounding,
       // anti-repetição, DNA de fala) bem melhor que o 4o-mini com latência
@@ -930,7 +910,7 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
             body: JSON.stringify({
               model,
               messages: [{ role: 'user', content: prompt }],
-              max_tokens: 380,
+              max_tokens: 300,
               temperature: 0.4,
               response_format: { type: 'json_object' },
             }),
@@ -966,15 +946,15 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
             if (say && (parsed.grounded === false || /[\[\]{}]/.test(say) || /\bX\s*(reais|mil|%|por\s*cento)/i.test(say) || /\b(N|Y)%/.test(say))) {
               say = null;
             }
+            const prio = parsed.priority || 'normal';
             deliverTip({
               t: Date.now(),
               tip: parsed.tip,
               say,
               tone: say ? (parsed.tone || null) : null,
               technique: parsed.technique || null,
-              reading: parsed.reading || null, // leitura da fala — auditável no histórico
-              priority: parsed.priority || 'normal',
-              icon: parsed.icon || '🎯',
+              priority: prio,
+              icon: prio === 'urgent' ? '🔥' : prio === 'good' ? '✅' : '💬',
             });
           }
         }
@@ -1504,20 +1484,25 @@ Se o vendedor acabou de mandar bem, use priority "good", diga QUAL técnica ele 
     }
     const hero = tips[0];
     const history = tips.slice(1, 7);
+    const stale = (Date.now() - hero.t) > 45000;
     el.innerHTML = `
-      <div class="lc-hero ${hero.priority}${(Date.now() - hero.t) > 45000 ? ' stale' : ''}" id="lc-hero">
-        <span class="lc-hero-label">${HERO_LABELS[hero.priority] || HERO_LABELS.normal}</span>${hero.technique ? `<span class="lc-tech-chip">📐 ${esc(hero.technique)}</span>` : ''}
-        <div class="lc-hero-body">
-          <span class="lc-hero-icon">${hero.icon || '🎯'}</span>
-          ${hero.say && hero.tone
-            ? `<div class="lc-hero-tone">🎭 ${esc(hero.tone)}</div>`
-            : `<div class="lc-hero-text">${esc(hero.tip)}</div>`}
+      <div class="lc-hero ${hero.priority}${stale ? ' stale' : ''}" id="lc-hero">
+        <div class="lc-hero-top">
+          <span class="lc-hero-label">${HERO_LABELS[hero.priority] || HERO_LABELS.normal}</span>
+          ${hero.technique ? `<span class="lc-tech-chip">📐 ${esc(hero.technique)}</span>` : ''}
         </div>
         ${hero.say ? `
-        <div class="lc-say">
-          <div class="lc-say-label"><span>💬 FALE ASSIM</span><span class="lc-say-tone">as <strong style="color:#ffd25c">palavras amarelas</strong> levam a ênfase</span></div>
-          <div class="lc-say-text">"${renderSay(hero.say)}"</div>
-        </div>` : ''}
+          <div class="lc-say">
+            <div class="lc-say-label">💬 FALE ASSIM <span class="lc-say-hint">dê ênfase nas <b>palavras em amarelo</b></span></div>
+            <div class="lc-say-text">"${renderSay(hero.say)}"</div>
+          </div>
+          ${hero.tone ? `<div class="lc-hero-tone"><span class="lc-tone-ic">🎭</span><span><b>Entonação:</b> ${esc(hero.tone)}</span></div>` : ''}
+        ` : `
+          <div class="lc-hero-body">
+            <span class="lc-hero-icon">${hero.icon || '🎯'}</span>
+            <div class="lc-hero-text">${esc(hero.tip)}</div>
+          </div>
+        `}
         <div class="lc-hero-fresh">
           <span><span class="lc-fresh-dot"></span><span id="lc-tip-fresh">${freshLabel(hero.t)}</span></span>
           <span>${new Date(hero.t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
