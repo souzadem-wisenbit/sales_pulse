@@ -11,6 +11,7 @@ async function listLiveCalls(req, res) {
   try {
     const base = `
       SELECT c.id, c.user_id, c.started_at, c.ended_at, c.summary, c.briefing,
+             c.channel, c.contact_name,
              jsonb_array_length(c.transcript) AS segments,
              jsonb_array_length(c.tips) AS tip_count,
              u.name AS user_name
@@ -48,9 +49,15 @@ async function getLiveCall(req, res) {
 
 async function createLiveCall(req, res) {
   try {
-    const id = 'call_' + Date.now();
+    const id = 'call_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
     const briefing = req.body?.briefing || {};
-    await db.query('INSERT INTO live_calls (id, user_id, briefing) VALUES ($1, $2, $3)', [id, req.user.id, JSON.stringify(briefing)]);
+    // 'whatsapp' = conversa de texto do WhatsApp Coach; 'audio' = chamada real
+    const channel = req.body?.channel === 'whatsapp' ? 'whatsapp' : 'audio';
+    const contactName = (req.body?.contactName || null) && String(req.body.contactName).slice(0, 120);
+    await db.query(
+      'INSERT INTO live_calls (id, user_id, briefing, channel, contact_name) VALUES ($1, $2, $3, $4, $5)',
+      [id, req.user.id, JSON.stringify(briefing), channel, contactName]
+    );
     res.status(201).json({ id });
   } catch (err) {
     console.error('[LIVE_CALLS CREATE]', err);

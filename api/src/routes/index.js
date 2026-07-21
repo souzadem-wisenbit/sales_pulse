@@ -11,6 +11,7 @@ const clientsCtrl = require('../controllers/clientsController');
 const productsCtrl = require('../controllers/productsController');
 const schedCtrl = require('../controllers/scheduledSessionsController');
 const liveCtrl = require('../controllers/liveCallsController');
+const waCtrl = require('../controllers/whatsappController');
 
 const syncRouter = express.Router();
 syncRouter.use(authenticate);
@@ -78,4 +79,15 @@ liveProfilesRouter.get('/:userId', authorize('manager', 'seller'), liveCtrl.getP
 liveProfilesRouter.put('/:userId', authorize('manager', 'seller'), liveCtrl.upsertProfile);
 liveProfilesRouter.put('/:userId/coach', authorize('manager'), liveCtrl.assignCoach);
 
-module.exports = { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter, liveCallsRouter, liveProfilesRouter };
+// WhatsApp Coach: sessão SEMPRE do próprio usuário autenticado (req.user.id).
+// Nenhuma rota aceita userId de fora — um vendedor não alcança o WhatsApp de outro.
+const whatsappRouter = express.Router();
+whatsappRouter.use(authenticate);
+whatsappRouter.post('/connect', authorize('manager', 'seller'), waCtrl.connectWhatsapp);
+whatsappRouter.get('/status', authorize('manager', 'seller'), waCtrl.getStatus);
+whatsappRouter.get('/events', authorize('manager', 'seller'), waCtrl.getEvents);
+whatsappRouter.post('/disconnect', authorize('manager', 'seller'), waCtrl.disconnectWhatsapp);
+whatsappRouter.get('/briefing', authorize('manager', 'seller'), waCtrl.getBriefing);
+whatsappRouter.put('/briefing', authorize('manager', 'seller'), waCtrl.putBriefing);
+
+module.exports = { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter, liveCallsRouter, liveProfilesRouter, whatsappRouter };

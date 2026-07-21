@@ -278,7 +278,9 @@ const API = (() => {
   async function deleteScheduledSession(id) { return await del(`/api/scheduled_sessions/${id}`); }
 
   // Live Coach (chamadas reais)
-  async function createLiveCall(briefing) { return await post('/api/live_calls', { briefing: briefing || {} }, 0); }
+  // extra: { channel: 'audio'|'whatsapp', contactName } — o WhatsApp Coach cria
+  // uma "chamada" por conversa, para o gestor ver as duas modalidades juntas.
+  async function createLiveCall(briefing, extra) { return await post('/api/live_calls', { briefing: briefing || {}, ...(extra || {}) }, 0); }
   async function updateLiveCall(id, data) { return await put(`/api/live_calls/${id}`, data); }
   async function listLiveCalls() { return await get('/api/live_calls'); }
   async function getLiveCall(id) { return await get(`/api/live_calls/${id}`); }
@@ -286,6 +288,14 @@ const API = (() => {
   async function getLiveProfile(userId) { return await get(`/api/live_profiles/${userId}`); }
   async function saveLiveProfile(userId, profile, event) { return await put(`/api/live_profiles/${userId}`, { profile, event: event || null }); }
   async function assignCoach(userId, coachId) { return await put(`/api/live_profiles/${userId}/coach`, { coachId }); }
+
+  // WhatsApp Coach (modalidade escrita) — sempre a sessão do próprio usuário
+  async function waConnect() { return await post('/api/whatsapp/connect', {}, 0); }
+  async function waStatus() { return await get('/api/whatsapp/status'); }
+  async function waEvents(since) { return await get(`/api/whatsapp/events?since=${Number(since) || 0}`); }
+  async function waDisconnect() { return await post('/api/whatsapp/disconnect', {}, 0); }
+  async function waGetBriefing() { return await get('/api/whatsapp/briefing'); }
+  async function waSaveBriefing(briefing) { return await put('/api/whatsapp/briefing', briefing || {}); }
 
   // AI Settings (OpenAI key shared across all devices/users via backend)
   async function getAiSettings() {
@@ -354,6 +364,12 @@ const API = (() => {
     listLiveProfiles,
     getLiveProfile,
     saveLiveProfile,
+    waConnect,
+    waStatus,
+    waEvents,
+    waDisconnect,
+    waGetBriefing,
+    waSaveBriefing,
     assignCoach,
   };
 
