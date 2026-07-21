@@ -149,13 +149,25 @@ const LiveCoach = (() => {
         .lc-card { background: rgba(14,14,26,0.85); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 1.25rem; }
         .lc-card + .lc-card { margin-top: 1.25rem; }
         .lc-card-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #5a5a7a; margin-bottom: 0.9rem; }
-        .lc-video { width: 100%; max-height: 42vh; border-radius: 10px; background: #000; display: block; object-fit: contain; }
-        .lc-theater .lc-video { max-height: 72vh; }
-        .lc-transcript { max-height: 34vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
-        /* Coach fica sempre visível (fixo) mesmo rolando a transcrição */
-        .lc-coach-card { position: sticky; top: 12px; }
-        #lc-tips { max-height: 62vh; overflow-y: auto; }
-        @media (max-width: 1000px) { .lc-coach-card { position: static; } #lc-tips { max-height: none; } }
+        .lc-video { width: 100%; max-height: 40vh; border-radius: 10px; background: #000; display: block; object-fit: contain; }
+        .lc-theater .lc-video { max-height: 74vh; }
+        .lc-transcript { overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        /* ── Tela ao vivo = dashboard 100vh: NADA de rolagem de página.
+           Cada painel rola por dentro; dica sempre visível no topo direito. ── */
+        .lc-wrap.lc-live { height: 100vh; display: flex; flex-direction: column; padding: 1rem 1.5rem; }
+        .lc-live .lc-header { flex-shrink: 0; margin-bottom: 0.9rem; }
+        .lc-live .lc-grid { flex: 1; min-height: 0; }
+        .lc-col-left { display: flex; flex-direction: column; gap: 1.1rem; min-height: 0; }
+        .lc-col-left .lc-card + .lc-card, .lc-col-right .lc-card + .lc-card { margin-top: 0; }
+        .lc-video-card { flex-shrink: 0; }
+        .lc-transcript-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .lc-transcript-card .lc-transcript { flex: 1; min-height: 0; }
+        .lc-col-right { display: flex; flex-direction: column; gap: 1.1rem; min-height: 0; overflow-y: auto; padding-right: 3px; }
+        .lc-col-right .lc-card { flex-shrink: 0; }
+        .lc-theater .lc-col-right { display: none; }
+        .lc-video-hint { margin-top: 8px; font-size: 0.74rem; line-height: 1.4; color: #8a8aad; text-align: center; }
+        .lc-video-hint strong { color: #c3beff; font-weight: 700; }
+        @media (max-width: 1000px) { .lc-wrap.lc-live { height: auto; } .lc-col-right { overflow: visible; } }
         .lc-seg { padding: 8px 12px; border-radius: 10px; font-size: 0.86rem; line-height: 1.45; max-width: 92%; }
         .lc-seg.seller { background: rgba(108,99,255,0.14); border: 1px solid rgba(108,99,255,0.25); align-self: flex-end; }
         .lc-seg.client { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); align-self: flex-start; }
@@ -863,6 +875,7 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
 
 COMO AGIR — classifique a última fala do CLIENTE e ataque essa categoria:
 • Início/rapport → conexão genuína (elogio específico, interesse real pelo negócio dele). NÃO fale de produto nem cave dor cedo demais.
+• "Me explica o que é / do que se trata / o que você tem pra mim" → entregue no say um PITCH curto e matador do produto DO BRIEFING (o que é + o principal benefício pra dor dele), 1-2 frases faladas, e termine com uma pergunta de descoberta. Use as palavras do briefing; nada genérico.
 • Esclarecimento ("como assim?", "não entendi") → ajude o vendedor a reformular COM CLAREZA o que ELE tentou dizer; zero técnica. Se a fala dele veio cortada e você não sabe o que ia dizer → tip null.
 • Preço → nunca desconto de cara; ancore no valor e no custo do problema. Se o briefing traz o preço, use-o. Se NÃO traz, escreva um say que ancora o valor e ENTREGA a deixa pro vendedor dizer o preço ("...e nesse valor já vai o suporte; (PAUSA) deixa eu te passar o número fechado") — jamais invente número nem placeholder.
 • "Será que funciona?" → prova social só se estiver no briefing; senão inversão de risco (piloto/garantia) como oferta que o VENDEDOR pode fazer.
@@ -882,10 +895,12 @@ MARCAÇÃO DO "say" (é o que o vendedor LÊ ao vivo — ele precisa usar em 1 s
 - Envolva em **asteriscos** APENAS as 1-3 PALAVRAS-CHAVE que carregam o peso e devem ser enfatizadas na voz (ex: **garantia**, **hoje**, **grátis**, o número). NUNCA marque frases inteiras nem palavras banais.
 - Escreva (PAUSA) exatamente onde ele deve pausar de propósito (antes do preço, antes da pergunta de fechamento). Use com parcimônia.
 
+REGRA DE OURO DO OUTPUT: tip e say andam JUNTOS. Ou você retorna os dois preenchidos (uma dica COM o script pronto), ou retorna tip=null e say=null (silêncio). NUNCA retorne um tip sem say — dica sem a fala pronta é inútil e será descartada pelo sistema.
+
 Retorne SÓ JSON:
 {
- "tip": "diagnóstico interno curtíssimo (máx 10 palavras). null se ruído/repetição/nada novo",
- "say": "a fala pronta do vendedor, 1-3 frases faladas (máx 42 palavras), com **palavras-chave** e (PAUSA) embutidos. Presente sempre que houver tip.",
+ "tip": "diagnóstico interno curtíssimo (máx 10 palavras). null → então say também null",
+ "say": "a fala pronta do vendedor, 1-3 frases faladas (máx 42 palavras), com **palavras-chave** e (PAUSA) embutidos. OBRIGATÓRIO sempre que tip existir.",
  "grounded": <true só se cada número/fato/promessa do say tem fonte; senão false — say descartado>,
  "technique": "técnica aplicada, 2-4 palavras",
  "priority": "urgent|normal|good",
@@ -934,17 +949,17 @@ ${recent}
         if (typeof parsed.temperature === 'number') latestTemp = Math.max(0, Math.min(100, Math.round(parsed.temperature)));
         renderStage();
         if (parsed.tip) {
-          // Anti-obsolescência: se a conversa andou muito enquanto a dica era
-          // gerada, o assunto provavelmente mudou — descarta (exceto urgente).
+          // Kill-switch do say: placeholder ("X reais", "[valor]") ou
+          // autocertificação grounded=false → script inválido.
+          let say = parsed.say || null;
+          if (say && (parsed.grounded === false || /[\[\]{}]/.test(say) || /\bX\s*(reais|mil|%|por\s*cento)/i.test(say) || /\b(N|Y)%/.test(say))) {
+            say = null;
+          }
+          // Dica é SEMPRE script pronto: sem say, não há dica (nunca o
+          // cartão-resumo de fallback). Anti-obsolescência: se a conversa
+          // andou muito enquanto gerava, o assunto mudou — descarta (exceto urgente).
           const grewBy = transcript.length - sinceCount;
-          if (grewBy < 3 || parsed.priority === 'urgent') {
-            // Kill-switch do say: placeholder ("X reais", "[valor]") ou
-            // autocertificação grounded=false → o script não vai para a
-            // boca do vendedor; a direção (tip) continua valendo.
-            let say = parsed.say || null;
-            if (say && (parsed.grounded === false || /[\[\]{}]/.test(say) || /\bX\s*(reais|mil|%|por\s*cento)/i.test(say) || /\b(N|Y)%/.test(say))) {
-              say = null;
-            }
+          if (say && (grewBy < 3 || parsed.priority === 'urgent')) {
             const prio = parsed.priority || 'normal';
             deliverTip({
               t: Date.now(),
@@ -1094,7 +1109,7 @@ ${recent}
       : '';
 
     overlay.innerHTML = `${baseStyles()}
-      <div class="lc-wrap">
+      <div class="lc-wrap lc-live">
         <div class="lc-header">
           <div class="lc-title"><span class="lc-live-dot"></span>Live Coach — Monitorando chamada</div>
           <div class="lc-chip" id="lc-clock">00:00</div>
@@ -1110,8 +1125,8 @@ ${recent}
           </div>
         </div>
         <div class="lc-grid" id="lc-main-grid">
-          <div>
-            <div class="lc-card" style="padding:0.9rem">
+          <div class="lc-col-left">
+            <div class="lc-card lc-video-card" style="padding:0.9rem">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;gap:8px;flex-wrap:wrap">
                 <div class="lc-card-title" style="margin:0">🖥 Sua reunião (ao vivo)</div>
                 <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -1128,15 +1143,18 @@ ${recent}
                 </div>
               </div>
               <video id="lc-video" class="lc-video" autoplay muted playsinline onclick="LiveCoach.videoClicked()"></video>
+              ${surfaceControlSupported()
+                ? `<div class="lc-video-hint" id="lc-video-hint">🖱 <strong>Role o mouse sobre o vídeo</strong> para rolar a reunião · use os botões de zoom · para <strong>clicar</strong> em algo, vá até a aba da reunião (Alt+Tab)</div>`
+                : `<div class="lc-video-hint">🖥 Espelho da reunião. Para interagir (clicar, rolar), use a própria aba da reunião — Alt+Tab.</div>`}
             </div>
-            <div class="lc-card">
+            <div class="lc-card lc-transcript-card">
               <div class="lc-card-title">📝 Transcrição ao vivo</div>
               <div class="lc-transcript" id="lc-transcript">
                 <div class="lc-muted">Aguardando as primeiras falas...</div>
               </div>
             </div>
           </div>
-          <div>
+          <div class="lc-col-right">
             <div class="lc-card lc-coach-card">
               <div style="display:flex;align-items:center;justify-content:space-between">
                 <div class="lc-card-title" style="margin-bottom:0.9rem">💡 Coach em tempo real</div>
@@ -1174,6 +1192,12 @@ ${recent}
       video.play().catch(() => {});
     }
 
+    // Tenta ativar o controle da aba já de cara (rolagem/zoom sem clique
+    // extra). Se o navegador exigir um gesto, o clique no vídeo ativa depois.
+    if (surfaceControlSupported()) {
+      setTimeout(() => { enableSurfaceControl(true); }, 400);
+    }
+
     clockTimer = setInterval(() => {
       const el = document.getElementById('lc-clock');
       if (el && startedAt) el.textContent = fmtClock(Date.now() - startedAt);
@@ -1205,9 +1229,10 @@ ${recent}
     return !!(captureController && typeof captureController.forwardWheel === 'function' && sharedSurface === 'browser');
   }
 
-  async function enableSurfaceControl() {
+  async function enableSurfaceControl(silent = false) {
+    if (surfaceCtlEnabled) return;
     if (!surfaceControlSupported()) {
-      try { UI.toast('Controle da aba indisponível: use Chrome 136+ e compartilhe a ABA da reunião.', 'warning'); } catch (e) {}
+      if (!silent) { try { UI.toast('Controle da aba indisponível: use Chrome 136+ e compartilhe a ABA da reunião.', 'warning'); } catch (e) {} }
       return;
     }
     const video = document.getElementById('lc-video');
@@ -1216,12 +1241,12 @@ ${recent}
       await captureController.forwardWheel(video);
       surfaceCtlEnabled = true;
       const btn = document.getElementById('lc-interact-btn');
-      if (btn) { btn.textContent = '🖱 Controle ativo'; btn.style.borderColor = 'rgba(0,212,170,0.5)'; btn.style.color = '#7dead0'; }
+      if (btn) { btn.textContent = '✅ Controle ativo'; btn.style.borderColor = 'rgba(0,212,170,0.5)'; btn.style.color = '#7dead0'; }
       refreshZoomUI();
-      try { UI.toast('Controle ativo: role o mouse sobre o vídeo para rolar a página da reunião. Cliques dentro do espelho não são permitidos pelo navegador.', 'success'); } catch (e) {}
+      if (!silent) { try { UI.toast('Controle ativo: role o mouse sobre o vídeo para rolar a reunião. Cliques não são repassados pelo navegador — para clicar, use a aba da reunião.', 'success'); } catch (e) {} }
     } catch (e) {
       console.warn('[LiveCoach] surface control fail', e);
-      try { UI.toast('Não foi possível ativar o controle da aba: ' + (e?.message || 'permissão negada'), 'warning'); } catch (e2) {}
+      if (!silent) { try { UI.toast('Não foi possível ativar o controle da aba: ' + (e?.message || 'permissão negada'), 'warning'); } catch (e2) {} }
     }
   }
 
