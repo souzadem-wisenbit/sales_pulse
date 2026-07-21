@@ -1,5 +1,7 @@
 node_modules/
 api/node_modules/
+mission-control/node_modules/
+mission-control/data/
 .env
 api/.env
 *.pdf
@@ -24,3 +26,5 @@ azure-logs/
 azure_logs2/
 salesbot-pro-backup*
 planos_preco_pdf.html
+
+.vercel

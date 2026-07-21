@@ -1,0 +1,14 @@
+{
+  "name": "salespulse-mission-control",
+  "version": "1.0.0",
+  "description": "Painel desktop de operação da frota de instâncias SalesPulse",
+  "main": "electron-main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "web": "node server.js"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}
