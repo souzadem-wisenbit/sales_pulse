@@ -367,7 +367,15 @@ REGRAS ABSOLUTAS FINAIS DE ESTILO:
 Preste MUITA ATENÇÃO a estas regras. Elas definem exatamente como você deve escrever (ou digitar incorretamente). NUNCA as ignore.
 ${commStyleBlock}
 
-**ALERTA CRÍTICO DO SISTEMA:** Se o seu perfil exige gírias ou erros ortográficos, VOCÊ É ESTRITAMENTE PROIBIDO de escrever português correto e formal. Você DEVE errar propositalmente, usar jargões e gírias, e soar desleixado. Quebrar esta regra resultará em falha da simulação.`;
+**ALERTA CRÍTICO DO SISTEMA:** Se o seu perfil exige gírias ou erros ortográficos, VOCÊ É ESTRITAMENTE PROIBIDO de escrever português correto e formal. Você DEVE errar propositalmente, usar jargões e gírias, e soar desleixado. Quebrar esta regra resultará em falha da simulação.${
+      config.customBehavior && config.customBehavior.trim()
+        ? `
+
+⚠️⚠️ PALAVRA FINAL — O COMPORTAMENTO OBRIGATÓRIO DESTE CLIENTE (vence QUALQUER regra acima):
+"""${config.customBehavior.trim()}"""
+Antes de CADA mensagem, confira: ela reflete este comportamento? Se não, reescreva. É isto que define quem você é.`
+        : ''
+    }`;
   }
 
   // ── Instruções para sessão de VOZ (OpenAI Realtime) ──
@@ -422,7 +430,19 @@ ${commStyleBlock}
     const styleContract = styleLines.map((s, i) => `${i + 1}. ${s}`).join('\n');
     const styleSummary = styleLines.slice(0, 3).join(' ').slice(0, 160);
 
-    return `🎭 CONTRATO DE VOZ — QUEM FALA NESTA LIGAÇÃO (INEGOCIÁVEL, VALE PARA TODA FALA):
+    // O comportamento em linguagem natural escrito pelo gestor é a instrução
+    // de MAIOR peso: vai na primeira linha do prompt E na última (modelos
+    // realtime pesam as pontas). Antes ficava só no meio e era ignorado.
+    const freeBehavior = (config.customBehavior || '').trim();
+    const freeTop = freeBehavior
+      ? `⚠️⚠️ COMPORTAMENTO OBRIGATÓRIO DESTE CLIENTE (escrito pelo gestor — PRIORIDADE ABSOLUTA sobre TODAS as outras regras deste prompt, inclusive as de voz):
+"""${freeBehavior}"""
+→ Isto define QUEM você é nesta ligação: seu humor, suas manias, o que te irrita, o que te anima, o que você pergunta. Encarne desde a PRIMEIRA fala e mantenha até o fim. Se qualquer regra abaixo conflitar com isto, ISTO VENCE.
+
+`
+      : '';
+
+    return `${freeTop}🎭 CONTRATO DE VOZ — QUEM FALA NESTA LIGAÇÃO (INEGOCIÁVEL, VALE PARA TODA FALA):
 Você é ${config.customerName}, ${config.customerRole} da ${config.customerCompany} — uma pessoa brasileira REAL ao telefone, jamais um assistente.
 SEU JEITO DE FALAR (aplique em CADA fala, da primeira à última — se escorregar, volte ao estilo na fala seguinte):
 ${styleContract}
@@ -455,7 +475,9 @@ ${base}
 🔁 CHECKLIST ANTES DE CADA FALA (releia mentalmente SEMPRE):
 1. Soei como ${config.customerName} de verdade? (${styleSummary || 'fala natural de telefone'})
 2. Falei curto (1-3 frases) e devolvi a vez?
-3. Continuei COMPRADOR, no tema do produto do briefing, sem pedir para ver/receber nada?`;
+3. Continuei COMPRADOR, no tema do produto do briefing, sem pedir para ver/receber nada?${freeBehavior ? `
+4. ⚠️ ESTOU CUMPRINDO O COMPORTAMENTO OBRIGATÓRIO? Ele manda em tudo: """${freeBehavior}"""
+   Se a fala que você ia dar não reflete isso, REESCREVA antes de falar.` : ''}`;
   }
 
   // ── Parse AI response ──

@@ -626,6 +626,12 @@ Retorne EXCLUSIVAMENTE JSON: {"conviction": <0-100>, "closed": <bool>, "noIntere
     ending = true;
     if (bannerText) showBanner(bannerText);
     persistState();
+    // Fecha a sessão agendada na hora (venda fechada, dealbreaker, desinteresse
+    // ou encerramento manual): ela some das sessões abertas e não reabre,
+    // mesmo que a avaliação falhe depois.
+    try {
+      if (sess?.id) Storage.updateScheduledSession(sess.id, { status: 'done', doneAt: new Date().toISOString() });
+    } catch (e) {}
     const durationSeconds = callStartMs ? Math.floor((Date.now() - callStartMs) / 1000) : 0;
 
     setTimeout(() => {

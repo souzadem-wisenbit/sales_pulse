@@ -61,6 +61,8 @@ const LiveCoach = (() => {
   let coachCore = null;            // identidade destilada da metodologia (tom + regras de ouro)
   let coachPlays = [];             // catálogo de jogadas — toda dica escolhe uma por número
   let usedPlays = [];              // jogadas já usadas nesta chamada (rotação: últimas 6 proibidas)
+  let manualPending = false;       // pedido de "Dica agora" em andamento
+  let retryTimer = null;           // nova tentativa após um descarte (evita buraco de silêncio)
   let brief = null;                // briefing pré-chamada: produtos, ramo do cliente, diretrizes
   let availableProducts = [];
   let selectedProductIds = new Set();
@@ -195,6 +197,15 @@ const LiveCoach = (() => {
         .lc-hist .lc-hist-time { margin-left: auto; font-size: 0.65rem; color: #5a5a7a; white-space: nowrap; flex-shrink: 0; }
         .lc-hist-divider { font-size: 0.62rem; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: #44445e; margin: 10px 0 6px; }
         .lc-sound-btn { background: none; border: none; cursor: pointer; font-size: 0.95rem; padding: 0 4px; }
+        /* Dica sob demanda: o botão que o vendedor aperta quando trava */
+        .lc-ask-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0.72rem 1rem; margin-bottom: 0.9rem; border-radius: 12px; border: 1px solid rgba(108,99,255,0.45); background: linear-gradient(135deg, rgba(108,99,255,0.22), rgba(0,212,170,0.16)); color: #e8e8f0; font-weight: 800; font-size: 0.92rem; cursor: pointer; transition: transform 0.12s ease, box-shadow 0.18s ease, filter 0.18s ease; }
+        .lc-ask-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(108,99,255,0.28); filter: brightness(1.08); }
+        .lc-ask-btn:active:not(:disabled) { transform: translateY(0); }
+        .lc-ask-btn:disabled { opacity: 0.75; cursor: progress; }
+        .lc-ask-kbd { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; background: rgba(255,255,255,0.1); color: #b9b9d0; border: 1px solid rgba(255,255,255,0.12); }
+        .lc-ask-spin { width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25); border-top-color: #00d4aa; display: inline-block; animation: lcSpin 0.7s linear infinite; }
+        @keyframes lcSpin { to { transform: rotate(360deg); } }
+        .lc-tip-ondemand { border-color: rgba(108,99,255,0.55) !important; }
         .lc-btn { display: inline-flex; align-items: center; gap: 8px; padding: 0.7rem 1.4rem; border-radius: 100px; border: none; cursor: pointer; font-weight: 700; font-size: 0.9rem; }
         .lc-btn-primary { background: linear-gradient(135deg, #6c63ff, #00d4aa); color: #fff; }
         .lc-btn-danger { background: rgba(255,71,87,0.15); border: 1px solid rgba(255,71,87,0.4); color: #ff4757; }
@@ -935,12 +946,49 @@ const LiveCoach = (() => {
     return (transcript.slice(-4).map(s => s.text).join(' ').slice(-450) + ' ' + stageWord).trim();
   }
 
+  // ── Dica sob demanda ──
+  // O vendedor apertou "Dica agora": ele PRECISA de uma saída neste segundo.
+  // Este pedido ignora cooldown, "nada novo desde a última dica", rotação de
+  // jogada, filtro de similaridade e o gate de entrega. Silêncio aqui seria
+  // uma resposta errada — ele pediu ajuda olhando para a tela.
+  async function requestManualTip() {
+    if (!running) return;
+    if (manualPending) return;
+    manualPending = true;
+    renderManualBtn();
+    try {
+      await requestCoach('manual');
+    } finally {
+      manualPending = false;
+      renderManualBtn();
+    }
+  }
+
+  function renderManualBtn() {
+    const btn = document.getElementById('lc-ask-btn');
+    if (!btn) return;
+    btn.disabled = manualPending;
+    btn.innerHTML = manualPending
+      ? '<span class="lc-ask-spin"></span> Pensando na melhor jogada...'
+      : '💡 Dica agora <span class="lc-ask-kbd">espaço</span>';
+  }
+
   async function requestCoach(trigger) {
     if (!running) return;
-    if (coachBusy) { coachQueued = true; return; }
-    if (transcript.length - lastCoachedCount < 1) return;
+    const force = trigger === 'manual';
+    if (coachBusy) {
+      coachQueued = true;
+      if (force) {
+        // Não perde o pedido do vendedor: espera o coach atual terminar
+        // (até 6s) e dispara em seguida.
+        const t0 = Date.now();
+        while (coachBusy && Date.now() - t0 < 6000) await new Promise(r => setTimeout(r, 120));
+        if (coachBusy) return;
+      } else return;
+    }
+    if (!force && transcript.length - lastCoachedCount < 1) return;
     const sinceGap = Date.now() - lastCoachAt;
-    if (sinceGap < COACH_GAP_CLIENT_MS) {
+    if (!force && sinceGap < COACH_GAP_CLIENT_MS) {
       // Nunca descarta: reagenda para o instante em que o cooldown expira
       if (clientFinishTimer) clearTimeout(clientFinishTimer);
       clientFinishTimer = setTimeout(scheduleClientCoach, COACH_GAP_CLIENT_MS - sinceGap + 60);
@@ -1015,14 +1063,27 @@ Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acerto
 Falas recentes (mais recente por último; transcrição automática, pode ter erros):
 ${recent}
 ${usedPlays.length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco — escolha OUTRA do catálogo): ${usedPlays.slice(-6).join(', ')}\n` : ''}${tips.length === 0 ? '\n🚀 PRIMEIRA DICA DA CHAMADA: ainda não existe nenhuma dica — retorne OBRIGATORIAMENTE tip e say preenchidos (abertura/rapport ou reação direta à fala). Nesta primeira resposta, tip null é PROIBIDO: o vendedor precisa sentir o coach ao lado desde o primeiro segundo.\n' : ''}
-⚡ O CLIENTE ACABOU DE FALAR. Escreva a resposta que o vendedor deve dar AGORA.`;
+${force
+        ? `🆘 O VENDEDOR APERTOU "DICA AGORA" — ele está travado NESTE segundo e olhando para a tela esperando a fala.
+tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e entregue a melhor jogada possível: se o cliente acabou de falar, responda; se o silêncio está pesando, dê a pergunta que reabre; se a conversa estagnou, dê o próximo passo que faz a negociação AVANÇAR. Sempre há uma jogada melhor que o silêncio.`
+        : '⚡ O CLIENTE ACABOU DE FALAR. Escreva a resposta que o vendedor deve dar AGORA.'}`;
 
       // Modelo do coach = gpt-4o-mini: o mini de menor latência. Com o
       // prompt enxuto + grounding + kill-switch, mantém a qualidade e
       // responde rápido (prioridade máxima aqui é chegar a tempo).
       // Timeout curto: um request pendurado segurava o coachBusy e
       // congelava TODAS as dicas seguintes da chamada.
-      const parsed = await CoachCore.ask(prompt, getApiKey());
+      let parsed = await CoachCore.ask(prompt, getApiKey());
+      // Pedido manual não pode voltar vazio: o modelo às vezes manda tip sem
+      // say (ou say que morre no kill-switch). Uma segunda tentativa, mais
+      // dura, resolve — o vendedor está olhando para a tela.
+      if (force && (!parsed?.tip || !CoachCore.validSay(parsed.say, parsed.grounded))) {
+        const retry = await CoachCore.ask(
+          prompt + '\n\n‼️ TENTATIVA FINAL: sua resposta anterior veio SEM a fala pronta. Retorne OBRIGATORIAMENTE "tip" E "say" preenchidos. O "say" é a frase que o vendedor vai LER EM VOZ ALTA neste segundo — sem ela a resposta é inútil. Não comece por "Entendo", "Entendi", "Ótima pergunta" nem "Claro".',
+          getApiKey()
+        );
+        if (retry?.tip && CoachCore.validSay(retry.say, retry.grounded)) parsed = retry;
+      }
       if (!parsed) {
         console.warn('[LiveCoach] sem dica: resposta nula (timeout, rede, chave ou JSON truncado)');
         return; // solta o coachBusy e a próxima fala tenta de novo
@@ -1053,13 +1114,13 @@ ${usedPlays.length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco 
           // Jogada do catálogo: o nome da técnica vem do CATÁLOGO (fonte da
           // verdade), e jogada repetida entre as últimas 6 morre aqui.
           const { play, banned } = CoachCore.resolvePlay(parsed, coachPlays, usedPlays);
-          if (say && banned && parsed.priority !== 'urgent') {
+          if (say && banned && parsed.priority !== 'urgent' && !force) {
             console.warn('[LiveCoach] dica descartada: jogada repetida —', play.n, play.name);
             say = null;
           }
           const grewBy = transcript.length - sinceCount;
-          if (say && grewBy >= 3 && parsed.priority !== 'urgent') console.warn('[LiveCoach] dica descartada: conversa andou', grewBy, 'falas durante a geração');
-          if (say && (grewBy < 3 || parsed.priority === 'urgent')) {
+          if (say && grewBy >= 3 && parsed.priority !== 'urgent' && !force) console.warn('[LiveCoach] dica descartada: conversa andou', grewBy, 'falas durante a geração');
+          if (say && (force || grewBy < 3 || parsed.priority === 'urgent')) {
             const prio = parsed.priority || 'normal';
             if (play) usedPlays.push(play.n);
             deliverTip({
@@ -1069,7 +1130,11 @@ ${usedPlays.length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco 
               technique: play ? play.name : (parsed.technique || null),
               priority: prio,
               icon: prio === 'urgent' ? '🔥' : prio === 'good' ? '✅' : '💬',
-            });
+              onDemand: force,
+            }, force);
+          } else if (force) {
+            // Pedido explícito não pode acabar em nada: avisa em vez de sumir
+            UI.toast?.('Não consegui uma jogada segura agora — tente de novo em instantes.', 'warning');
           }
         }
         updatePip();
@@ -1106,10 +1171,25 @@ ${usedPlays.length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco 
     return CoachCore.tooSimilar(tip, tips);
   }
 
-  function deliverTip(tip) {
-    if (tooSimilarToRecent(tip)) { console.log('[LiveCoach] dica descartada: parecida demais com recentes'); return; }
+  // Fluidez: dica descartada (repetida/obsoleta) deixava um buraco de
+  // silêncio até a próxima fala do cliente. Aqui pedimos OUTRA tentativa
+  // logo em seguida — o coach não fica mudo por causa de um descarte.
+  function retrySoon() {
+    if (!running || retryTimer) return;
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      if (!running || coachBusy) return;
+      lastCoachedCount = Math.max(0, transcript.length - 1); // libera o "nada novo"
+      requestCoach('retry');
+    }, 1500);
+  }
+
+  function deliverTip(tip, force) {
+    // Pedido manual do vendedor: entra direto, sem filtro e sem gate.
+    if (force) { addTip(tip); return; }
+    if (tooSimilarToRecent(tip)) { console.log('[LiveCoach] dica descartada: parecida demais com recentes'); retrySoon(); return; }
     // Rotação de técnica: repetiu a técnica de uma das 2 últimas = descartada
-    if (CoachCore.repeatsTechnique(tip, tips)) { console.log('[LiveCoach] dica descartada: técnica repetida —', tip.technique); return; }
+    if (CoachCore.repeatsTechnique(tip, tips)) { console.log('[LiveCoach] dica descartada: técnica repetida —', tip.technique); retrySoon(); return; }
     // PRIMEIRA dica da chamada: entrega imediata, sem esperar pausa — o
     // vendedor precisa ver o coach vivo desde a primeira fala do cliente.
     if (tips.length === 0) { addTip(tip); return; }
@@ -1258,7 +1338,8 @@ ${usedPlays.length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco 
                 <div class="lc-card-title" style="margin-bottom:0.9rem">💡 Coach em tempo real</div>
                 <button class="lc-sound-btn" id="lc-sound-btn" onclick="LiveCoach.toggleSound()" title="Som de dica ligado">🔔</button>
               </div>
-              <div id="lc-tips"><div class="lc-muted">As dicas aparecem aqui conforme a conversa evolui.</div></div>
+              <button class="lc-ask-btn" id="lc-ask-btn" onclick="LiveCoach.askTip()" title="Peça uma jogada para este momento (barra de espaço)">💡 Dica agora <span class="lc-ask-kbd">espaço</span></button>
+              <div id="lc-tips"><div class="lc-muted">As dicas aparecem sozinhas conforme a conversa evolui — ou peça uma agora no botão acima.</div></div>
             </div>
             <div class="lc-card">
               <div class="lc-card-title">🌡 Termômetro da negociação</div>
@@ -1600,16 +1681,16 @@ ${usedPlays.length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco 
     const el = document.getElementById('lc-tips');
     if (!el) return;
     if (tips.length === 0) {
-      el.innerHTML = '<div class="lc-muted">As dicas aparecem aqui conforme a conversa evolui.</div>';
+      el.innerHTML = '<div class="lc-muted">As dicas aparecem sozinhas conforme a conversa evolui — ou peça uma agora no botão acima.</div>';
       return;
     }
     const hero = tips[0];
     const history = tips.slice(1, 7);
     const stale = (Date.now() - hero.t) > 45000;
     el.innerHTML = `
-      <div class="lc-hero ${hero.priority}${stale ? ' stale' : ''}" id="lc-hero">
+      <div class="lc-hero ${hero.priority}${stale ? ' stale' : ''}${hero.onDemand ? ' lc-tip-ondemand' : ''}" id="lc-hero">
         <div class="lc-hero-top">
-          <span class="lc-hero-label">${HERO_LABELS[hero.priority] || HERO_LABELS.normal}</span>
+          <span class="lc-hero-label">${hero.onDemand ? '💡 VOCÊ PEDIU' : (HERO_LABELS[hero.priority] || HERO_LABELS.normal)}</span>
           ${hero.technique ? `<span class="lc-tech-chip">📐 ${esc(hero.technique)}</span>` : ''}
         </div>
         ${hero.say ? `
@@ -1901,7 +1982,21 @@ ${convo}`;
       </div>`;
   }
 
-  return { open, close, start, stop, toggleMicPause, pip, toggleTheater, toggleSound, toggleProduct, learnFromTraining, enableSurfaceControl, zoomSurface, videoClicked, startAudioMode, startWhatsappMode, renderModeChooser };
+  // Atalho de teclado: BARRA DE ESPAÇO pede uma dica na hora. Numa chamada
+  // o vendedor não tem mão livre para caçar botão — e a tela ao vivo não tem
+  // campo de digitação, então o espaço fica livre para isso.
+  document.addEventListener('keydown', (e) => {
+    if (!running) return;
+    if (e.code !== 'Space' && e.key !== ' ') return;
+    const el = document.activeElement;
+    const tag = (el?.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select' || el?.isContentEditable) return;
+    if (tag === 'button') return; // espaço em botão focado = clicar nele
+    e.preventDefault();
+    requestManualTip();
+  });
+
+  return { open, close, start, stop, toggleMicPause, pip, toggleTheater, toggleSound, toggleProduct, learnFromTraining, enableSurfaceControl, zoomSurface, videoClicked, startAudioMode, startWhatsappMode, renderModeChooser, askTip: requestManualTip };
 })();
 
 window.LiveCoach = LiveCoach;

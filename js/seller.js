@@ -545,7 +545,11 @@ const Seller = (() => {
     let sessionToStart = allSessions.find(s => String(s.id) === String(sessionId));
 
     if (!sessionToStart) {
-      alert('Você não tem treinamentos agendados disponíveis no momento.');
+      // Sessão concluída (venda fechada, dealbreaker ou já avaliada) não reabre
+      const closed = (Storage.getScheduledSessions() || []).find(s => String(s.id) === String(sessionId));
+      alert(closed?.status === 'done'
+        ? 'Esta sessão já foi concluída e não pode ser refeita. Peça uma nova ao seu gestor.'
+        : 'Você não tem treinamentos agendados disponíveis no momento.');
       return;
     }
 
@@ -964,6 +968,18 @@ const Seller = (() => {
     const input = document.getElementById('chat-input');
     if (!input) return;
     input.placeholder = getInitialInputPlaceholder();
+  }
+
+  // Marca a sessão agendada como concluída (idempotente). Atualiza o cache
+  // local na hora — a lista de sessões abertas do vendedor não espera a rede.
+  function concludeScheduledSession() {
+    const id = config?._pendingSessionId;
+    if (!id) return;
+    try {
+      const cached = (Storage.getScheduledSessions() || []).find(s => String(s.id) === String(id));
+      if (cached?.status === 'done') return;
+      Storage.updateScheduledSession(id, { status: 'done', doneAt: new Date().toISOString() });
+    } catch (e) { /* nunca bloqueia o encerramento */ }
   }
 
   async function saveCurrentSession() {
@@ -1776,6 +1792,13 @@ const Seller = (() => {
     isWaiting = false; // guarantee UI is never stuck
     stopTimer();
 
+    // Fecha a sessão agendada AGORA, não depois da avaliação: venda fechada,
+    // dealbreaker ou encerramento manual tiram a sessão da lista de abertas
+    // imediatamente. Se a avaliação falhar (ou o vendedor sair no meio), a
+    // sessão continua fechada — antes ela voltava para "em aberto" e dava
+    // para refazer o mesmo treino.
+    concludeScheduledSession();
+
     // Disable send button and show loading — always keep an escape hatch
     const sendBtn = document.getElementById('chat-send-btn');
     if (sendBtn) sendBtn.disabled = true;
@@ -1829,10 +1852,7 @@ const Seller = (() => {
           } catch (e) { /* silencioso */ }
         }
         
-        // Mark the scheduled session as done if we had one
-        if (config._pendingSessionId && typeof Storage.updateScheduledSession === 'function') {
-          Storage.updateScheduledSession(config._pendingSessionId, { status: 'done', doneAt: new Date().toISOString() });
-        }
+        concludeScheduledSession(); // idempotente — já fechada no início do endSession
 
         if (config._showReport === false) {
           App.navigate('seller');

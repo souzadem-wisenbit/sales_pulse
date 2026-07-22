@@ -238,7 +238,10 @@ const Storage = (() => {
   function getScheduledSessions() { return _cache.scheduled_sessions; }
   
   function getScheduledSessionsForSeller(sellerId) {
-    return _cache.scheduled_sessions.filter(s => String(s.sellerId) === String(sellerId) && s.status !== 'cancelled');
+    // Só sessões realmente ABERTAS: concluída (dealbreaker, venda fechada ou
+    // avaliação) não pode voltar para a lista nem ser reaberta pelo vendedor.
+    return _cache.scheduled_sessions.filter(s =>
+      String(s.sellerId) === String(sellerId) && s.status !== 'cancelled' && s.status !== 'done');
   }
 
   async function addScheduledSession(data) {

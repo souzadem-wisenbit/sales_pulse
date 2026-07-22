@@ -88,6 +88,11 @@ const WhatsAppCoach = (() => {
         .wa-card { background: rgba(14,14,26,0.85); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 1.2rem; }
         .wa-card + .wa-card { margin-top: 1.1rem; }
         .wa-card-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #5a5a7a; margin-bottom: 0.85rem; }
+        .wa-ask-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0.7rem 1rem; margin-bottom: 0.9rem; border-radius: 12px; border: 1px solid rgba(37,211,102,0.45); background: linear-gradient(135deg, rgba(37,211,102,0.2), rgba(0,212,170,0.14)); color: #e8e8f0; font-weight: 800; font-size: 0.9rem; cursor: pointer; transition: transform 0.12s ease, box-shadow 0.18s ease, filter 0.18s ease; }
+        .wa-ask-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(37,211,102,0.25); filter: brightness(1.08); }
+        .wa-ask-btn:disabled { opacity: 0.75; cursor: progress; }
+        .wa-ask-spin { width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25); border-top-color: #25d366; display: inline-block; animation: waSpin 0.7s linear infinite; }
+        @keyframes waSpin { to { transform: rotate(360deg); } }
         .wa-muted { color: #5a5a7a; font-size: 0.8rem; }
         .wa-chip { display: inline-block; padding: 3px 10px; border-radius: 100px; font-size: 0.72rem; font-weight: 600; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); margin: 2px; }
         .wa-btn { display: inline-flex; align-items: center; gap: 8px; padding: 0.7rem 1.4rem; border-radius: 100px; border: none; cursor: pointer; font-weight: 700; font-size: 0.9rem; font-family: inherit; }
@@ -569,9 +574,31 @@ const WhatsAppCoach = (() => {
   // ══════════════════════════════════════
   // COACH — mesma cabeça do modo áudio, meio diferente
   // ══════════════════════════════════════
-  async function requestCoach(chat) {
-    if (!polling || chat.coachBusy) return;
-    if (chat.messages.length <= chat.lastCoachedCount) return;
+  // Sugestão sob demanda: o vendedor pediu a resposta agora (travou na
+  // conversa). Ignora "nada novo desde a última dica", rotação e filtro de
+  // similaridade — devolver nada seria a pior resposta possível.
+  async function requestManualTip() {
+    const chat = activeChat();
+    if (!chat || chat.manualPending) return;
+    chat.manualPending = true;
+    renderCoach();
+    try {
+      await requestCoach(chat, true);
+    } finally {
+      chat.manualPending = false;
+      renderCoach();
+    }
+  }
+
+  async function requestCoach(chat, force) {
+    if (!polling && !force) return;
+    if (chat.coachBusy) {
+      if (!force) return;
+      const t0 = Date.now();
+      while (chat.coachBusy && Date.now() - t0 < 6000) await new Promise(r => setTimeout(r, 120));
+      if (chat.coachBusy) return;
+    }
+    if (!force && chat.messages.length <= chat.lastCoachedCount) return;
     const brief = briefFor(chat);
     if (!brief) return;
 
@@ -634,9 +661,20 @@ Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acerto
 Mensagens recentes (mais recente por último):
 ${recent}
 ${(chat.usedPlays || []).length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco — escolha OUTRA do catálogo): ${chat.usedPlays.slice(-6).join(', ')}\n` : ''}
-⚡ O CLIENTE ACABOU DE ESCREVER. Escreva a mensagem que o vendedor deve enviar AGORA.`;
+${force
+        ? `🆘 O VENDEDOR APERTOU "SUGERIR RESPOSTA AGORA" — ele está travado e esperando a mensagem pronta.
+tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e entregue a melhor jogada: responda a última mensagem, reabra a conversa parada ou dê o próximo passo que faz a negociação AVANÇAR.`
+        : '⚡ O CLIENTE ACABOU DE ESCREVER. Escreva a mensagem que o vendedor deve enviar AGORA.'}`;
 
-      const parsed = await CoachCore.ask(prompt, getApiKey());
+      let parsed = await CoachCore.ask(prompt, getApiKey());
+      // Pedido manual não pode voltar vazio (ver livecoach.js)
+      if (force && (!parsed?.tip || !CoachCore.validSay(parsed.say, parsed.grounded))) {
+        const retry = await CoachCore.ask(
+          prompt + '\n\n‼️ TENTATIVA FINAL: sua resposta anterior veio SEM a mensagem pronta. Retorne OBRIGATORIAMENTE "tip" E "say" preenchidos. O "say" é o texto que o vendedor vai COLAR no WhatsApp agora. Não comece por "Entendo", "Entendi", "Ótima pergunta" nem "Claro".',
+          getApiKey()
+        );
+        if (retry?.tip && CoachCore.validSay(retry.say, retry.grounded)) parsed = retry;
+      }
       if (!parsed) {
         console.warn('[WhatsAppCoach] sem dica: resposta nula (timeout, rede, chave ou JSON truncado)');
         return;
@@ -660,14 +698,14 @@ ${(chat.usedPlays || []).length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usad
         // repetida entre as últimas 6 da conversa morre aqui.
         chat.usedPlays = chat.usedPlays || [];
         const { play, banned } = CoachCore.resolvePlay(parsed, coachPlays, chat.usedPlays);
-        if (say && banned && parsed.priority !== 'urgent') {
+        if (say && banned && parsed.priority !== 'urgent' && !force) {
           console.warn('[WhatsAppCoach] dica descartada: jogada repetida —', play.n, play.name);
           say = null;
         }
         // Sem mensagem pronta não há dica. E se a conversa andou muito
         // enquanto gerava, o assunto mudou — descarta (exceto urgente).
         const grewBy = chat.messages.length - sinceCount;
-        if (say && (grewBy < 3 || parsed.priority === 'urgent')) {
+        if (say && (force || grewBy < 3 || parsed.priority === 'urgent')) {
           const prio = parsed.priority || 'normal';
           const tip = {
             t: Date.now(),
@@ -676,13 +714,19 @@ ${(chat.usedPlays || []).length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usad
             technique: play ? play.name : (parsed.technique || null),
             priority: prio,
             icon: prio === 'urgent' ? '🔥' : prio === 'good' ? '✅' : '💬',
+            onDemand: !!force,
           };
-          if (CoachCore.repeatsTechnique(tip, chat.tips)) {
+          if (force) {
+            if (play) chat.usedPlays.push(play.n);
+            addTip(chat, tip); // pedido explícito entra sem filtro
+          } else if (CoachCore.repeatsTechnique(tip, chat.tips)) {
             console.log('[WhatsAppCoach] dica descartada: técnica repetida —', tip.technique);
           } else if (!CoachCore.tooSimilar(tip, chat.tips)) {
             if (play) chat.usedPlays.push(play.n);
             addTip(chat, tip);
           }
+        } else if (force) {
+          UI.toast?.('Não consegui uma sugestão segura agora — tente de novo em instantes.', 'warning');
         }
       }
       chat.lastCoachedCount = sinceCount;
@@ -916,12 +960,13 @@ ${(chat.usedPlays || []).length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usad
     el.innerHTML = `
       <div class="wa-card">
         <div class="wa-card-title">💡 Resposta sugerida</div>
+        ${chat ? `<button class="wa-ask-btn" id="wa-ask-btn" onclick="WhatsAppCoach.askTip()" ${chat.manualPending ? 'disabled' : ''}>${chat.manualPending ? '<span class="wa-ask-spin"></span> Pensando na melhor jogada...' : '💡 Sugerir resposta agora'}</button>` : ''}
         ${!chat ? '<div class="wa-muted">Selecione uma conversa para ver as sugestões.</div>'
-          : !hero ? '<div class="wa-muted">Assim que o cliente escrever, a resposta pronta aparece aqui.</div>'
+          : !hero ? '<div class="wa-muted">Assim que o cliente escrever, a resposta pronta aparece aqui — ou peça uma agora no botão acima.</div>'
           : `
           <div class="wa-hero ${hero.priority}${stale ? ' stale' : ''}">
             <div class="wa-hero-top">
-              <span class="wa-hero-label">${HERO_LABELS[hero.priority] || HERO_LABELS.normal}</span>
+              <span class="wa-hero-label">${hero.onDemand ? '💡 VOCÊ PEDIU' : (HERO_LABELS[hero.priority] || HERO_LABELS.normal)}</span>
               ${hero.technique ? `<span class="wa-tech-chip">📐 ${esc(hero.technique)}</span>` : ''}
             </div>
             <div class="wa-say">
@@ -1068,6 +1113,7 @@ ${(chat.usedPlays || []).length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usad
     open, close, connect, retryConnect, disconnect,
     toggleProduct, selectChat, copySay, toggleSound,
     editOverride, saveOverride, clearOverride, cancelOverride,
+    askTip: requestManualTip,
   };
 })();
 
