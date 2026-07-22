@@ -29,13 +29,17 @@ const VoiceInput = (() => {
   let silenceTimer = null;
   let rafId = null;
 
-  // Campos que já têm microfone próprio (não duplicar o controle)
-  const SKIP_IDS = new Set(['chat-input']);
+  // Campos fora do ditado: o chat já tem microfone próprio, e credenciais de
+  // login ninguém dita em voz alta (além de ser um campo que se digita uma
+  // vez e o navegador preenche sozinho).
+  const SKIP_IDS = new Set(['chat-input', 'login-email', 'login-password']);
   const TEXT_INPUT_TYPES = new Set(['text', 'search', 'email', 'tel', 'url', '']);
 
   function isEligible(el) {
     if (!el || el.disabled || el.readOnly) return false;
     if (SKIP_IDS.has(el.id)) return false;
+    if (el.closest('#login-form, #page-login')) return false;   // qualquer campo da tela de login
+    if (/current-password|new-password|username|email/i.test(el.autocomplete || '')) return false;
     if (el.dataset && el.dataset.noDictation !== undefined) return false;
     const tag = (el.tagName || '').toLowerCase();
     if (tag === 'textarea') return true;
