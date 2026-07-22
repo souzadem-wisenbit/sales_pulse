@@ -45,7 +45,15 @@ const CoachCore = (() => {
     if (coach && coach.id !== 'junior' && coach.profile && Object.keys(coach.profile).length > 0) {
       return `Você é um coach de vendas de elite que treina no ESTILO do vendedor de referência "${coach.name}". Estilo de referência a ser transmitido nas dicas:\n${JSON.stringify(coach.profile)}\nOriente o vendedor a incorporar os pontos fortes desse estilo`;
     }
-    return 'Você é JÚNIOR SMARZARO, coach master de vendas — mentor lendário, direto ao ponto, focado em fechamento e em fazer o vendedor performar no mais alto nível. Você pensa, fala e decide EXCLUSIVAMENTE pelo SEU sistema de vendas (descrito adiante em "SEU SISTEMA DE VENDAS"): cada dica nasce de uma técnica, pergunta ou virada DELE — nunca de conselho genérico de vendas';
+    return `Você é JÚNIOR SMARZARO, coach master de vendas — um GÊNIO ARGUMENTATIVO, o maior estrategista de negociação do país. Sua mente lê a conversa três jogadas à frente: você escuta o que o cliente diz e enxerga na hora o que ele REALMENTE quis dizer, onde ele se contradisse e qual palavra dele pode ser usada para virar o jogo a favor do vendedor.
+
+COMO VOCÊ PENSA (em toda dica, nesta ordem, em silêncio):
+1. QUAL É A OBJEÇÃO REAL? A frase dita quase nunca é o motivo verdadeiro ("tá caro" = não enxergou valor; "vou pensar" = falta clareza ou poder de decisão; "já tenho fornecedor" = medo da troca).
+2. ONDE ELE ME DEU MUNIÇÃO? Cace a brecha na fala do próprio cliente — um número, uma reclamação, uma prioridade que ele revelou — e devolva usando as PALAVRAS DELE. Pegar o cliente no pulo com o que ele mesmo disse é imbatível.
+3. COMO INVERTO A SITUAÇÃO? Transforme a objeção em motivo de compra ("é justamente por isso que…"), devolva a pergunta que faz ele se convencer sozinho, ou exponha o custo de não decidir. O cliente deve concluir; nunca ser empurrado.
+4. QUAL JOGADA DO MEU SISTEMA executa isso agora?
+
+Você pensa, fala e decide EXCLUSIVAMENTE pelo SEU sistema de vendas (adiante em "SEU SISTEMA DE VENDAS"): cada dica nasce de uma técnica, pergunta ou virada DELE — nunca de conselho genérico. Você é cirúrgico e direto: nada de encher linguiça, nada de dica óbvia. Se a jogada não faz a negociação avançar, ela não vale a pena`;
   }
 
   // Núcleo destilado da metodologia (compilado dos livros do Júnior no
@@ -205,21 +213,60 @@ REGRAS INVIOLÁVEIS:
     }
   }
 
-  // ── Kill-switch do script: placeholder ou grounding negado = inútil ──
-  // Abridores-muleta ("Entendo sua preocupação...") também morrem aqui: o
-  // modelo ignora a proibição de vez em quando, e a repetição desse padrão
-  // foi uma das principais reclamações reais. Melhor perder 1 dica que
-  // entregar a décima com a mesma carcaça.
-  const BAD_OPENERS = /^\s*[*"']*\s*(entendo|entendi|compreendo|[óo]tima pergunta|que bom)/i;
+  // ── Abridor-muleta: PODA, nunca mata ──
+  // Versão anterior descartava a dica inteira quando o say começava com
+  // "Entendo..." — e o modelo insiste nisso: numa auditoria de 8 turnos o
+  // coach ficou 100% mudo. Agora a oração-muleta é removida e o resto da
+  // fala (que costuma ser a parte boa) é aproveitado.
+  const CLICHE = '(?:eu\\s+)?(?:entendo|entendi|compreendo|[óo]tima pergunta|boa pergunta|claro|que bom|com certeza|perfeito)';
+  // A muleta pode vir depois de uma saudação ("Oi, Ricardo! Entendo que...")
+  const GREETING = '(?:(?:oi|olá|ol[áa]|e a[íi]|fala|beleza|bom dia|boa tarde|boa noite)[^.!?]{0,28}[.!?,]\\s*)?';
+  // Cortes candidatos, do mais conservador ao mais agressivo: termina a
+  // oração na primeira pontuação forte; se isso comer a fala toda, corta na
+  // primeira vírgula; por último, tira só a palavra-muleta.
+  const CUTS = [
+    new RegExp(`^\\s*[*"'\`]*\\s*(${GREETING})${CLICHE}\\b[^.!?]*?[.!?]\\s*`, 'i'),
+    new RegExp(`^\\s*[*"'\`]*\\s*(${GREETING})${CLICHE}\\b[^.!?,]*?,\\s*`, 'i'),
+    new RegExp(`^\\s*[*"'\`]*\\s*(${GREETING})${CLICHE}\\b[\\s,!.]*`, 'i'),
+  ];
+
+  function tidy(rest) {
+    let cut = rest;
+    for (let i = 0; i < 2; i++) {
+      cut = cut.replace(/^\s*\(\s*pausa\s*\)\s*/i, '')
+               .replace(/^\s*(mas|porém|contudo|entretanto|então|e|aí)\b[\s,]*/i, '')
+               .trim();
+    }
+    return cut;
+  }
+
+  function stripBadOpener(say) {
+    const s = String(say || '').trim();
+    for (const re of CUTS) {
+      let greeting = '';
+      const rest = s.replace(re, (m, g) => { greeting = (g || '').trim(); return ''; });
+      if (rest === s) continue;                   // esse corte não casou
+      const cut = tidy(rest);
+      if (cut.length < 15) continue;              // sobrou pouco: tenta o próximo corte
+      const fixed = cut.charAt(0).toUpperCase() + cut.slice(1);
+      return greeting ? `${greeting} ${fixed}` : fixed;
+    }
+    return s;                                      // sem muleta (ou nada aproveitável)
+  }
+
+  // ── Kill-switch do script: placeholder ou número sem fonte = inútil ──
+  // ATENÇÃO: NÃO matar por `grounded === false` sozinho. Auditoria de 8 turnos
+  // mostrou o modelo marcando false em dicas que não afirmam nada (perguntas
+  // puras, "me conta como é hoje") — e o coach ficava 100% mudo. A autodeclaração
+  // só vale quando há número no say; o resto quem verifica é hasUngroundedNumbers.
   function validSay(say, grounded) {
     if (!say) return null;
-    if (grounded === false) return null;
+    if (grounded === false && /\d/.test(say)) return null;
     if (/[\[\]{}]/.test(say)) return null;
     if (/\bX\s*(reais|mil|%|por\s*cento)/i.test(say)) return null;
     if (/R\$\s*X\b/i.test(say)) return null;
     if (/\b(N|Y)%/.test(say)) return null;
-    if (BAD_OPENERS.test(say)) return null;
-    return say;
+    return stripBadOpener(say);
   }
 
   // ── Verificador numérico de grounding ──
