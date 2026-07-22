@@ -60,6 +60,7 @@ const LiveCoach = (() => {
   let knowledge = null;            // busca de metodologia (RAG) — trechos por momento da conversa
   let coachCore = null;            // identidade destilada da metodologia (tom + regras de ouro)
   let coachPlays = [];             // catálogo de jogadas — toda dica escolhe uma por número
+  let coachDoctrine = null;        // o que o Júnior ensina para CADA estágio da venda
   let usedPlays = [];              // jogadas já usadas nesta chamada (rotação: últimas 6 proibidas)
   let manualPending = false;       // pedido de "Dica agora" em andamento
   let retryTimer = null;           // nova tentativa após um descarte (evita buraco de silêncio)
@@ -539,10 +540,12 @@ const LiveCoach = (() => {
       coachCore = null;
       coachPlays = [];
       usedPlays = [];
+      coachDoctrine = null;
       CoachCore.fetchCore().then(r => {
         coachCore = r.core;
         coachPlays = r.plays;
-        console.log(`[LiveCoach] núcleo carregado: ${(r.core || '').length} chars de identidade, ${r.plays.length} jogadas no catálogo`);
+        coachDoctrine = r.doctrine;
+        console.log(`[LiveCoach] núcleo carregado: ${(r.core || '').length} chars de identidade, ${r.plays.length} jogadas, doutrina de ${Object.keys(r.doctrine || {}).length} estágios`);
       });
 
       running = true;
@@ -946,6 +949,13 @@ const LiveCoach = (() => {
     return (transcript.slice(-4).map(s => s.text).join(' ').slice(-450) + ' ' + stageWord).trim();
   }
 
+  // Estágio efetivo da dica: o detectado pelo modelo, mas nunca atrás do que
+  // a última fala do cliente já instaurou (ele perguntou preço = objeções).
+  function currentStage() {
+    const lastClient = [...transcript].reverse().find(s => s.speaker === 'client');
+    return CoachCore.inferStage(lastClient?.text, latestStage || 'rapport');
+  }
+
   // ── Dica sob demanda ──
   // O vendedor apertou "Dica agora": ele PRECISA de uma saída neste segundo.
   // Este pedido ignora cooldown, "nada novo desde a última dica", rotação de
@@ -1029,6 +1039,7 @@ const LiveCoach = (() => {
 
       // Persona do coach atribuído pelo gestor (compartilhada com o WhatsApp Coach)
       const coachPersona = CoachCore.persona(coach);
+      const stageNow = currentStage();
 
       // Prompt montado com o BLOCO ESTÁTICO primeiro (persona + regras +
       // formato) e o DINÂMICO por último (briefing/perfil/histórico/
@@ -1036,7 +1047,7 @@ const LiveCoach = (() => {
       // do 2º disparo em diante o prefixo estático não é reprocessado →
       // menos latência (TTFT) em toda a chamada.
       const prompt = `${coachPersona}, observando em silêncio uma chamada de vendas REAL por vídeo. O VENDEDOR é seu aluno; você escreve a fala PRONTA que ele deve dizer AGORA. Quando o cliente termina de falar, capte o subtexto (hesitação/frase inacabada = insegurança; resposta seca = desinteresse/pressa; pergunta sobre preço/prazo/contrato = sinal de compra; tema que volta = objeção real disfarçada) e escreva a resposta perfeita, espelhando as palavras do cliente.
-${CoachCore.coreBlock(coachCore)}${CoachCore.playsMenu(coachPlays)}
+${CoachCore.coreBlock(coachCore)}${CoachCore.doctrineBlock(coachDoctrine, stageNow)}${CoachCore.playsMenu(coachPlays, stageNow, usedPlays)}
 ${CoachCore.playbook('audio')}
 
 MARCAÇÃO DO "say" (é o que o vendedor LÊ ao vivo — ele precisa usar em 1 segundo):
@@ -1053,7 +1064,7 @@ Retorne SÓ JSON (nunca escreva meta-texto, instruções ou a palavra "null" den
  "grounded": <false se o say afirma número/fato/promessa SEM fonte no briefing/conversa; true se todos têm fonte OU se o say não afirma número/fato>,
  "technique": "o NOME da jogada escolhida (copie do catálogo)",
  "priority": "urgent|normal|good",
- "stage": "rapport|descoberta|apresentacao|objecoes|fechamento",
+ "stage": "o estágio que a ÚLTIMA fala do cliente instaura: rapport|descoberta|apresentacao|objecoes|fechamento. Cliente reclamou de preço, adiou, citou concorrente ou pediu para falar com terceiro → objecoes. Perguntou como contratar/prazo/contrato → fechamento",
  "temperature": <0-100 quão quente está a negociação>
 }
 Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acertou e no say a jogada seguinte.

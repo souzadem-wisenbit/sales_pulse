@@ -49,6 +49,7 @@ const WhatsAppCoach = (() => {
   let knowledge = null;             // busca de metodologia (RAG), compartilha o cérebro do modo áudio
   let coachCore = null;             // identidade destilada da metodologia (tom + regras de ouro)
   let coachPlays = [];              // catálogo de jogadas — toda dica escolhe uma por número
+  let coachDoctrine = null;         // doutrina por estágio da venda
   let tipSoundOn = true;
   let audioCtx = null;
 
@@ -235,10 +236,12 @@ const WhatsAppCoach = (() => {
     CoachCore.warmup(getApiKey());
     coachCore = null;
     coachPlays = [];
+    coachDoctrine = null;
     CoachCore.fetchCore().then(r => {
       coachCore = r.core;
       coachPlays = r.plays;
-      console.log(`[WhatsAppCoach] núcleo carregado: ${(r.core || '').length} chars, ${r.plays.length} jogadas`);
+      coachDoctrine = r.doctrine;
+      console.log(`[WhatsAppCoach] núcleo carregado: ${(r.core || '').length} chars, ${r.plays.length} jogadas, doutrina de ${Object.keys(r.doctrine || {}).length} estágios`);
     });
     try {
       const saved = await API.waGetBriefing();
@@ -629,10 +632,14 @@ const WhatsAppCoach = (() => {
         if (knowledge) knowledge.refresh(chatKnowledgeQuery(chat));
       } catch (e) { methodologyBlock = ''; }
 
+      // Estágio nunca atrás do que a última mensagem do cliente instaura
+      const lastClientMsg = [...chat.messages].reverse().find(m => m.speaker === 'client');
+      const stageNow = CoachCore.inferStage(lastClientMsg?.text, chat.stage || 'rapport');
+
       // Bloco estático primeiro (persona + playbook + formato) e dinâmico por
       // último: ativa o cache de prompt da OpenAI e derruba a latência.
       const prompt = `${CoachCore.persona(coach)}, acompanhando em silêncio uma conversa de vendas REAL por WhatsApp. O VENDEDOR é seu aluno; você escreve a MENSAGEM PRONTA que ele deve enviar AGORA. Quando o cliente escreve, capte o subtexto (resposta seca ou monossilábica = desinteresse ou pressa; "vou ver", "depois te falo" = objeção não dita; pergunta sobre preço/prazo/contrato = sinal de compra; áudio/vídeo enviado = quer atenção e detalhe; tema que volta = objeção real disfarçada) e escreva a resposta perfeita, espelhando as palavras dele.
-${CoachCore.coreBlock(coachCore)}${CoachCore.playsMenu(coachPlays)}
+${CoachCore.coreBlock(coachCore)}${CoachCore.doctrineBlock(coachDoctrine, stageNow)}${CoachCore.playsMenu(coachPlays, stageNow, chat.usedPlays)}
 ${CoachCore.playbook('whatsapp')}
 
 FORMATO DO "say" (é a mensagem que o vendedor vai COPIAR e COLAR no WhatsApp — precisa servir sem edição):
@@ -651,7 +658,7 @@ Retorne SÓ JSON (nunca escreva meta-texto, instruções ou a palavra "null" den
  "grounded": <false se o say afirma número/fato/promessa SEM fonte no briefing/conversa; true se todos têm fonte OU se o say não afirma número/fato>,
  "technique": "o NOME da jogada escolhida (copie do catálogo)",
  "priority": "urgent|normal|good",
- "stage": "rapport|descoberta|apresentacao|objecoes|fechamento",
+ "stage": "o estágio que a ÚLTIMA mensagem do cliente instaura: rapport|descoberta|apresentacao|objecoes|fechamento. Reclamou de preço, adiou, citou concorrente ou pediu para falar com terceiro → objecoes. Perguntou como contratar/prazo/contrato → fechamento",
  "temperature": <0-100 quão quente está a negociação>
 }
 Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acertou e no say a jogada seguinte.

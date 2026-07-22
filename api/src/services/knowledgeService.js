@@ -277,8 +277,8 @@ async function getCoachCore(coachId) {
   const id = coachId || 'junior';
   if (Date.now() - _coreCache.at > 10 * 60 * 1000) _coreCache = { at: Date.now(), map: {} };
   if (id in _coreCache.map) return _coreCache.map[id];
-  const { rows } = await db.query('SELECT core, plays FROM coach_core WHERE coach_id = $1', [id]);
-  const result = { core: rows[0]?.core || null, plays: rows[0]?.plays || [] };
+  const { rows } = await db.query('SELECT core, plays, doctrine FROM coach_core WHERE coach_id = $1', [id]);
+  const result = { core: rows[0]?.core || null, plays: rows[0]?.plays || [], doctrine: rows[0]?.doctrine || null };
   _coreCache.map[id] = result;
   return result;
 }

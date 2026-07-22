@@ -172,9 +172,11 @@ REGRAS INVIOLÁVEIS:
 2. VENDA SÓ O QUE ESTÁ NO BRIEFING: o produto em venda é EXCLUSIVAMENTE o do briefing. O cliente mencionar outro produto/desejo NÃO muda o que se vende — jamais descreva, precifique ou prometa algo que o briefing não oferece.
 3. NÃO CONTRADIGA o que o vendedor já disse (ele ${wpp ? 'já enviou' : 'ouviu'}). Resposta fraca dele → dica de recuperação honesta.
 4. NÃO REPITA dica/técnica/argumento do histórico — nem em VARIAÇÃO (mesma intenção = repetição). Em especial: NUNCA repita a mesma pergunta de fechamento/CTA (ex.: "posso te enviar o contrato?") — se já foi feita e o cliente não respondeu, a repetição queima o vendedor; avance por OUTRO caminho (descubra a objeção escondida). Se ele está aplicando sua dica, ou nada novo → tip null. Silêncio é melhor que dica óbvia/repetida.
+4b. DESCONTO: o vendedor NÃO tem autoridade para inventar desconto. É PROIBIDO o say propor percentual ou valor de abatimento que não esteja no briefing ("te dou 10%", "consigo 15% off"). Defenda o valor, troque condição por contrapartida sem número, ou deixe o preço firme.
 5. ${wpp
       ? 'TEXTO REAL DE WHATSAPP: PT-BR informal de conversa ("tá", "pra", "a gente"), espelhe o registro e o nível de formalidade do cliente. 1-3 frases curtas, no máximo ~45 palavras — mensagem de WhatsApp, não e-mail. Sem saudação repetida ("Bom dia" só na primeira), sem assinatura, sem bullet points, sem emoji em excesso (no máximo 1, e só se o cliente usar). Zero jargão corporativo.'
       : 'FALA REAL: frases curtas em PT-BR falado ("tá", "pra", "a gente"), espelhe o registro do cliente, 1-3 frases que devolvem a vez. Zero jargão corporativo.'}
+5b. ANCORE NA FALA DELE: todo say deve conter algo CONCRETO que o cliente disse nesta conversa (a palavra dele, o número dele, o problema que ele citou). Pergunta genérica que serviria para qualquer cliente ("o que você espera alcançar com nossa solução?") é dica desperdiçada — e se você já usou uma formulação parecida antes, ela está PROIBIDA agora.
 6. ABERTURA VARIADA: PROIBIDO começar o say com muleta de atendente — "Entendo", "Entendi", "Compreendo", "Ótima pergunta", "Claro", "Que bom", "Olha, eu entendo", "Entendo sua preocupação". Comece pela SUBSTÂNCIA (a resposta, a pergunta, o número com fonte, a virada). Também PROIBIDO "Quer que eu te explique como funciona?".
 7. ROTAÇÃO DE TÉCNICA: NUNCA use a mesma técnica de nenhuma das 3 últimas dicas (o sistema descarta se repetir). Seu sistema tem dezenas de jogadas — varie de verdade: se acabou de ancorar valor, a próxima é pergunta calibrada, fechamento nomeado, leitura do cliente, gatilho diferente…
 8. PRIORIDADE: "urgent" é raro (errar AGORA custa o negócio); normal = "normal"; acerto do vendedor = "good".`;
@@ -246,6 +248,11 @@ REGRAS INVIOLÁVEIS:
       let greeting = '';
       const rest = s.replace(re, (m, g) => { greeting = (g || '').trim(); return ''; });
       if (rest === s) continue;                   // esse corte não casou
+      // O que seria removido precisa ser MULETA, não substância. Sem esta
+      // guarda o podador comia a pergunta da dica ("Claro, me conta o que te
+      // faz não ter interesse? Assim..." virava só "Assim...").
+      const removido = s.slice(0, s.length - rest.length);
+      if (removido.includes('?') || removido.length > 70) continue;
       const cut = tidy(rest);
       if (cut.length < 15) continue;              // sobrou pouco: tenta o próximo corte
       const fixed = cut.charAt(0).toUpperCase() + cut.slice(1);
@@ -322,8 +329,37 @@ REGRAS INVIOLÁVEIS:
   async function fetchCore() {
     try {
       const res = await window.API.getCoachCore();
-      return { core: res?.core || null, plays: Array.isArray(res?.plays) ? res.plays : [] };
-    } catch (e) { return { core: null, plays: [] }; }
+      return {
+        core: res?.core || null,
+        plays: Array.isArray(res?.plays) ? res.plays : [],
+        doctrine: res?.doctrine || null,
+      };
+    } catch (e) { return { core: null, plays: [], doctrine: null }; }
+  }
+
+  // ── Doutrina do estágio atual ──
+  // O catálogo diz QUAIS jogadas existem; a doutrina diz COMO o Júnior manda
+  // conduzir ESTE momento — inclusive o que é proibido aqui. Sem ela o coach
+  // partia para o pitch no primeiro "oi", justamente o que a metodologia veta.
+  const STAGE_ORDER = ['rapport', 'descoberta', 'apresentacao', 'objecoes', 'fechamento'];
+
+  function doctrineBlock(doctrine, stage) {
+    if (!doctrine) return '';
+    const key = STAGE_ORDER.includes(stage) ? stage : 'rapport';
+    const d = doctrine[key];
+    if (!d) return '';
+    const label = (STAGE_LABELS[key] || {}).label || key;
+    const next = STAGE_ORDER[STAGE_ORDER.indexOf(key) + 1];
+    return `
+━━━━━ O QUE VOCÊ ENSINA SOBRE ESTE MOMENTO — ${label.toUpperCase()} (a dica TEM que nascer daqui) ━━━━━
+PRINCÍPIO: ${d.principio || ''}
+OBJETIVO AGORA: ${d.objetivo || ''}
+FAÇA: ${(d.fazer || []).join(' | ')}
+NUNCA FAÇA AGORA (violar isto invalida a dica): ${(d.naoFazer || []).join(' | ')}
+COMO VOCÊ FORMULA: ${d.comoEleFormula || ''}
+SÓ AVANCE PARA ${next ? (STAGE_LABELS[next]?.label || next).toUpperCase() : 'O PRÓXIMO PASSO'} QUANDO: ${d.preRequisito || ''}
+→ Se o vendedor tentou pular esta etapa (ex.: falar de produto/preço antes da hora), sua dica deve TRAZER a conversa de volta para o que falta aqui.
+`;
   }
 
   // ── Catálogo de jogadas: menu numerado ESTÁTICO no prompt ──
@@ -332,13 +368,55 @@ REGRAS INVIOLÁVEIS:
   // catálogo (não da imaginação do modelo) e a rotação é imposta por código.
   // O menu não muda durante a chamada → o prompt cache absorve o custo; a
   // lista de proibidas (dinâmica) vai na zona dinâmica do prompt.
-  function playsMenu(plays) {
+  // Menu filtrado pelo estágio: jogadas do momento atual e do seguinte (para
+  // poder avançar), nunca as de fases distantes. Antes o modelo escolhia
+  // "Mensagens de Apresentação" no primeiro "oi" só porque estava na lista.
+  function playsMenu(plays, stage, usedPlays) {
     if (!plays || !plays.length) return '';
+    const key = STAGE_ORDER.includes(stage) ? stage : 'rapport';
+    const allowed = new Set([key, STAGE_ORDER[STAGE_ORDER.indexOf(key) + 1]].filter(Boolean));
+    if (key === 'objecoes') allowed.add('preco');
+    if (key === 'apresentacao') allowed.add('preco');
+    let inStage = plays.filter(p => allowed.has(String(p.estagio || '').trim()));
+    // Jogadas usadas há pouco saem DO MENU: proibir depois desperdiçava a
+    // dica inteira (o modelo insistia na mesma e o coach ficava mudo).
+    const banned = new Set((usedPlays || []).slice(-6));
+    if (banned.size) {
+      const fresh = inStage.filter(p => !banned.has(p.n));
+      if (fresh.length >= 3) inStage = fresh;
+    }
+    const list = inStage.length >= 5 ? inStage : plays.filter(p => !banned.has(p.n)); // estágio magro: libera o resto
+    const escopo = inStage.length >= 5
+      ? `Só aparecem as jogadas adequadas a ESTE momento da venda — escolher uma jogada de fase adiantada queima a venda.`
+      : `Escolha a jogada adequada ao momento atual da venda.`;
     return `
 ━━━━━ CATÁLOGO DE JOGADAS DO SEU SISTEMA (escolha por NÚMERO no campo "play" do JSON) ━━━━━
-Em TODA dica você escolhe UMA jogada deste catálogo — a que melhor ataca o momento — e o say EXECUTA essa jogada com as palavras desta conversa. A frase-modelo é inspiração de formulação (números que apareçam nela são didáticos dos livros — NUNCA os copie). Não anuncie a jogada ao cliente; apenas execute.
-${plays.map(p => `${p.n}. [${p.estagio}] ${p.name} — quando: ${p.gatilho} | frase-modelo: "${p.frase}"`).join('\n')}
+${escopo} Em TODA dica você escolhe UMA jogada e o say EXECUTA essa jogada obedecendo a doutrina do estágio acima.
+⛔ PROIBIDO COPIAR A FRASE-MODELO. Ela mostra a INTENÇÃO da jogada, não o texto a usar. Frase genérica de catálogo ("o que você espera alcançar com nossa solução?") entrega dica robótica e repetida. Reescreva SEMPRE com as palavras, os números e o contexto QUE O CLIENTE ACABOU DE DIZER — cite algo concreto desta conversa. Números que aparecem nas frases-modelo são didáticos dos livros: nunca os use. Não anuncie a jogada ao cliente; apenas execute.
+${list.map(p => `${p.n}. [${p.estagio}] ${p.name} — quando: ${p.gatilho} | intenção: "${p.frase}"`).join('\n')}
 `;
+  }
+
+  // ── Piso determinístico do estágio ──
+  // O modelo subestimava a fase (ficou em "rapport" por 8 turnos mesmo depois
+  // do cliente perguntar preço), e aí a doutrina injetada era a errada. Aqui
+  // a última fala do cliente força o estágio mínimo — nunca deixa recuar.
+  const STAGE_SIGNALS = [
+    { stage: 'fechamento', re: /como (faço|fa[çc]o) (pra|para) (contratar|comprar|fechar)|quero (fechar|contratar|assinar)|manda o contrato|como funciona o contrato|quando (come[çc]a|consigo come[çc]ar)|fidelidade/i },
+    { stage: 'objecoes', re: /\bcaro\b|\bcar[ãa]o\b|desconto|abatimento|fora do (or[çc]amento|budget)|vou pensar|preciso pensar|falar com (meu|minha|o|a) (s[óo]cio|esposa|marido|diretor|chefe|financeiro)|concorrente|mais barato|n[ãa]o (tenho|temos) (or[çc]amento|verba)|j[áa] (tenho|temos) (fornecedor|sistema)|n[ãa]o (tô|estou|to) interessad/i },
+    { stage: 'apresentacao', re: /quanto custa|qual o (valor|pre[çc]o)|me (explica|conta) como funciona|o que (isso|voc[êe]s) faz/i },
+  ];
+
+  function inferStage(clientText, current) {
+    const cur = STAGE_ORDER.indexOf(STAGE_ORDER.includes(current) ? current : 'rapport');
+    let floor = cur;
+    for (const s of STAGE_SIGNALS) {
+      if (s.re.test(String(clientText || ''))) {
+        floor = Math.max(floor, STAGE_ORDER.indexOf(s.stage));
+        break; // a lista já está da fase mais adiantada para a mais inicial
+      }
+    }
+    return STAGE_ORDER[floor];
   }
 
   // Resolve a jogada escolhida e aplica a rotação (proibidas = usadas há pouco)
@@ -364,7 +442,7 @@ ${plays.map(p => `${p.n}. [${p.estagio}] ${p.name} — quando: ${p.gatilho} | fr
     });
   }
 
-  return { INDUSTRIES, STAGE_LABELS, persona, briefBlock, playbook, ask, validSay, tooSimilar, esc, tempColor, knowledgeBlock, createKnowledgeFetcher, warmup, coreBlock, fetchCore, hasUngroundedNumbers, repeatsTechnique, playsMenu, resolvePlay };
+  return { INDUSTRIES, STAGE_LABELS, persona, briefBlock, playbook, ask, validSay, tooSimilar, esc, tempColor, knowledgeBlock, createKnowledgeFetcher, warmup, coreBlock, fetchCore, hasUngroundedNumbers, repeatsTechnique, playsMenu, resolvePlay, doctrineBlock, STAGE_ORDER, inferStage };
 })();
 
 window.CoachCore = CoachCore;

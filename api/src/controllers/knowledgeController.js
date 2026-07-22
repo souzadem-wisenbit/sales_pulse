@@ -114,7 +114,7 @@ async function getCore(req, res) {
       const picked = sections.filter(s => /^# *(IDENTIDADE|REGRAS DE OURO)/i.test(s.trim()));
       identity = (picked.length ? picked.join('\n') : row.core).trim();
     }
-    res.json({ core: identity, plays: row.plays || [] });
+    res.json({ core: identity, plays: row.plays || [], doctrine: row.doctrine || null });
   } catch (err) {
     console.error('[KNOWLEDGE CORE]', err);
     res.status(500).json({ error: 'Erro ao buscar núcleo da metodologia' });
