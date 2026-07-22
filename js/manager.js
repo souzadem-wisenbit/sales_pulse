@@ -677,6 +677,55 @@ const Manager = (() => {
 
           <!-- TAB: PERFIL -->
           <div class="modal-tab-content" id="ctabcontent-perfil">
+            <!-- ── A EMPRESA DO CLIENTE ──
+                 O select de segmento era lido pelo código (cli-marketSegment)
+                 mas NUNCA existiu na tela: todo cliente nascia "generico" e o
+                 bot não tinha empresa nenhuma. Numa chamada real o vendedor
+                 disse "na sua farmácia" e o bot negou ter farmácia. Aqui o
+                 gestor define de quem o vendedor vai treinar. -->
+            <div style="background:rgba(108,99,255,0.06);border:1px solid rgba(108,99,255,0.22);border-radius:12px;padding:16px;margin-bottom:18px">
+              <div style="font-weight:700;margin-bottom:4px">🏢 A empresa deste cliente</div>
+              <div style="font-size:0.78rem;color:#8b88b0;margin-bottom:14px">
+                O bot trata isso como a vida real dele e não se contradiz. Se você deixar em branco,
+                ele inventa uma empresa coerente com o ramo na primeira pergunta e mantém.
+              </div>
+              <div class="config-grid">
+                <div class="form-group">
+                  <label class="form-label">Ramo / segmento</label>
+                  <select class="form-select" id="cli-marketSegment">
+                    <option value="generico">🌐 Genérico (sem ramo definido)</option>
+                    <option value="hospital">🏥 Hospital / Saúde</option>
+                    <option value="farmacia">💊 Farmácia / Distribuidora</option>
+                    <option value="industria">🏭 Indústria / Manufatura</option>
+                    <option value="varejo">🛒 Varejo / E-commerce</option>
+                    <option value="educacao">📚 Educação</option>
+                    <option value="servicos">💼 Serviços B2B</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Nome da empresa</label>
+                  <input type="text" class="form-input" id="cli-companyName" placeholder="Ex: Drogaria São Bento">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Cargo do contato</label>
+                  <input type="text" class="form-input" id="cli-contactRole" placeholder="Ex: Diretor de operações">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Porte</label>
+                  <input type="text" class="form-input" id="cli-companySize" placeholder="Ex: 6 lojas, 80 funcionários">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Cidade / estado</label>
+                  <input type="text" class="form-input" id="cli-companyCity" placeholder="Ex: Campinas, SP">
+                </div>
+              </div>
+              <div class="form-group" style="margin-top:4px">
+                <label class="form-label">O que a empresa faz</label>
+                <textarea class="form-input" id="cli-companyAbout" rows="2"
+                  placeholder="Ex: Rede de farmácias de bairro, forte em manipulados, começando a vender pelo delivery."></textarea>
+              </div>
+            </div>
+
             <div class="config-grid">
               <div class="form-group">
                 <label class="form-label">Nome do Cliente</label>
@@ -1099,6 +1148,11 @@ const Manager = (() => {
         // NEW: Agenda tab
         selectArchetype(client.archetype || '');
         setVal('cli-marketSegment', client.marketSegment || 'generico');
+        setVal('cli-companyName', client.companyName || '');
+        setVal('cli-companyAbout', client.companyAbout || '');
+        setVal('cli-companySize', client.companySize || '');
+        setVal('cli-companyCity', client.companyCity || '');
+        setVal('cli-contactRole', client.contactRole || '');
         setVal('cli-hiddenAgenda', client.hiddenAgenda || '');
         setCheck('cli-hostileMode', !!client.hostileMode);
         setCheck('cli-extremeHaste', !!client.sessionConstraints?.extremeHaste);
@@ -1210,6 +1264,11 @@ const Manager = (() => {
       archetype:           document.querySelector('.archetype-card.selected')?.dataset?.archetype || null,
       hiddenAgenda:        document.getElementById('cli-hiddenAgenda')?.value || null,
       marketSegment:       document.getElementById('cli-marketSegment')?.value || 'generico',
+      companyName:         document.getElementById('cli-companyName')?.value?.trim() || '',
+      companyAbout:        document.getElementById('cli-companyAbout')?.value?.trim() || '',
+      companySize:         document.getElementById('cli-companySize')?.value?.trim() || '',
+      companyCity:         document.getElementById('cli-companyCity')?.value?.trim() || '',
+      contactRole:         document.getElementById('cli-contactRole')?.value?.trim() || '',
       hostileMode:         document.getElementById('cli-hostileMode')?.checked || false,
       hostileCompetitors:  competitors,
       sessionConstraints: {

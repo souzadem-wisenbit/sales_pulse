@@ -422,8 +422,66 @@ REGRAS INVIOLÁVEIS:
     return (recentTips || []).slice(0, limit).some(prev => openingOf(prev.say) === a);
   }
 
+  // ── A MESMA DICA COM OUTRA ROUPA ──
+  // Esta é a rede que faltava. Numa chamada real o coach entregou CINCO says
+  // dizendo "o valor vai depender das funcionalidades", cada um sob uma técnica
+  // DIFERENTE do catálogo. A rotação de jogada passou satisfeita, a abertura
+  // escapou porque bastou trocar "valor" por "preço" e prefixar "A faixa de",
+  // e o vendedor levou a mesma frase cinco vezes.
+  //
+  // Aqui a comparação ignora posição, ignora o nome da técnica e ignora
+  // palavras de ligação: sobra o MIOLO da mensagem. Além disso normalizo os
+  // sinônimos que o modelo alterna para fingir variedade (valor/preço/custo,
+  // escopo/funcionalidade/projeto). Se o miolo é o mesmo, a dica é a mesma.
+  const SINON = [
+    [/\b(valor|pre[çc]o|custo|investimento|faixa)\w*/g, 'PRECO'],
+    [/\b(escopo|funcionalidade|projeto|necessidade|demanda)\w*/g, 'ESCOPO'],
+    [/\b(depend|vari)\w*/g, 'DEPENDE'],
+    [/\b(defin|combin|alinh)\w*/g, 'DEFINIR'],
+    [/\b(entend|compreend)\w*/g, 'ENTENDER'],
+  ];
+
+  function miolo(s) {
+    let t = String(s || '').toLowerCase()
+      .replace(/\(pausa\)/gi, ' ')
+      .replace(/[^\wà-úçãõ ]/gi, ' ');
+    for (const [re, tag] of SINON) t = t.replace(re, tag);
+    return new Set(t.split(/\s+/).filter(w => w.length > 3 && !STOP.has(w)));
+  }
+
+  // Duas dicas dizem a mesma coisa? Compara só o miolo, sem posição.
+  function saysSameThing(tip, recentTips, limit = 6, threshold = 0.42) {
+    const a = miolo(tip.say);
+    if (a.size < 3) return false;
+    return (recentTips || []).slice(0, limit).some(prev => jaccard(a, miolo(prev.say)) >= threshold);
+  }
+
+  // ── A AFIRMAÇÃO DE ABERTURA ──
+  // O miolo da mensagem inteira DILUI a repetição: as cinco dicas da chamada
+  // real abriam com a mesma afirmação ("o preço depende do escopo") e depois
+  // penduravam caudas longas e diferentes, o que derrubava o Jaccard para 0.21.
+  // Mas o que queima o vendedor é justamente a abertura: o cliente ouve a
+  // mesma promessa vazia pela quinta vez e desliga. Aqui isolo a PRIMEIRA
+  // ORAÇÃO e comparo só ela, já com os sinônimos colapsados.
+  function claimOf(say) {
+    const bruto = String(say || '').replace(/\(pausa\)/gi, ' ');
+    const primeira = bruto.split(/[.?!]/)[0] || bruto;
+    return miolo(primeira.split(/\s+/).slice(0, 14).join(' '));
+  }
+
+  function sameClaim(tip, recentTips, limit = 6, threshold = 0.6) {
+    const a = claimOf(tip.say);
+    if (a.size < 2) return false;
+    return (recentTips || []).slice(0, limit).some(prev => {
+      const b = claimOf(prev.say);
+      return b.size >= 2 && jaccard(a, b) >= threshold;
+    });
+  }
+
   function tooSimilar(tip, recentTips, limit = 6, threshold = 0.32) {
     if (sameOpening(tip, recentTips, limit)) return true;
+    if (sameClaim(tip, recentTips, limit)) return true;
+    if (saysSameThing(tip, recentTips, limit)) return true;
     const words = (s) => new Set(
       String(s || '').toLowerCase().replace(/[^\wà-úçãõ ]/gi, ' ').split(/\s+/).filter(w => w.length > 3)
     );
@@ -604,7 +662,17 @@ ${list.map(p => `${p.n}. [${p.estagio}] ${p.name}
   const PRECO_ENTREGUE = /r\$\s*\d|\d[\d.,]*\s*(mil|reais|k\b)|\d[\d.,]*\s*(por|ao)\s*m[êe]s|(mensal|mensalidade)[^.]{0,20}\d|\bde\s+\d[\d.,]*\s+a\s+\d/i;
   // "Depende do escopo / varia conforme o projeto": resposta honesta UMA vez,
   // fuga da segunda em diante.
-  const ENROLACAO = /depende d|varia (conforme|de acordo|com)|conforme o (escopo|projeto)|cada (projeto|caso)|de acordo com (o|a|as|os)? ?(escopo|projeto|necessidade|complexidade)|or[çc]amento personalizado/i;
+  // ⚠️ Por RADICAL, não por forma exata. A versão anterior testava "depende d"
+  // e por isso NUNCA casou com "vai depender do escopo" — que é como todo
+  // vendedor fala de verdade. Numa chamada real (call_1784746361393_vho7u) o
+  // bloqueio ficou desligado a conversa inteira e o coach repetiu "o valor vai
+  // depender das funcionalidades" CINCO vezes, até o vendedor desabafar no
+  // meio da ligação que não aguentava mais repetir aquilo.
+  const ENROLACAO = /\bdepend(e|er|em|erá|era|endo|endo d)/i.source
+    + '|' + /\bvari(a|ar|am|ando)\b/i.source
+    + '|' + /de acordo com|conforme (o|a|as|os)? ?(escopo|projeto|necessidade|funcionalidade|complexidade)/i.source
+    + '|' + /cada (projeto|caso)|or[çc]amento personalizado|sob medida/i.source;
+  const ENROLACAO_RE = new RegExp(ENROLACAO, 'i');
 
   const DEMANDS = [
     {
@@ -613,7 +681,24 @@ ${list.map(p => `${p.n}. [${p.estagio}] ${p.name}
       // real valor do bagulho" e "quanto que vai sair no bolso" NÃO casavam, a
       // dívida só era reconhecida dois turnos depois, e nesse intervalo o coach
       // repetia a mesma fuga sem que nada barrasse.
-      ask: /quanto (que )?(custa|vai|fica|sai|[ée]|sair|cobra|fica)|qual (o|[ée] o|seria o) (valor|pre[çc]o|custo|investimento)|cad[êe] o (pre[çc]o|valor)|fala (logo )?(o )?(pre[çc]o|valor|n[úu]mero|custo)|me (diz|d[áa]|passa|fala|manda) o (pre[çc]o|valor|n[úu]mero|custo)|(saber|entender) o (real )?(pre[çc]o|valor|custo)|pre[çc]o (dessa|desse|disso|da|do)|quanto (eu )?vou (gastar|pagar|desembolsar)|valor (dessa|desse|disso)|\bna lata\b|sem enrola[çc][ãa]o|(custo|investimento|valor|pre[çc]o)[^.?!]{0,25}\?/i,
+      // Generoso de propósito. A versão anterior exigia "quanto" colado ao
+      // verbo e por isso perdia "quanto que vocês COBRAM pra botar esse
+      // troço", "manda um número nem que seja de padaria" e "me solta um
+      // intervalo" — todas falas reais de cliente pedindo preço. Sem detectar
+      // o pedido, a dívida nunca era contada e a escalada nunca acontecia.
+      ask: new RegExp([
+        'quanto[^.?!]{0,45}(custa|custar|cobra|cobram|sai|sair|fica|vai|estoura|gasta|paga|desembols)',
+        'quanto (que )?[ée]\\b|quanto (eu )?vou (gastar|pagar)',
+        'me (d[áa]|diz|passa|fala|manda|solta)[^.?!]{0,18}(n[úu]mero|valor|pre[çc]o|custo|intervalo|faixa)',
+        'manda[^.?!]{0,18}(n[úu]mero|valor|pre[çc]o)|solta[^.?!]{0,18}(n[úu]mero|intervalo|valor)',
+        'faixa de (pre[çc]o|valor)|cad[êe] (o|a)[^.?!]{0,22}(pre[çc]o|valor|faixa|n[úu]mero)',
+        'qual (o|[ée] o|seria o)[^.?!]{0,18}(valor|pre[çc]o|custo|investimento)',
+        '(custo|investimento|valor|pre[çc]o|or[çc]amento)[^.?!]{0,28}\\?',
+        'fala (logo )?(o )?(pre[çc]o|valor|n[úu]mero|custo)',
+        '(saber|entender) o (real )?(pre[çc]o|valor|custo)',
+        'pre[çc]o (dessa|desse|disso|da|do)|valor (dessa|desse|disso)',
+        '\\bna lata\\b|sem enrola[çc][ãa]o|sem firula|nem que seja',
+      ].join('|'), 'i'),
       done: (t) => PRECO_ENTREGUE.test(t),
     },
     {
@@ -652,7 +737,7 @@ ${list.map(p => `${p.n}. [${p.estagio}] ${p.name}
       const desvios = depois.filter(s => /\?/.test(s.text)).length;
       // "Depende do escopo" é resposta honesta UMA vez. Da segunda em diante é
       // a mesma fuga com outras palavras — e foi o que travou a chamada real.
-      const enrolou = depois.filter(s => ENROLACAO.test(s.text)).length;
+      const enrolou = depois.filter(s => ENROLACAO_RE.test(s.text)).length;
       out.push({ key: d.key, label: d.label, count, desvios, enrolou });
     }
     return out;
@@ -807,7 +892,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
   // fuga acontecia justamente na janela anterior.
   function dodgeBanned(transcript) {
     const falas = (transcript || []).filter(s => s.speaker === 'seller').map(s => String(s.text || ''));
-    if (!falas.some(t => ENROLACAO.test(t))) return false;   // ainda não usou a carta
+    if (!falas.some(t => ENROLACAO_RE.test(t))) return false;   // ainda não usou a carta
     return !falas.some(t => PRECO_ENTREGUE.test(t));          // já deu número? dívida quitada
   }
 
@@ -823,7 +908,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     const claim = unsourcedClaim(limpo, ctx.facts);
     if (claim) return { say: null, reason: `afirmação de ${claim} sem lastro no briefing` };
     if (soaDeBalcao(limpo)) return { say: null, reason: 'muleta de varejo copiada do material' };
-    if (ctx.banDepende && ENROLACAO.test(limpo)) return { say: null, reason: 'repetiu "depende do escopo" — fuga já usada' };
+    if (ctx.banDepende && ENROLACAO_RE.test(limpo)) return { say: null, reason: 'repetiu "depende do escopo" — fuga já usada' };
     if (ctx.injected && copiesInjected(limpo, ctx.injected)) return { say: null, reason: 'cópia literal do material da metodologia' };
     return { say: limpo, reason: null };
   }
@@ -854,15 +939,40 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
 
   // Uma tentativa de correção, só quando a vacina reprova (caminho de exceção:
   // não custa latência quando a dica sai limpa de primeira).
+  // Correção de REPETIÇÃO: o motivo mais comum de dica descartada não é vacina,
+  // é o modelo redizer o que já disse com outras palavras. Devolver "não
+  // repita" genérico não adianta — ele já leu isso no prompt e repetiu mesmo
+  // assim. Aqui vai a frase exata que foi recusada, com ordem de mudar de
+  // jogada, não de reescrever a mesma.
+  function correcaoRepeticao(sayRecusado) {
+    return `\n\n‼️ SUA RESPOSTA ANTERIOR FOI DESCARTADA POR REPETIÇÃO. Você escreveu:
+"${String(sayRecusado).slice(0, 160)}"
+Isso diz a MESMA COISA que uma dica que o vendedor já usou nesta conversa, e o cliente já reagiu mal a ela. Reescrever com sinônimos NÃO resolve: trocar "valor" por "preço" ou "escopo" por "funcionalidades" é a mesma dica.
+MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREGAR algo: um número (se o briefing tiver), um compromisso com prazo concreto de quando o número sai, ou uma única pergunta objetiva que destrave. Retorne o MESMO JSON, com "tip" e "say" preenchidos.`;
+  }
+
   async function askScreened(prompt, apiKey, ctx, opts) {
     const parsed = await ask(prompt, apiKey, opts);
     if (!parsed || !parsed.tip) return { parsed, screened: { say: null, reason: 'silêncio do modelo' } };
+
     const screened = screenSay(parsed.say, { ...ctx, grounded: parsed.grounded });
-    if (screened.say) return { parsed, screened };
-    const retry = await ask(prompt + correcao(screened.reason), apiKey, opts);
-    if (retry && retry.tip) {
-      const s2 = screenSay(retry.say, { ...ctx, grounded: retry.grounded });
-      if (s2.say) return { parsed: retry, screened: s2, corrigida: true };
+    if (!screened.say) {
+      const retry = await ask(prompt + correcao(screened.reason), apiKey, opts);
+      if (retry && retry.tip) {
+        const s2 = screenSay(retry.say, { ...ctx, grounded: retry.grounded });
+        if (s2.say && !(ctx.isRepeat && ctx.isRepeat(s2.say))) return { parsed: retry, screened: s2, corrigida: true };
+      }
+      return { parsed, screened };
+    }
+
+    // Passou nas vacinas mas diz o que já foi dito: 2ª chance com o texto
+    // recusado na mão, antes de sumir da tela do vendedor.
+    if (ctx.isRepeat && ctx.isRepeat(screened.say)) {
+      const retry = await ask(prompt + correcaoRepeticao(screened.say), apiKey, opts);
+      if (retry && retry.tip) {
+        const s2 = screenSay(retry.say, { ...ctx, grounded: retry.grounded });
+        if (s2.say && !ctx.isRepeat(s2.say)) return { parsed: retry, screened: s2, corrigida: true };
+      }
     }
     return { parsed, screened };
   }
@@ -873,7 +983,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     repeatsTechnique, playsMenu, resolvePlay, doctrineBlock, STAGE_ORDER, inferStage,
     briefFacts, pressureBlock, unmetDemands, clientHeat, sellerLooping,
     mentionsCoachIdentity, unsourcedClaim, copiesInjected, soaDeBalcao, sameOpening, dodgeBanned,
-    calibratePriority, screenSay, askScreened,
+    calibratePriority, screenSay, askScreened, saysSameThing, sameClaim,
   };
 })();
 

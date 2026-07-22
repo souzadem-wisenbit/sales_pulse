@@ -62,8 +62,12 @@ const Seller = (() => {
       passingScore:       globalConfig.passingScore,
       weights:            globalConfig.weights,
       customerName:       client.name,
-      customerRole:       client.role,
-      customerCompany:    client.company,
+      // `client.role` e `client.company` nunca existiram no cadastro: o
+      // contrato de voz vinha montado como "Você é Fulano, undefined da
+      // undefined". Agora vêm dos campos de identidade, com um fallback
+      // genérico para o bot nunca falar "undefined" ao telefone.
+      customerRole:       client.contactRole || 'responsável pela decisão',
+      customerCompany:    client.companyName || 'empresa dele',
       customerEmoji:      client.emoji || '👤',
       customerGender:     client.gender || null,
       customerVoice:      client.voice || null,
@@ -95,6 +99,11 @@ const Seller = (() => {
       archetype:          client.archetype || null,
       hiddenAgenda:       client.hiddenAgenda || null,
       marketSegment:      client.marketSegment || 'generico',
+      companyName:        client.companyName || '',
+      companyAbout:       client.companyAbout || '',
+      companySize:        client.companySize || '',
+      companyCity:        client.companyCity || '',
+      contactRole:        client.contactRole || '',
       hostileMode:        client.hostileMode || false,
       hostileCompetitors: client.hostileCompetitors || [],
       sessionConstraints: client.sessionConstraints || {},

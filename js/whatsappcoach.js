@@ -686,6 +686,7 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
       const screenCtx = {
         sourceText, facts, coachName: coach && coach.name, injected: methodologyBlock,
         banDepende: CoachCore.dodgeBanned(chat.messages.map(m => ({ speaker: m.speaker, text: m.text }))),
+        isRepeat: (say) => CoachCore.tooSimilar({ tip: '', say }, chat.tips),
       };
       // Vacina reprovou → o motivo volta para o modelo, que reescreve (mesma
       // mecânica do Live Coach por áudio).

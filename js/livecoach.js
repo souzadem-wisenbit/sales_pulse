@@ -1107,6 +1107,10 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
         // O vendedor já disse "depende do escopo": repetir é a fuga que o
         // cliente está cobrando. O prompt proíbe; isto garante.
         banDepende: CoachCore.dodgeBanned(transcript),
+        // O modelo tem uma 2ª chance ANTES de a dica sumir: se o say repetir
+        // o que já foi dito, ele recebe a frase recusada e a ordem de mudar
+        // de jogada. Sem isso a dica boa era perdida e sobrava silêncio.
+        isRepeat: (say) => CoachCore.tooSimilar({ tip: '', say }, tips),
       };
       // Vacina reprovou → o motivo volta para o modelo e ele reescreve, em vez
       // de a dica simplesmente sumir. Só custa a 2ª chamada quando reprova.
@@ -1221,11 +1225,25 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
   }
 
   function deliverTip(tip, force) {
-    // Pedido manual do vendedor: entra direto, sem filtro e sem gate.
-    if (force) { addTip(tip); return; }
-    if (tooSimilarToRecent(tip)) { console.log('[LiveCoach] dica descartada: parecida demais com recentes'); retrySoon(); return; }
-    // Rotação de técnica: repetiu a técnica de uma das 2 últimas = descartada
-    if (CoachCore.repeatsTechnique(tip, tips)) { console.log('[LiveCoach] dica descartada: técnica repetida —', tip.technique); retrySoon(); return; }
+    // ⚠️ REPETIÇÃO NÃO PASSA NEM NO PEDIDO MANUAL.
+    // A versão anterior entregava o pedido manual direto, "sem filtro e sem
+    // gate". Só que o vendedor aperta "dica agora" JUSTAMENTE quando a dica
+    // anterior não funcionou — e recebia a mesma frase de volta. Numa chamada
+    // real, 3 das 5 repetições vieram por esse caminho. O manual continua
+    // pulando o GATE de entrega (aparece na hora, sem esperar pausa), mas o
+    // filtro de conteúdo vale para ele igual.
+    if (tooSimilarToRecent(tip)) {
+      console.log('[LiveCoach] dica descartada: diz a mesma coisa que uma recente');
+      if (force) UI.toast?.('Essa jogada já foi usada. Buscando outra…', 'warning');
+      retrySoon();
+      return;
+    }
+    if (CoachCore.repeatsTechnique(tip, tips)) {
+      console.log('[LiveCoach] dica descartada: técnica repetida —', tip.technique);
+      retrySoon();
+      return;
+    }
+    if (force) { addTip(tip); return; }   // manual: pula só o gate de exibição
     // PRIMEIRA dica da chamada: entrega imediata, sem esperar pausa — o
     // vendedor precisa ver o coach vivo desde a primeira fala do cliente.
     if (tips.length === 0) { addTip(tip); return; }

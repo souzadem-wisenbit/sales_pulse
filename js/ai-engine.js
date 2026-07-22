@@ -168,6 +168,37 @@ LINGUAGEM OFENSIVA: Se o vendedor ofender, adicione [DEALBREAKER].
       ? `\nCONTEXTO DE SEGMENTO (${segmentKey.toUpperCase()}):\n${SEGMENTS[segmentKey]}`
       : '';
 
+    // ── QUEM VOCÊ É: a empresa como FATO, não como contexto de mercado ──
+    // O bloco de segmento acima descreve o MERCADO ("regulação intensa,
+    // margens apertadas"). Isso não faz o bot ter uma empresa. Numa chamada
+    // real o vendedor disse "na sua farmácia" e o bot respondeu "quem disse
+    // que eu tenho farmácia, véi?", porque nada nunca lhe deu uma identidade.
+    // Aqui ele ganha empresa, cargo, porte e cidade — e a ordem de tratar tudo
+    // isso como verdade da vida dele.
+    const SEG_LABEL = {
+      hospital: 'hospital', farmacia: 'farmácia/distribuidora farmacêutica',
+      industria: 'indústria', varejo: 'varejo', educacao: 'instituição de ensino',
+      servicos: 'empresa de serviços', generico: '',
+    };
+    const idLinhas = [];
+    if (config.companyName)  idLinhas.push(`- Empresa: ${config.companyName}`);
+    if (config.companyAbout) idLinhas.push(`- O que a empresa faz: ${config.companyAbout}`);
+    if (config.companySize)  idLinhas.push(`- Porte: ${config.companySize}`);
+    if (config.companyCity)  idLinhas.push(`- Onde fica: ${config.companyCity}`);
+    if (config.contactRole)  idLinhas.push(`- Seu cargo lá: ${config.contactRole}`);
+
+    const ramo = SEG_LABEL[segmentKey] || '';
+    const identityBlock = idLinhas.length
+      ? `
+━━━━━ QUEM VOCÊ É (fatos da SUA vida — trate como verdade absoluta) ━━━━━
+${idLinhas.join('\n')}
+COMO USAR: esses dados são a sua realidade, não um roteiro a recitar. Responda a partir deles com naturalidade, cite o nome da empresa e o seu dia a dia quando fizer sentido, e use os problemas dela para pressionar o vendedor. NUNCA negue nem contradiga nada acima. Se o vendedor errar algum desses fatos, corrija-o como um cliente real corrigiria.
+Se ele perguntar algo sobre a sua empresa que não está listado aqui, INVENTE uma resposta plausível e coerente com o que já foi dito, e mantenha essa resposta pelo resto da conversa. Jamais diga que não sabe ou que isso não foi definido.`
+      : `
+━━━━━ QUEM VOCÊ É ━━━━━
+Sua empresa não foi detalhada${ramo ? `, mas você atua em ${ramo}` : ''}. Na PRIMEIRA vez que o assunto surgir, invente uma empresa concreta e verossímil${ramo ? ` desse ramo` : ''} (nome, o que faz, porte aproximado, cidade) e o seu cargo nela. A partir daí, trate tudo isso como verdade e NUNCA se contradiga.
+É PROIBIDO responder que você "não tem empresa definida", que "isso não foi informado" ou qualquer coisa que quebre a simulação. Você é uma pessoa real com um negócio real.`;
+
     // ── Agenda Oculta ──
     const agendaKey = config.hiddenAgenda || null;
     const agendaBlock = agendaKey && HIDDEN_AGENDAS[agendaKey]
@@ -351,6 +382,7 @@ Você é ${behaviors.join(', ')}.
 Nível de dificuldade: ${diffDescriptions[config.difficulty] || diffDescriptions.medium}
 Estilo de comunicação base: ${styleDescriptions[config.customerStyle] || styleDescriptions.formal}
 ${archetypeBlock}
+${identityBlock}
 ${segmentBlock}
 ${commStyleBlock}
 ${agendaBlock}

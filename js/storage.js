@@ -294,6 +294,11 @@ const Storage = (() => {
       archetype: null,
       hiddenAgenda: null,
       marketSegment: 'generico',
+      companyName: '',
+      companyAbout: '',
+      companySize: '',
+      companyCity: '',
+      contactRole: '',
       hostileMode: false,
       hostileCompetitors: [],
       sessionConstraints: {
