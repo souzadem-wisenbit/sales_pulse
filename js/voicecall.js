@@ -323,7 +323,7 @@ const VoiceCall = (() => {
     if (openingSent || !dc || dc.readyState !== 'open') return;
     openingSent = true;
 
-    let opening;
+    let opening = '';
     const prodNames = [
       ...((cfg.products || []).map(p => p.name)),
       ...(cfg.productName && !(cfg.products || []).some(p => p.name === cfg.productName) ? [cfg.productName] : []),
@@ -342,6 +342,11 @@ REGRA CRÍTICA: é PROIBIDO afirmar que vocês estavam falando de um assunto que
     } else {
       opening = 'Seu telefone tocou: número desconhecido (é um vendedor, mas você ainda não sabe). Atenda como você atenderia no trabalho: curto e neutro, tipo "Alô?" ou "Pois não?". NÃO se apresente com nome completo, NÃO pergunte "como posso ajudar". Só atenda e espere a pessoa falar.';
     }
+    // A primeira fala define o tom da ligação inteira: o comportamento escrito
+    // pelo gestor vai junto da instrução de abertura, não só nas instruções da
+    // sessão (onde competia com o resto e saía uma versão amenizada).
+    const persona = AIEngine.behaviorReminder?.(cfg);
+    if (persona?.content) opening += `\n\n${persona.content}`;
     sendEvent({ type: 'response.create', response: { instructions: opening } });
   }
 

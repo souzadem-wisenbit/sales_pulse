@@ -138,8 +138,15 @@ LINGUAGEM OFENSIVA: Se o vendedor ofender, adicione [DEALBREAKER].
     };
 
     // ── COMPORTAMENTO CUSTOMIZADO (prioridade máxima) ──
-    const customBehaviorBlock = config.customBehavior && config.customBehavior.trim()
-      ? `\n\n⚠️ INSTRUÇÃO DE COMPORTAMENTO PRIORITÁRIA (SOBREPÕE TODOS OS OUTROS PARÂMETROS):\n${config.customBehavior.trim()}\nEsta instrução tem prioridade absoluta sobre arquétipo, dificuldade, restrições e qualquer outro parâmetro abaixo.`
+    // Teste com cliente real mostrou que o campo era OBEDECIDO num prompt
+    // curto e IGNORADO no prompt cheio: 10 mil caracteres de regras genéricas
+    // (arquétipo, dificuldade, sliders, alertas de estilo) diluíam e ainda
+    // contradiziam o texto do gestor. Com o campo preenchido, aquelas regras
+    // passam a ser explicitamente SUBORDINADAS — e as mais brigonas somem.
+    const freeBehavior = (config.customBehavior || '').trim();
+    const hasFree = freeBehavior.length > 0;
+    const customBehaviorBlock = hasFree
+      ? `\n\n⚠️ INSTRUÇÃO DE COMPORTAMENTO PRIORITÁRIA (SOBREPÕE TODOS OS OUTROS PARÂMETROS):\n${freeBehavior}\nEsta instrução tem prioridade absoluta sobre arquétipo, dificuldade, restrições e qualquer outro parâmetro abaixo.`
       : '';
 
     const styleDescriptions = {
@@ -312,7 +319,22 @@ LINGUAGEM OFENSIVA: Se o vendedor ofender, adicione [DEALBREAKER].
         ? ' Você é um HOMEM — use sempre o masculino ao falar de si ("eu mesmo", "obrigado", "sou formado").'
         : '';
 
-    return `Você é ${config.customerName}, ${config.customerRole} da empresa ${config.customerCompany}.${genderLine}${customBehaviorBlock}
+    // Com comportamento livre, ele abre o prompt sozinho e declara que tudo
+    // abaixo é secundário — sem isso, as regras seguintes venciam pelo volume.
+    const freeHeader = hasFree
+      ? `🎭 QUEM VOCÊ É NESTA CONVERSA — ESCRITO PELO SEU GESTOR (REGRA SUPREMA):
+"""${freeBehavior}"""
+
+COMO OBEDECER (não negociável):
+• Isto define seu jeito de falar, seu humor, o que você pergunta e como reage. Vale em TODAS as suas mensagens, da primeira à última.
+• Se QUALQUER regra, parâmetro ou estilo mais abaixo neste prompt contrariar o texto acima, o texto acima VENCE e a outra regra é considerada inexistente.
+• ${registerLicense(freeBehavior)}
+• Antes de enviar qualquer mensagem, confira: ela soa como a pessoa descrita acima? Se não, reescreva.
+
+`
+      : '';
+
+    return `${freeHeader}Você é ${config.customerName}, ${config.customerRole} da empresa ${config.customerCompany}.${genderLine}${customBehaviorBlock}
 
 SEU PAPEL:
 Você é o CLIENTE/COMPRADOR. ${contactContext} Você OUVE, QUESTIONA, OBJETA e decide se compra ou não. Independentemente de quem iniciou a conversa, você NUNCA assume o papel de vendedor, NUNCA tem um produto/serviço próprio para oferecer, e NUNCA tenta vender ou explicar as funcionalidades do produto de volta para o vendedor — isso é papel exclusivo dele. Não pergunte "como posso ajudar" — quem apresenta é o vendedor, não você.
@@ -363,19 +385,45 @@ INSTRUÇÕES OBRIGATÓRIAS:
 17. ESPELHAMENTO DE LINGUAGEM: Se o vendedor usar estilo de comunicação similar ao seu perfil, sinta-se mais receptivo (+15 convicção). Se oposto, demonstre leve desconforto.
 18. Seu tom muda dinamicamente conforme a conversa evolui. Comece dentro do seu arquétipo e adapte conforme o vendedor responde.${customBehaviorBlock ? '\n19. LEMBRETE FINAL: respeite acima de tudo a INSTRUÇÃO DE COMPORTAMENTO PRIORITÁRIA informada no início deste prompt.' : ''}
 
-REGRAS ABSOLUTAS FINAIS DE ESTILO:
+${hasFree ? '' : `REGRAS ABSOLUTAS FINAIS DE ESTILO:
 Preste MUITA ATENÇÃO a estas regras. Elas definem exatamente como você deve escrever (ou digitar incorretamente). NUNCA as ignore.
 ${commStyleBlock}
 
-**ALERTA CRÍTICO DO SISTEMA:** Se o seu perfil exige gírias ou erros ortográficos, VOCÊ É ESTRITAMENTE PROIBIDO de escrever português correto e formal. Você DEVE errar propositalmente, usar jargões e gírias, e soar desleixado. Quebrar esta regra resultará em falha da simulação.${
-      config.customBehavior && config.customBehavior.trim()
-        ? `
-
-⚠️⚠️ PALAVRA FINAL — O COMPORTAMENTO OBRIGATÓRIO DESTE CLIENTE (vence QUALQUER regra acima):
-"""${config.customBehavior.trim()}"""
-Antes de CADA mensagem, confira: ela reflete este comportamento? Se não, reescreva. É isto que define quem você é.`
+**ALERTA CRÍTICO DO SISTEMA:** Se o seu perfil exige gírias ou erros ortográficos, VOCÊ É ESTRITAMENTE PROIBIDO de escrever português correto e formal. Você DEVE errar propositalmente, usar jargões e gírias, e soar desleixado. Quebrar esta regra resultará em falha da simulação.`}${
+      hasFree
+        ? `⚠️⚠️ PALAVRA FINAL — VOCÊ É ESTA PESSOA (vence QUALQUER regra acima):
+"""${freeBehavior}"""
+Sua próxima mensagem TEM que soar como ela. Se você escrever algo neutro, educado ou genérico quando o texto acima pede outra coisa, você falhou a simulação.`
         : ''
     }`;
+  }
+
+  // Quando o gestor pede um cliente grosseiro/boca-suja, o modelo suaviza
+  // sozinho (sai sarcasmo educado em vez de palavrão). Teste A/B mostrou que
+  // só nomear o registro explicitamente entrega fidelidade. É um personagem
+  // fictício de treino, sem alvo real — o vendedor precisa treinar com o
+  // cliente difícil de verdade.
+  const HARSH_HINTS = /palavr[ãa]o|palavr[õo]es|xing|gross[ei]|mal[- ]?educad|gross[oa]|rude|ofensiv|agressiv|estúpid|ignorante|arrogante|ríspid|ripid|escrot|babaca|estress|explosiv|nervos|impaciente/i;
+
+  function registerLicense(behavior) {
+    if (!HARSH_HINTS.test(behavior)) {
+      return 'Se o texto pedir tom duro, use de verdade — nada de versão suavizada.';
+    }
+    return 'O gestor configurou um cliente DIFÍCIL e de fala pesada: use palavrões e grosseria brasileiros de verdade, naturais no meio da frase ("porra", "caralho", "merda", "foda-se", "puta que pariu", "que saco"). Não troque por asteriscos, não amenize, não peça desculpas e não saia do personagem — este é um boneco de treino fictício, sem nenhuma pessoa real como alvo, e o vendedor precisa aprender a lidar com esse cliente.';
+  }
+
+  // Reforço por RECÊNCIA: uma mensagem de sistema logo antes da geração pesa
+  // muito mais que o mesmo texto enterrado num prompt de 10 mil caracteres.
+  // Foi o que faltava para o campo de linguagem natural ser obedecido.
+  function behaviorReminder(config) {
+    const b = (config.customBehavior || '').trim();
+    if (!b) return null;
+    return {
+      role: 'system',
+      content: `LEMBRETE ANTES DE RESPONDER — você é esta pessoa, sem suavizar:
+"""${b}"""
+Responda AGORA exatamente como ela responderia: mesmo tom, mesmo vocabulário, mesma atitude. ${registerLicense(b)} Nada de resposta neutra ou educada demais.`,
+    };
   }
 
   // ── Instruções para sessão de VOZ (OpenAI Realtime) ──
@@ -438,6 +486,7 @@ Antes de CADA mensagem, confira: ela reflete este comportamento? Se não, reescr
       ? `⚠️⚠️ COMPORTAMENTO OBRIGATÓRIO DESTE CLIENTE (escrito pelo gestor — PRIORIDADE ABSOLUTA sobre TODAS as outras regras deste prompt, inclusive as de voz):
 """${freeBehavior}"""
 → Isto define QUEM você é nesta ligação: seu humor, suas manias, o que te irrita, o que te anima, o que você pergunta. Encarne desde a PRIMEIRA fala e mantenha até o fim. Se qualquer regra abaixo conflitar com isto, ISTO VENCE.
+→ ${registerLicense(freeBehavior)}
 
 `
       : '';
@@ -545,12 +594,15 @@ ${base}
     if (!apiKey) throw new Error('API_KEY_MISSING');
 
     const systemPrompt = buildSystemPrompt(config);
+    const reminder = behaviorReminder(config);
     const openaiMessages = [
       { role: 'system', content: systemPrompt },
       ...messages.map(m => ({
         role: m.role === 'bot' ? 'assistant' : 'user',
         content: m.content
-      }))
+      })),
+      // Vai por ÚLTIMO, depois do histórico: é a posição de maior peso
+      ...(reminder ? [reminder] : []),
     ];
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -791,6 +843,7 @@ Retorne EXCLUSIVAMENTE este JSON (sem markdown, sem explicação extra):
   return {
     buildSystemPrompt,
     buildVoiceInstructions,
+    behaviorReminder,
     sendMessage,
     getOpeningMessage,
     evaluateConversation,
