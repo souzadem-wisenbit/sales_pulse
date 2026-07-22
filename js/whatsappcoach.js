@@ -635,11 +635,18 @@ const WhatsAppCoach = (() => {
       // Estágio nunca atrás do que a última mensagem do cliente instaura
       const lastClientMsg = [...chat.messages].reverse().find(m => m.speaker === 'client');
       const stageNow = CoachCore.inferStage(lastClientMsg?.text, chat.stage || 'rapport');
+      // Mesmas garantias do Live Coach por áudio: jogadas limitadas ao que o
+      // briefing sustenta, e leitura da pressão (pedido repetido sem resposta,
+      // cliente irritado, vendedor em looping) com precedência sobre o catálogo.
+      const facts = CoachCore.briefFacts(brief);
+      const pressure = CoachCore.pressureBlock(
+        chat.messages.map(m => ({ speaker: m.speaker, text: m.text })), facts
+      );
 
       // Bloco estático primeiro (persona + playbook + formato) e dinâmico por
       // último: ativa o cache de prompt da OpenAI e derruba a latência.
       const prompt = `${CoachCore.persona(coach)}, acompanhando em silêncio uma conversa de vendas REAL por WhatsApp. O VENDEDOR é seu aluno; você escreve a MENSAGEM PRONTA que ele deve enviar AGORA. Quando o cliente escreve, capte o subtexto (resposta seca ou monossilábica = desinteresse ou pressa; "vou ver", "depois te falo" = objeção não dita; pergunta sobre preço/prazo/contrato = sinal de compra; áudio/vídeo enviado = quer atenção e detalhe; tema que volta = objeção real disfarçada) e escreva a resposta perfeita, espelhando as palavras dele.
-${CoachCore.coreBlock(coachCore)}${CoachCore.doctrineBlock(coachDoctrine, stageNow)}${CoachCore.playsMenu(coachPlays, stageNow, chat.usedPlays)}
+${CoachCore.coreBlock(coachCore)}${CoachCore.doctrineBlock(coachDoctrine, stageNow)}${CoachCore.playsMenu(coachPlays, stageNow, chat.usedPlays, facts)}
 ${CoachCore.playbook('whatsapp')}
 
 FORMATO DO "say" (é a mensagem que o vendedor vai COPIAR e COLAR no WhatsApp — precisa servir sem edição):
@@ -653,7 +660,8 @@ REGRA DE OURO DO OUTPUT: tip e say andam JUNTOS. Ou você retorna os dois preenc
 Retorne SÓ JSON (nunca escreva meta-texto, instruções ou a palavra "null" dentro dos textos):
 {
  "play": <NÚMERO da jogada do catálogo que esta dica executa — obrigatório quando houver dica>,
- "tip": "diagnóstico interno em até 10 palavras SUAS (ex: 'Adiamento — descobrir a dúvida escondida')",
+ "leitura": "o subtexto: o que o cliente REALMENTE quis dizer na última mensagem, em até 12 palavras (ex: 'sumiu porque não viu valor, não por preço')",
+ "tip": "O TÍTULO DA DICA: a ORDEM para o vendedor, em linguagem de comando, 5-11 palavras, dizendo O QUE FAZER e COM QUE INTENÇÃO. É o que ele lê de relance antes do texto pronto. Ex: 'Responda o preço e ancore no custo da demora', 'Reforce o valor com o número que ele mesmo deu', 'Isole a objeção real antes de oferecer qualquer coisa'. PROIBIDO título que só rotula a situação ('Adiamento clássico') — ele não precisa do diagnóstico, precisa da ordem.",
  "say": "a mensagem pronta do vendedor EXECUTANDO a jogada escolhida, texto puro colável no WhatsApp (máx 45 palavras). OBRIGATÓRIO sempre que tip existir.",
  "grounded": <false se o say afirma número/fato/promessa SEM fonte no briefing/conversa; true se todos têm fonte OU se o say não afirma número/fato>,
  "technique": "o NOME da jogada escolhida (copie do catálogo)",
@@ -667,20 +675,32 @@ Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acerto
 ━━━━━ CONVERSA NO WHATSAPP — contato: ${chat.name} ━━━━━${tipHistoryBlock}
 Mensagens recentes (mais recente por último):
 ${recent}
-${(chat.usedPlays || []).length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco — escolha OUTRA do catálogo): ${chat.usedPlays.slice(-6).join(', ')}\n` : ''}
+${pressure}${(chat.usedPlays || []).length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco — escolha OUTRA do catálogo): ${chat.usedPlays.slice(-6).join(', ')}\n` : ''}
 ${force
         ? `🆘 O VENDEDOR APERTOU "SUGERIR RESPOSTA AGORA" — ele está travado e esperando a mensagem pronta.
 tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e entregue a melhor jogada: responda a última mensagem, reabra a conversa parada ou dê o próximo passo que faz a negociação AVANÇAR.`
         : '⚡ O CLIENTE ACABOU DE ESCREVER. Escreva a mensagem que o vendedor deve enviar AGORA.'}`;
 
-      let parsed = await CoachCore.ask(prompt, getApiKey());
+      // Contexto das vacinas (mesma guarda única do Live Coach por áudio)
+      const sourceText = JSON.stringify(brief || {}) + ' ' + chat.messages.map(m => m.text).join(' ');
+      const screenCtx = {
+        sourceText, facts, coachName: coach && coach.name, injected: methodologyBlock,
+        banDepende: CoachCore.dodgeBanned(chat.messages.map(m => ({ speaker: m.speaker, text: m.text }))),
+      };
+      // Vacina reprovou → o motivo volta para o modelo, que reescreve (mesma
+      // mecânica do Live Coach por áudio).
+      let { parsed, screened } = await CoachCore.askScreened(prompt, getApiKey(), screenCtx);
+
       // Pedido manual não pode voltar vazio (ver livecoach.js)
-      if (force && (!parsed?.tip || !CoachCore.validSay(parsed.say, parsed.grounded))) {
+      if (force && !screened.say) {
         const retry = await CoachCore.ask(
-          prompt + '\n\n‼️ TENTATIVA FINAL: sua resposta anterior veio SEM a mensagem pronta. Retorne OBRIGATORIAMENTE "tip" E "say" preenchidos. O "say" é o texto que o vendedor vai COLAR no WhatsApp agora. Não comece por "Entendo", "Entendi", "Ótima pergunta" nem "Claro".',
+          prompt + '\n\n‼️ TENTATIVA FINAL: sua resposta anterior veio SEM a mensagem pronta (ou ela foi descartada por afirmar algo sem lastro no briefing). Retorne OBRIGATORIAMENTE "tip" E "say" preenchidos. O "say" é o texto que o vendedor vai COLAR no WhatsApp agora. Não comece por "Entendo", "Entendi", "Ótima pergunta" nem "Claro". Não afirme escassez, garantia, prova social nem tempo de experiência. Não diga seu nome.',
           getApiKey()
         );
-        if (retry?.tip && CoachCore.validSay(retry.say, retry.grounded)) parsed = retry;
+        if (retry?.tip) {
+          const s2 = CoachCore.screenSay(retry.say, { ...screenCtx, grounded: retry.grounded });
+          if (s2.say) { parsed = retry; screened = s2; }
+        }
       }
       if (!parsed) {
         console.warn('[WhatsAppCoach] sem dica: resposta nula (timeout, rede, chave ou JSON truncado)');
@@ -691,16 +711,8 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
       if (typeof parsed.temperature === 'number') chat.temp = Math.max(0, Math.min(100, Math.round(parsed.temperature)));
 
       if (parsed.tip) {
-        let say = CoachCore.validSay(parsed.say, parsed.grounded);
-        // Vacina anti-alucinação: número em dígitos sem fonte no briefing
-        // ou na conversa = inventado → mensagem morre.
-        if (say) {
-          const sourceText = JSON.stringify(brief || {}) + ' ' + chat.messages.map(m => m.text).join(' ');
-          if (CoachCore.hasUngroundedNumbers(say, sourceText)) {
-            console.warn('[WhatsAppCoach] dica morta: número sem fonte:', say);
-            say = null;
-          }
-        }
+        let say = screened.say;
+        if (!say) console.warn('[WhatsAppCoach] dica morta —', screened.reason, '|', JSON.stringify(parsed.say));
         // Jogada do catálogo: nome da técnica vem do catálogo; jogada
         // repetida entre as últimas 6 da conversa morre aqui.
         chat.usedPlays = chat.usedPlays || [];
@@ -713,10 +725,11 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
         // enquanto gerava, o assunto mudou — descarta (exceto urgente).
         const grewBy = chat.messages.length - sinceCount;
         if (say && (force || grewBy < 3 || parsed.priority === 'urgent')) {
-          const prio = parsed.priority || 'normal';
+          const prio = CoachCore.calibratePriority(parsed.priority || 'normal', chat.tips);
           const tip = {
             t: Date.now(),
             tip: parsed.tip,
+            leitura: parsed.leitura || null,
             say,
             technique: play ? play.name : (parsed.technique || null),
             priority: prio,

@@ -181,6 +181,12 @@ const LiveCoach = (() => {
         .lc-hero-icon { font-size: 1.7rem; line-height: 1; flex-shrink: 0; filter: drop-shadow(0 0 8px rgba(255,255,255,0.15)); }
         .lc-hero-text { font-size: 1.04rem; font-weight: 700; line-height: 1.45; color: #f2f2fa; }
         .lc-hero-fresh { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: #9494b8; }
+        /* Ordem da jogada: o que fazer, lido de relance ANTES do script */
+        .lc-move { display: flex; gap: 9px; align-items: flex-start; margin-bottom: 11px; }
+        .lc-move-ic { font-size: 1.05rem; line-height: 1.35; flex-shrink: 0; }
+        .lc-move-tx { font-size: 1.02rem; font-weight: 800; line-height: 1.4; color: #f4f4ff; letter-spacing: 0.1px; }
+        .lc-read { font-size: 0.78rem; font-weight: 600; line-height: 1.4; color: #8f8fb5; margin: -5px 0 11px 0; }
+        .lc-read b { color: #b9b9dd; font-weight: 700; }
         /* FALE ASSIM é o herói do cartão: script grande, ênfases em amarelo */
         .lc-say { padding: 14px 16px; border-radius: 12px; background: rgba(7,7,15,0.6); border: 1px solid rgba(255,255,255,0.16); }
         .lc-say-label { font-size: 0.62rem; font-weight: 800; letter-spacing: 1.4px; color: #9a9abf; margin-bottom: 9px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -1040,6 +1046,13 @@ const LiveCoach = (() => {
       // Persona do coach atribuído pelo gestor (compartilhada com o WhatsApp Coach)
       const coachPersona = CoachCore.persona(coach);
       const stageNow = currentStage();
+      // Fatos que o briefing sustenta: define quais jogadas podem existir nesta
+      // chamada (escassez/garantia/prova social sem lastro viram mentira ao vivo).
+      const facts = CoachCore.briefFacts(brief);
+      // Dívida com o cliente + temperatura + looping do vendedor. Tem
+      // precedência sobre o catálogo: foi a ausência disso que matou a
+      // chamada auditada (8 pedidos de preço, 13 dicas mandando desviar).
+      const pressure = CoachCore.pressureBlock(transcript, facts);
 
       // Prompt montado com o BLOCO ESTÁTICO primeiro (persona + regras +
       // formato) e o DINÂMICO por último (briefing/perfil/histórico/
@@ -1047,7 +1060,7 @@ const LiveCoach = (() => {
       // do 2º disparo em diante o prefixo estático não é reprocessado →
       // menos latência (TTFT) em toda a chamada.
       const prompt = `${coachPersona}, observando em silêncio uma chamada de vendas REAL por vídeo. O VENDEDOR é seu aluno; você escreve a fala PRONTA que ele deve dizer AGORA. Quando o cliente termina de falar, capte o subtexto (hesitação/frase inacabada = insegurança; resposta seca = desinteresse/pressa; pergunta sobre preço/prazo/contrato = sinal de compra; tema que volta = objeção real disfarçada) e escreva a resposta perfeita, espelhando as palavras do cliente.
-${CoachCore.coreBlock(coachCore)}${CoachCore.doctrineBlock(coachDoctrine, stageNow)}${CoachCore.playsMenu(coachPlays, stageNow, usedPlays)}
+${CoachCore.coreBlock(coachCore)}${CoachCore.doctrineBlock(coachDoctrine, stageNow)}${CoachCore.playsMenu(coachPlays, stageNow, usedPlays, facts)}
 ${CoachCore.playbook('audio')}
 
 MARCAÇÃO DO "say" (é o que o vendedor LÊ ao vivo — ele precisa usar em 1 segundo):
@@ -1059,7 +1072,8 @@ REGRA DE OURO DO OUTPUT: tip e say andam JUNTOS. Ou você retorna os dois preenc
 Retorne SÓ JSON (nunca escreva meta-texto, instruções ou a palavra "null" dentro dos textos):
 {
  "play": <NÚMERO da jogada do catálogo que esta dica executa — obrigatório quando houver dica>,
- "tip": "diagnóstico interno em até 10 palavras SUAS (ex: 'Objeção de preço disfarçada — virar para valor')",
+ "leitura": "o subtexto: o que o cliente REALMENTE quis dizer na última fala, em até 12 palavras (ex: 'perdeu a paciência — quer número, não argumento')",
+ "tip": "O TÍTULO DA DICA: a ORDEM para o vendedor, em linguagem de comando, 5-11 palavras, dizendo O QUE FAZER e COM QUE INTENÇÃO. É o que ele lê de relance antes do script. Ex: 'Entregue a faixa de preço e ancore no custo da demora', 'Reforce o valor usando o número que ele mesmo deu', 'Use o gatilho de reciprocidade antes de pedir o próximo passo', 'Pare de perguntar: responda primeiro, pergunte depois'. PROIBIDO título que só rotula a situação ('Objeção de preço disfarçada') — o vendedor não precisa do diagnóstico, precisa da ordem.",
  "say": "a fala pronta do vendedor EXECUTANDO a jogada escolhida, 1-3 frases faladas (máx 42 palavras), com **palavras-chave** e (PAUSA) embutidos. OBRIGATÓRIO sempre que tip existir.",
  "grounded": <false se o say afirma número/fato/promessa SEM fonte no briefing/conversa; true se todos têm fonte OU se o say não afirma número/fato>,
  "technique": "o NOME da jogada escolhida (copie do catálogo)",
@@ -1073,6 +1087,7 @@ Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acerto
 ━━━━━ CONVERSA AO VIVO ━━━━━${tipHistoryBlock}
 Falas recentes (mais recente por último; transcrição automática, pode ter erros):
 ${recent}
+${pressure}
 ${usedPlays.length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco — escolha OUTRA do catálogo): ${usedPlays.slice(-6).join(', ')}\n` : ''}${tips.length === 0 ? '\n🚀 PRIMEIRA DICA DA CHAMADA: ainda não existe nenhuma dica — retorne OBRIGATORIAMENTE tip e say preenchidos (abertura/rapport ou reação direta à fala). Nesta primeira resposta, tip null é PROIBIDO: o vendedor precisa sentir o coach ao lado desde o primeiro segundo.\n' : ''}
 ${force
         ? `🆘 O VENDEDOR APERTOU "DICA AGORA" — ele está travado NESTE segundo e olhando para a tela esperando a fala.
@@ -1084,16 +1099,30 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
       // responde rápido (prioridade máxima aqui é chegar a tempo).
       // Timeout curto: um request pendurado segurava o coachBusy e
       // congelava TODAS as dicas seguintes da chamada.
-      let parsed = await CoachCore.ask(prompt, getApiKey());
-      // Pedido manual não pode voltar vazio: o modelo às vezes manda tip sem
-      // say (ou say que morre no kill-switch). Uma segunda tentativa, mais
-      // dura, resolve — o vendedor está olhando para a tela.
-      if (force && (!parsed?.tip || !CoachCore.validSay(parsed.say, parsed.grounded))) {
+      // Contexto das vacinas — o mesmo usado na entrega, para que a decisão de
+      // repetir a tentativa enxergue exatamente o que vai barrar a dica depois.
+      const sourceText = JSON.stringify(brief || {}) + ' ' + transcript.map(s => s.text).join(' ');
+      const screenCtx = {
+        sourceText, facts, coachName: coach && coach.name, injected: methodologyBlock,
+        // O vendedor já disse "depende do escopo": repetir é a fuga que o
+        // cliente está cobrando. O prompt proíbe; isto garante.
+        banDepende: CoachCore.dodgeBanned(transcript),
+      };
+      // Vacina reprovou → o motivo volta para o modelo e ele reescreve, em vez
+      // de a dica simplesmente sumir. Só custa a 2ª chamada quando reprova.
+      let { parsed, screened } = await CoachCore.askScreened(prompt, getApiKey(), screenCtx);
+
+      // Pedido manual não pode voltar vazio: o vendedor está olhando para a
+      // tela. Se nem a correção salvou, uma última tentativa mais dura.
+      if (force && !screened.say) {
         const retry = await CoachCore.ask(
-          prompt + '\n\n‼️ TENTATIVA FINAL: sua resposta anterior veio SEM a fala pronta. Retorne OBRIGATORIAMENTE "tip" E "say" preenchidos. O "say" é a frase que o vendedor vai LER EM VOZ ALTA neste segundo — sem ela a resposta é inútil. Não comece por "Entendo", "Entendi", "Ótima pergunta" nem "Claro".',
+          prompt + '\n\n‼️ TENTATIVA FINAL: sua resposta anterior veio SEM a fala pronta (ou ela foi descartada por afirmar algo sem lastro no briefing). Retorne OBRIGATORIAMENTE "tip" E "say" preenchidos. O "say" é a frase que o vendedor vai LER EM VOZ ALTA neste segundo — sem ela a resposta é inútil. Não comece por "Entendo", "Entendi", "Ótima pergunta" nem "Claro". Não afirme escassez, garantia, prova social nem tempo de experiência. Não diga seu nome.',
           getApiKey()
         );
-        if (retry?.tip && CoachCore.validSay(retry.say, retry.grounded)) parsed = retry;
+        if (retry?.tip) {
+          const s2 = CoachCore.screenSay(retry.say, { ...screenCtx, grounded: retry.grounded });
+          if (s2.say) { parsed = retry; screened = s2; }
+        }
       }
       if (!parsed) {
         console.warn('[LiveCoach] sem dica: resposta nula (timeout, rede, chave ou JSON truncado)');
@@ -1105,20 +1134,13 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
         renderStage();
         if (!parsed.tip) console.log('[LiveCoach] coach optou por silêncio (tip null)');
         if (parsed.tip) {
-          // Kill-switch do say: placeholder ("X reais", "[valor]") ou
-          // autocertificação grounded=false → script inválido.
-          let say = CoachCore.validSay(parsed.say, parsed.grounded);
-          if (!say) console.warn('[LiveCoach] dica morta no kill-switch do say:', JSON.stringify({ say: parsed.say, grounded: parsed.grounded }));
-          // Vacina anti-alucinação: número em dígitos que não existe no
-          // briefing nem na conversa = inventado → say morre (auditoria
-          // pegou "ROI de 30%", "R$ 15 mil" e "garantia de devolução" falsos).
-          if (say) {
-            const sourceText = JSON.stringify(brief || {}) + ' ' + transcript.map(s => s.text).join(' ');
-            if (CoachCore.hasUngroundedNumbers(say, sourceText)) {
-              console.warn('[LiveCoach] dica morta: número sem fonte no say:', say);
-              say = null;
-            }
-          }
+          // Guarda única do say (coachcore.screenSay): placeholder, número sem
+          // fonte, persona do coach vazando para a boca do vendedor, alegação
+          // de escassez/garantia/prova social sem lastro no briefing, muleta de
+          // varejo e cópia literal do material. Tudo que a auditoria da chamada
+          // real pegou morre aqui, com o motivo no log.
+          let say = screened.say;
+          if (!say) console.warn('[LiveCoach] dica morta —', screened.reason, '|', JSON.stringify(parsed.say));
           // Dica é SEMPRE script pronto: sem say, não há dica (nunca o
           // cartão-resumo de fallback). Anti-obsolescência: se a conversa
           // andou muito enquanto gerava, o assunto mudou — descarta (exceto urgente).
@@ -1132,11 +1154,14 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
           const grewBy = transcript.length - sinceCount;
           if (say && grewBy >= 3 && parsed.priority !== 'urgent' && !force) console.warn('[LiveCoach] dica descartada: conversa andou', grewBy, 'falas durante a geração');
           if (say && (force || grewBy < 3 || parsed.priority === 'urgent')) {
-            const prio = parsed.priority || 'normal';
+            // Calibração do alarme: se as últimas já vieram urgentes, esta
+            // desce para normal (com tudo urgente, nada é urgente).
+            const prio = CoachCore.calibratePriority(parsed.priority || 'normal', tips);
             if (play) usedPlays.push(play.n);
             deliverTip({
               t: Date.now(),
               tip: parsed.tip,
+              leitura: parsed.leitura || null,
               say,
               technique: play ? play.name : (parsed.technique || null),
               priority: prio,
@@ -1705,6 +1730,11 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
           ${hero.technique ? `<span class="lc-tech-chip">📐 ${esc(hero.technique)}</span>` : ''}
         </div>
         ${hero.say ? `
+          <div class="lc-move">
+            <span class="lc-move-ic">${hero.icon || '🎯'}</span>
+            <div class="lc-move-tx">${esc(hero.tip)}</div>
+          </div>
+          ${hero.leitura ? `<div class="lc-read">🧠 <b>Leitura:</b> ${esc(hero.leitura)}</div>` : ''}
           <div class="lc-say">
             <div class="lc-say-label">💬 FALE ASSIM <span class="lc-say-hint"><b>amarelo</b> = enfatize · <b>(PAUSA)</b> = pause aqui</span></div>
             <div class="lc-say-text">"${renderSay(hero.say)}"</div>

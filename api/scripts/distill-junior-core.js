@@ -28,10 +28,14 @@ async function mapBook(openai, filename, text) {
       content: `Você é um engenheiro de conhecimento extraindo a metodologia de vendas de JÚNIOR SMARZARO do livro «${filename}». Extraia SOMENTE o que está no texto — não invente, não misture com outras escolas de vendas.
 
 EXTRAIA:
-1. TÉCNICAS: nome usado no livro → quando usar (o gatilho na conversa) → como executar em 1-2 frases → e, quando o livro der, a FRASE PRONTA característica (quase literal).
-2. SEQUÊNCIAS/FRAMEWORKS: os passos na ordem exata.
+1. TÉCNICAS: nome usado no livro → o gatilho na conversa → o RACIOCÍNIO da virada (por que funciona na cabeça do cliente) → o erro que queima a técnica.
+2. SEQUÊNCIAS/FRAMEWORKS: os passos na ordem exata, e o critério para avançar de um passo ao outro.
 3. REGRAS/MANDAMENTOS do autor (sempre/nunca).
-4. LINGUAGEM: bordões, expressões e vocabulário característicos.
+4. LINGUAGEM: o REGISTRO do autor — ritmo, tipo de frase, postura, o que ele evita dizer. Descreva o estilo; não colecione falas prontas.
+
+⛔ NÃO transcreva falas de vendedor prontas para uso. O leitor final deste extrato é um coach que sopra dicas ao vivo, e ele COPIA qualquer frase pronta que receba, mesmo fora de contexto. Descreva o MOVIMENTO ("devolver a objeção pedindo o critério"), nunca o texto ("o que você achou caro exatamente?").
+⛔ Os exemplos de varejo dos livros (vestido, desodorante, sofá, joia, prateleira, caixa) são ilustração, não a técnica: traduza para o princípio, que vale para consultoria, software, serviço B2B, indústria ou varejo.
+⛔ Números de exemplo dos livros (percentuais, preços, anos de experiência) NÃO devem aparecer: repetidos numa venda real viram dado falso.
 
 Formato: markdown compacto em bullets. Máximo ~900 palavras. Zero opinião sua, zero enrolação.
 
@@ -48,25 +52,26 @@ ${text}`,
 const REDUCE_PARTS = [
   {
     label: 'identidade + pilares + sequência + leitura',
-    sections: `# IDENTIDADE E TOM — como Júnior fala e ensina: bordões, vocabulário, postura (um parágrafo denso)
+    sections: `# IDENTIDADE E TOM — como Júnior fala e ensina: ritmo, postura, o tipo de frase que ele usa e o que ele se recusa a dizer (um parágrafo denso, descrevendo o REGISTRO — sem colecionar falas prontas)
 # OS PILARES — 6-8 princípios inegociáveis, 1 linha cada
-# A SEQUÊNCIA DA VENDA — as etapas na ordem, e para CADA etapa: objetivo, a jogada-chave e 1 frase-modelo do vendedor
-# LEITURA DO CLIENTE — ~10 sinais (verbais/comportamentais) → o que cada um significa → a reação certa do vendedor`,
+# A SEQUÊNCIA DA VENDA — as etapas na ordem, e para CADA etapa: objetivo, a jogada-chave (o movimento) e o CRITÉRIO DE AVANÇO (o que precisa estar conquistado para passar à etapa seguinte)
+# LEITURA DO CLIENTE — ~12 sinais VERBAIS (o que o cliente DIZ e como diz: pressa, frase inacabada, repetir a mesma pergunta, resposta seca, subir o tom, palavrão, silêncio) → o subtexto real de cada um → o ajuste certo do vendedor. Só sinais audíveis numa ligação: NADA de linguagem corporal, o coach só recebe a transcrição do áudio.`,
     budget: 'entre 550 e 750 palavras',
   },
   {
-    label: 'objeções + fechamentos',
-    sections: `# ARSENAL DE OBJEÇÕES — as ~12 objeções mais importantes. Para CADA uma: o gatilho (a fala típica do cliente) → a virada de Júnior (o raciocínio) → FRASE-MODELO pronta (1-2 frases de vendedor, característica do autor)
-# FECHAMENTOS — TODAS as técnicas de fechamento presentes nos extratos, cada uma com o NOME usado nos livros → quando usar → a fala exata do vendedor`,
-    budget: 'entre 700 e 900 palavras',
+    label: 'objeções + inversão do jogo',
+    sections: `# ARSENAL DE OBJEÇÕES — as ~12 objeções mais importantes. Para CADA uma: o gatilho (a fala típica do cliente) → O QUE ESTÁ POR TRÁS (a objeção real, que quase nunca é a dita) → a virada de Júnior (o RACIOCÍNIO do movimento) → o erro que queima a virada
+# COMO INVERTER O JOGO — o coração do método: os padrões de inversão que Júnior usa para tirar o vendedor da defensiva e devolver a conversa a favor dele. Para cada padrão: quando cabe → o movimento → por que o cliente cede. Inclua ao menos: usar a palavra do próprio cliente contra a objeção dele, transformar a objeção em MOTIVO de compra ("é justamente por isso que..."), devolver a pergunta para que ele se convença sozinho, expor o custo de NÃO decidir, e isolar a objeção verdadeira quando ele empilha desculpas
+# FECHAMENTOS — TODAS as técnicas de fechamento presentes nos extratos: NOME usado nos livros → quando usar → o movimento que a executa → o erro comum`,
+    budget: 'entre 750 e 950 palavras',
   },
   {
     label: 'perguntas + gatilhos + preço + regras',
-    sections: `# PERGUNTAS PODEROSAS — as ~18 melhores perguntas, agrupadas por estágio da venda, quase literais do material
-# GATILHOS MENTAIS EM VENDAS — os ~10 principais: nome → como aplicar numa FALA (exemplo pronto de 1 frase)
-# COBRAR CARO E DEFENDER PREÇO — as jogadas específicas do autor para ancorar valor e não ceder desconto
+    sections: `# PERGUNTAS PODEROSAS — os ~18 melhores TIPOS de pergunta do material, agrupados por estágio: o que cada pergunta PRECISA extrair do cliente e por quê (descreva o alvo da pergunta, não a redação dela)
+# GATILHOS MENTAIS EM VENDAS — os ~10 principais: nome → o efeito psicológico → a condição para usar com honestidade (qual fato precisa ser verdade para o gatilho não virar mentira)
+# COBRAR CARO E DEFENDER PREÇO — as jogadas específicas do autor para ancorar valor, responder "tá caro" e não ceder desconto; inclua o que ele manda fazer quando o cliente EXIGE o número de imediato
 # REGRAS DE OURO — os mandamentos finais (sempre/nunca), em bullets curtos`,
-    budget: 'entre 550 e 750 palavras',
+    budget: 'entre 600 e 800 palavras',
   },
 ];
 
@@ -90,8 +95,10 @@ ${part.sections}
 REGRAS INEGOCIÁVEIS:
 - Escreva ${part.budget}. Menos que o piso = INCOMPLETO. Use o orçamento com conteúdo, não com enrolação.
 - 100% fiel aos extratos: nada de teoria genérica de vendas; toda técnica mantém o NOME PRÓPRIO usado nos livros.
-- Prefira a formulação do próprio autor (frases quase literais).
-- Frases-modelo são falas PRONTAS de vendedor, em PT-BR falado natural.
+- ⛔ PROIBIDO ESCREVER FALA PRONTA DE VENDEDOR. Este texto vira o cérebro de um coach que sopra dicas ao vivo, e ele COPIA literalmente qualquer frase pronta que encontrar aqui — inclusive em conversas onde ela não faz o menor sentido. Descreva sempre o MOVIMENTO e o RACIOCÍNIO ("faça-o especificar o critério por trás do 'caro' antes de defender qualquer valor"), nunca a redação ("pergunte: o que você achou caro exatamente?"). Nada de trechos longos entre aspas.
+- ⛔ ZERO exemplos de varejo/balcão. Os livros ilustram com vestido, desodorante, sofá, joia, prateleira, caixa, "última peça em estoque". Isso é a ILUSTRAÇÃO, não a técnica. Escreva o princípio de forma que sirva igual a consultoria, software, serviço B2B, indústria e varejo — sem citar produto nenhum.
+- ⛔ ZERO números de exemplo (percentuais, preços, anos de experiência, quantidade de clientes). Copiados numa venda real, viram promessa falsa dita ao vivo pelo vendedor.
+- ⛔ NUNCA escreva o nome "Júnior" (nem "Smarzaro") dentro de algo que o vendedor possa dizer ao cliente. Quem fala com o cliente é o VENDEDOR, não o Júnior.
 - Não cite livros nem páginas. Manual de operação, não resenha.
 
 EXTRATOS DOS LIVROS:
@@ -145,12 +152,18 @@ const EXTRACT_CACHE = path.join(__dirname, '.junior-extracts.json'); // fora do 
   const core = await reduceCore(openai, extracts);
   console.log(`Núcleo compilado: ${core.length} chars (~${Math.round(core.split(/\s+/).length)} palavras) em ${Math.round((Date.now() - t0) / 1000)}s`);
 
-  await db.query(`
-    INSERT INTO coach_core (coach_id, core, model, source_docs, updated_at)
-    VALUES ('junior', $1, 'gpt-4o', $2, CURRENT_TIMESTAMP)
-    ON CONFLICT (coach_id) DO UPDATE SET core = $1, model = 'gpt-4o', source_docs = $2, updated_at = CURRENT_TIMESTAMP
-  `, [core, docs.length]);
-  console.log('\n✅ coach_core(junior) gravado. Prévia:\n');
+  if (process.argv.includes('--dry')) {
+    fs.writeFileSync(path.join(__dirname, '.core-preview.md'), core, 'utf8');
+    console.log('\n🧪 DRY-RUN — nada gravado. Prévia em scripts/.core-preview.md\n');
+  } else {
+    await db.query(`
+      INSERT INTO coach_core (coach_id, core, model, source_docs, updated_at)
+      VALUES ('junior', $1, 'gpt-4o', $2, CURRENT_TIMESTAMP)
+      ON CONFLICT (coach_id) DO UPDATE SET core = $1, model = 'gpt-4o', source_docs = $2, updated_at = CURRENT_TIMESTAMP
+    `, [core, docs.length]);
+    console.log('\n✅ coach_core(junior) gravado.\n');
+  }
+  console.log('Prévia:\n');
   console.log(core.slice(0, 1200));
   await db.pool.end();
 })().catch(e => { console.error('FATAL:', e.message); process.exit(1); });
