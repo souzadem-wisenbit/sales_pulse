@@ -248,6 +248,8 @@ Você joga com a CONVERSA INTEIRA na cabeça, nunca só a última frase: cada do
 
 Você pensa, fala e decide EXCLUSIVAMENTE pelo SEU sistema de vendas (adiante em "SEU SISTEMA DE VENDAS"): cada dica nasce de uma técnica, pergunta ou virada DELE — nunca de conselho genérico. Você é cirúrgico e direto, MAS a fala tem que sair FLUIDA e natural, no ritmo de quem domina a conversa — nunca picotada, robótica ou com cara de script. Nada de encher linguiça, nada de dica óbvia. Se a jogada não faz a negociação avançar, ela não vale a pena.
 
+🎯 CACE AS BRECHAS (você tem QI de 250): toda objeção ou argumento do cliente tem um ponto fraco — uma CONTRADIÇÃO com algo que ele já disse antes, um pressuposto falso, ou um medo escondido atrás da desculpa. Ache o gap e use-o a favor da venda, com as palavras DELE. Leia os PADRÕES (o que ele repete, o que o acende, o que o trava) e os GATILHOS que ele revela (o que ele valoriza, o que teme, o que o faz agir — urgência, status, medo de perder, prova, pertencimento) e transforme o gatilho DELE em argumento de fechamento. Arme a emboscada: conduza a conversa até o ponto em que a NOSSA solução (a do briefing) aparece como a saída exata da dor que ele mesmo revelou — a salvação dele. Tudo isso dentro do Método A ISCA, das jogadas do Júnior e do grounding: pegar o cliente no pulo é usar o que ELE disse, nunca inventar.
+
 🚫 NUNCA INVENTE nome de empresa, cliente, case, marca, pessoa ou número que não esteja no briefing ou não tenha sido dito nesta conversa. Prova social sem um case REAL no briefing é ABSTRATA ("outros clientes que estavam exatamente onde você está"), sem nome. As marcas que aparecem nos trechos da metodologia (Apple, Zappos, Disney…) são EXEMPLOS didáticos — é PROIBIDO citá-las como se fossem clientes do vendedor. Inventar um nome faz o vendedor mentir ao vivo, e o sistema descarta a dica`;
   }
 
@@ -650,7 +652,7 @@ REGRAS INVIOLÁVEIS:
       .split(/\s+/).filter(w => w.length > 2).slice(0, 5).join(' ');
   }
 
-  function sameOpening(tip, recentTips, limit = 6) {
+  function sameOpening(tip, recentTips, limit = 10) {
     const a = openingOf(tip.say);
     if (a.split(' ').length < 4) return false;
     return (recentTips || []).slice(0, limit).some(prev => openingOf(prev.say) === a);
@@ -684,7 +686,7 @@ REGRAS INVIOLÁVEIS:
   }
 
   // Duas dicas dizem a mesma coisa? Compara só o miolo, sem posição.
-  function saysSameThing(tip, recentTips, limit = 6, threshold = 0.42) {
+  function saysSameThing(tip, recentTips, limit = 10, threshold = 0.42) {
     const a = miolo(tip.say);
     if (a.size < 3) return false;
     return (recentTips || []).slice(0, limit).some(prev => jaccard(a, miolo(prev.say)) >= threshold);
@@ -703,7 +705,7 @@ REGRAS INVIOLÁVEIS:
     return miolo(primeira.split(/\s+/).slice(0, 14).join(' '));
   }
 
-  function sameClaim(tip, recentTips, limit = 6, threshold = 0.6) {
+  function sameClaim(tip, recentTips, limit = 10, threshold = 0.6) {
     const a = claimOf(tip.say);
     if (a.size < 2) return false;
     return (recentTips || []).slice(0, limit).some(prev => {
@@ -712,7 +714,7 @@ REGRAS INVIOLÁVEIS:
     });
   }
 
-  function tooSimilar(tip, recentTips, limit = 6, threshold = 0.32) {
+  function tooSimilar(tip, recentTips, limit = 10, threshold = 0.32) {
     if (sameOpening(tip, recentTips, limit)) return true;
     if (sameClaim(tip, recentTips, limit)) return true;
     if (saysSameThing(tip, recentTips, limit)) return true;
@@ -824,6 +826,8 @@ SÓ AVANCE PARA ${next ? (STAGE_LABELS[next]?.label || next).toUpperCase() : 'O 
    • Só entre na Fase 3 (Solução) DEPOIS que a dor estiver clara.
 3) NUNCA PULE FASE. Se conexão ou dor ainda não aconteceram, você está na Fase 1-2 — MESMO que o cliente pergunte "o que é / o que vocês fazem / quanto custa". Nesse caso: no máximo UMA linha honesta e genérica do que a empresa ajuda a resolver (SEM citar o produto, SEM benefício, SEM preço) e VOLTE a conectar/investigar. Apresentar, descrever, elogiar ou precificar o produto antes da dor descoberta = dica INVÁLIDA (o sistema descarta).
 4) Escreva a dica da FASE CORRETA, com as palavras DESTA conversa, variando MUITO a formulação (abertura, esqueleto e técnica sempre diferentes das dicas anteriores).
+5) FIQUE NA FASE o quanto ela pedir: dar VÁRIAS dicas na mesma fase é o certo — aprofunde com ângulos DIFERENTES (outra pergunta, outra dor, outra virada) até o preRequisito ser mesmo atingido. Correr para a próxima fase é erro; aprofundar vende.
+6) TODA DICA AVANÇA: nunca repita o que você já sugeriu NEM mande o vendedor repetir algo que ele JÁ disse ao cliente (o cliente já ouviu — repetir queima). Do meio-pro-fim da venda, cada dica CONDUZ: amarra o que ficou combinado ao próximo passo concreto e cobra o compromisso — não recircula argumento nem valor já aceito.
 
 ${fases}
 
@@ -1108,6 +1112,21 @@ ${list.map(p => `${p.n}. [${p.estagio}] ${p.name}
     return inter / (a.size + b.size - inter);
   }
 
+  // ── Vacina: mandar o vendedor REPETIR o que ele JÁ disse ao cliente ──
+  // tooSimilar só compara o say com DICAS anteriores do coach. O buraco que o
+  // usuário viu ("fica repetindo informações já faladas") é o say bater com as
+  // próprias FALAS DO VENDEDOR na conversa — o cliente já ouviu aquilo. Jaccard
+  // alto sobre palavras de conteúdo contra as últimas falas do vendedor = rerun;
+  // manda reescrever com um ângulo novo. Limiar alto p/ não pegar confirmação curta.
+  function repeatsSellerLine(say, sellerLines) {
+    const a = conteudo(say);
+    if (a.size < 4) return false;
+    return (sellerLines || []).slice(-6).some((line) => {
+      const b = conteudo(line);
+      return b.size >= 4 && jaccard(a, b) >= 0.5;
+    });
+  }
+
   // Janela de 6 falas e comparação de TODOS os pares. Na chamada auditada os
   // dois pares em looping ficaram em 0.35 e 0.36 de sobreposição de conteúdo,
   // e a versão anterior (janela 3, só pares adjacentes, com palavras de
@@ -1233,6 +1252,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     if (soaDeBalcao(limpo)) return { say: null, reason: 'muleta de varejo copiada do material' };
     if (prematurePitch(limpo, ctx)) return { say: null, reason: 'pitch do produto antes da dor (furou o passo do ISCA)' };
     { const ent = inventedEntity(limpo, ctx.sourceText); if (ent) return { say: null, reason: `nome inventado: ${ent}` }; }
+    if (repeatsSellerLine(limpo, ctx.sellerLines)) return { say: null, reason: 'repete informação que o vendedor já disse' };
     if (ctx.banDepende && ENROLACAO_RE.test(limpo)) return { say: null, reason: 'repetiu "depende do escopo" — fuga já usada' };
     if (ctx.injected && copiesInjected(limpo, ctx.injected)) return { say: null, reason: 'cópia literal do material da metodologia' };
     return { say: limpo, reason: null };
@@ -1252,6 +1272,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     'cópia literal do material da metodologia': 'Você copiou uma frase do material. Reescreva com as palavras que o CLIENTE usou nesta conversa.',
     'repetiu "depende do escopo" — fuga já usada': 'O vendedor JÁ disse que o valor depende do escopo e o cliente não aceitou. É PROIBIDO repetir isso. Entregue um compromisso datado de quando o número sai, OU a única pergunta que destrava o número — e diga que com a resposta o valor sai na hora.',
     'placeholder ou autodeclarado sem fonte': 'Sua fala tinha lacuna de template (parêntese com NOME/VALOR, "X a Y", "R$ X"). O vendedor leria isso em voz alta. Reescreva com texto real, sem lacuna e sem número inventado.',
+    'repete informação que o vendedor já disse': 'O vendedor JÁ falou isso ao cliente — o cliente já ouviu. Repetir queima. Traga um ângulo NOVO: uma brecha/contradição na fala do cliente, um gatilho que ele revelou, ou o PRÓXIMO PASSO concreto que avança o compromisso. Nunca rerun.',
     'pitch do produto antes da dor (furou o passo do ISCA)': 'Você foi apresentar/ofertar o produto antes de criar conexão e descobrir a dor — isso pula as fases 1-2 do Método A ISCA. Reescreva SEM citar produto, "nossa solução/consultoria", benefício ou preço: no máximo uma linha do que a empresa ajuda a resolver e uma pergunta que CONECTA com o cliente ou PUXA a dor dele.',
   };
 
@@ -1312,7 +1333,7 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
     briefFacts, pressureBlock, unmetDemands, clientHeat, sellerLooping,
     mentionsCoachIdentity, unsourcedClaim, copiesInjected, soaDeBalcao, sameOpening, dodgeBanned,
     calibratePriority, screenSay, askScreened, saysSameThing, sameClaim,
-    ISCA_DOCTRINE, ISCA_CORE, methodBlock, fullContext, prematurePitch, inventedEntity,
+    ISCA_DOCTRINE, ISCA_CORE, methodBlock, fullContext, prematurePitch, inventedEntity, repeatsSellerLine,
   };
 })();
 

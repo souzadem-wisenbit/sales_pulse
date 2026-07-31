@@ -620,7 +620,7 @@ const WhatsAppCoach = (() => {
         : '';
 
       const tipHistoryBlock = chat.tips.length
-        ? `\nDICAS QUE VOCÊ JÁ DEU NESTA CONVERSA (mais recente primeiro — NÃO as repita):\n${chat.tips.slice(0, 6)
+        ? `\nDICAS QUE VOCÊ JÁ DEU NESTA CONVERSA (mais recente primeiro — NÃO as repita, nem em variação):\n${chat.tips.slice(0, 10)
             .map(t => `- [${fmtTime(t.t)} · ${t.technique || 'sem técnica'} · ${t.priority}] ${t.tip}${t.say ? ` | say: "${String(t.say).slice(0, 90)}"` : ''}`)
             .join('\n')}\n`
         : '';
@@ -687,6 +687,7 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
       const screenCtx = {
         sourceText, facts, coachName: coach && coach.name, injected: methodologyBlock,
         stage: stageNow, // gate anti-pitch nas fases 1-2 (antes da dor)
+        sellerLines: chat.messages.filter(m => m.speaker === 'seller').map(m => m.text), // barra repetir o que ele já disse
         banDepende: CoachCore.dodgeBanned(chat.messages.map(m => ({ speaker: m.speaker, text: m.text }))),
         isRepeat: (say) => CoachCore.tooSimilar({ tip: '', say }, chat.tips),
       };

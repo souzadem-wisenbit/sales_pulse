@@ -996,7 +996,7 @@ const LiveCoach = (() => {
       // Memória das próprias dicas: sem isso o coach repetia o mesmo
       // argumento (ex: o mesmo ROI) em sequência, chamada inteira.
       const tipHistoryBlock = tips.length
-        ? `\nDICAS QUE VOCÊ JÁ DEU NESTA CHAMADA (mais recente primeiro — NÃO as repita):\n${tips.slice(0, 6)
+        ? `\nDICAS QUE VOCÊ JÁ DEU NESTA CHAMADA (mais recente primeiro — NÃO as repita, nem em variação):\n${tips.slice(0, 10)
             .map(t => `- [${new Date(t.t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · ${t.technique || 'sem técnica'} · ${t.priority}] ${t.tip}${t.say ? ` | say: "${String(t.say).slice(0, 90)}"` : ''}`)
             .join('\n')}\n`
         : '';
@@ -1074,6 +1074,9 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
         // Fase atual → o gate anti-pitch mata apresentação do produto nas fases
         // 1-2 (Atendimento/Investigação), antes da dor descoberta.
         stage: stageNow,
+        // Falas do próprio vendedor → a vacina barra mandar repetir o que ele
+        // JÁ disse ao cliente ("repetindo informação já falada").
+        sellerLines: transcript.filter(s => s.speaker === 'seller').map(s => s.text),
         // O vendedor já disse "depende do escopo": repetir é a fuga que o
         // cliente está cobrando. O prompt proíbe; isto garante.
         banDepende: CoachCore.dodgeBanned(transcript),
