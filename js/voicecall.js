@@ -212,11 +212,25 @@ const VoiceCall = (() => {
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
-    // Endpoint GA primeiro; se o modelo/rota não existir na conta, cai para o beta.
-    const attempts = [
-      { flavor: 'ga',   url: 'https://api.openai.com/v1/realtime/calls?model=gpt-realtime', headers: {} },
-      { flavor: 'beta', url: 'https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', headers: { 'OpenAI-Beta': 'realtime=v1' } },
-    ];
+    // Token EFÊMERO do backend (a chave real da OpenAI nunca vem pro navegador).
+    // Se o backend não emitir (rota nova ainda não no ar, erro), cai no caminho
+    // antigo com a chave sincronizada — rollout seguro: a voz não quebra.
+    let attempts = null;
+    try {
+      const tok = await window.API.realtimeToken();
+      if (tok && Array.isArray(tok.attempts) && tok.attempts.length) {
+        attempts = tok.attempts.map(a => ({ flavor: a.flavor, url: a.url, headers: a.headers || {}, secret: a.secret }));
+      }
+    } catch (e) { /* cai no fallback abaixo */ }
+    const usingEphemeral = !!attempts;
+    if (!attempts) {
+      // Fallback: endpoint GA primeiro; se o modelo/rota não existir, cai no beta.
+      attempts = [
+        { flavor: 'ga',   url: 'https://api.openai.com/v1/realtime/calls?model=gpt-realtime', headers: {}, secret: apiKey },
+        { flavor: 'beta', url: 'https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', headers: { 'OpenAI-Beta': 'realtime=v1' }, secret: apiKey },
+      ];
+    }
+    console.log('[VoiceCall] realtime via', usingEphemeral ? 'token efêmero (backend)' : 'chave direta (fallback)');
 
     let answerSdp = null;
     let lastErr = null;
@@ -224,7 +238,7 @@ const VoiceCall = (() => {
       try {
         const resp = await fetch(att.url, {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/sdp', ...att.headers },
+          headers: { 'Authorization': `Bearer ${att.secret}`, 'Content-Type': 'application/sdp', ...att.headers },
           body: offer.sdp,
         });
         if (resp.ok) {
@@ -458,20 +472,10 @@ ${recent}
 Retorne EXCLUSIVAMENTE JSON: {"conviction": <0-100>, "closed": <bool>, "noInterest": <bool>, "dealbreaker": <bool>}`;
 
     try {
-      const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: cfg.openaiModel || 'gpt-4o-mini',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 60,
-          temperature: 0.2,
-          response_format: { type: 'json_object' },
-        }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        const parsed = JSON.parse(data.choices[0]?.message?.content || 'null');
+      const data = await window.API.coachComplete({ prompt, model: cfg.openaiModel || 'gpt-4o-mini', maxTokens: 60, temperature: 0.2, source: 'clientbot-analyzer' });
+      if (data && data.content) {
+        let parsed = null;
+        try { parsed = JSON.parse(data.content); } catch (e) { parsed = null; }
         if (parsed && !ending) {
           if (typeof parsed.conviction === 'number') {
             conviction = Math.max(0, Math.min(100, Math.round(parsed.conviction)));

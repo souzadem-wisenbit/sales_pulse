@@ -133,4 +133,60 @@ async function transcribe(req, res) {
   }
 }
 
-module.exports = { complete, transcribe };
+// Token EFÊMERO da OpenAI Realtime (cliente-bot de voz). O backend cria um
+// client_secret de vida curta (~1 min) com a chave do servidor; o navegador
+// conecta o WebRTC com ELE, nunca com a chave real. Emite para os dois flavors
+// (GA /realtime/calls e beta /realtime) — o cliente tenta na ordem, igual antes.
+async function realtimeToken(req, res) {
+  try {
+    const { rows } = await db.query('SELECT openai_key FROM ai_settings LIMIT 1');
+    const key = rows[0] && rows[0].openai_key;
+    if (!key) return res.status(500).json({ error: 'IA não configurada' });
+
+    const attempts = [];
+
+    // GA: /v1/realtime/client_secrets → { value: 'ek_...' }
+    try {
+      const r = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session: { type: 'realtime', model: 'gpt-realtime' } }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        const secret = d.value || (d.client_secret && d.client_secret.value);
+        if (secret) attempts.push({ flavor: 'ga', url: 'https://api.openai.com/v1/realtime/calls?model=gpt-realtime', headers: {}, secret });
+      }
+    } catch (e) { /* segue para o beta */ }
+
+    // Beta: /v1/realtime/sessions → { client_secret: { value } }
+    try {
+      const r = await fetch('https://api.openai.com/v1/realtime/sessions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'OpenAI-Beta': 'realtime=v1' },
+        body: JSON.stringify({ model: 'gpt-4o-realtime-preview' }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        const secret = d.client_secret && d.client_secret.value;
+        if (secret) attempts.push({ flavor: 'beta', url: 'https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', headers: { 'OpenAI-Beta': 'realtime=v1' }, secret });
+      }
+    } catch (e) { /* nenhum flavor deu → 502 abaixo */ }
+
+    if (!attempts.length) return res.status(502).json({ error: 'Falha ao criar sessão realtime' });
+
+    // Medição: cada token = início de uma sessão de voz do cliente-bot.
+    const managerId = req.user.role === 'manager' ? req.user.id : (req.user.manager_id || null);
+    db.query(
+      `INSERT INTO ai_usage (user_id, manager_id, model, source) VALUES ($1, $2, 'gpt-realtime', 'realtime')`,
+      [req.user.id, managerId]
+    ).catch((e) => console.error('[AI_USAGE realtime]', e.message));
+
+    return res.json({ attempts });
+  } catch (err) {
+    console.error('[REALTIME TOKEN]', err && err.message);
+    return res.status(502).json({ error: 'Falha ao criar sessão realtime' });
+  }
+}
+
+module.exports = { complete, transcribe, realtimeToken };

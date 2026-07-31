@@ -296,6 +296,10 @@ const API = (() => {
   async function retrieveKnowledge(query, k) { return await post('/api/knowledge/retrieve', { query, k: k || 4 }, 0); }
   async function getCoachCore() { return await get('/api/knowledge/core'); }
 
+  // Token efêmero da OpenAI Realtime, criado no backend (cliente-bot de voz):
+  // o navegador conecta o WebRTC com ele em vez da chave real. Sem retry.
+  async function realtimeToken() { return await post('/api/coach/realtime-token', {}, 0); }
+
   // Dica do Live Coach gerada no BACKEND (a chave da OpenAI nunca vem pro
   // navegador). Timeout curto próprio e SEM retry: se falhar, devolve null e o
   // coach degrada para "sem dica" — melhor que uma dica atrasada. O uso é
@@ -454,6 +458,7 @@ const API = (() => {
     getCoachCore,
     coachComplete,
     coachTranscribe,
+    realtimeToken,
   };
 
 })();

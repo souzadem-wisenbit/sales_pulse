@@ -110,5 +110,6 @@ const coachRouter = express.Router();
 coachRouter.use(authenticate);
 coachRouter.post('/complete', authorize('manager', 'seller'), coachCtrl.complete);
 coachRouter.post('/transcribe', authorize('manager', 'seller'), uploadAudio.single('audio'), coachCtrl.transcribe);
+coachRouter.post('/realtime-token', authorize('manager', 'seller'), coachCtrl.realtimeToken);
 
 module.exports = { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter, liveCallsRouter, liveProfilesRouter, whatsappRouter, knowledgeRouter, coachRouter };
