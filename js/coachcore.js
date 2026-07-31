@@ -390,28 +390,22 @@ REGRAS INVIOLÁVEIS:
   // O modelo para sozinho ao fechar o JSON; teto folgado não custa latência.
   // Temperatura 0.6: em 0.4 os says saíam com a mesma carcaça ("Entendo...
   // (PAUSA)...") — um pouco mais de variância lexical, regras seguram o resto.
-  async function ask(prompt, apiKey, { maxTokens = 320, temperature = 0.6, timeoutMs = 9000, model = 'gpt-4o-mini' } = {}) {
-    const ctrl = new AbortController();
-    const timeoutId = setTimeout(() => ctrl.abort(), timeoutMs);
+  // A dica é gerada no BACKEND (window.API.coachComplete → POST /api/coach/
+  // complete): a chave da OpenAI NUNCA vem para o navegador e o uso é medido
+  // por tenant no servidor. A assinatura foi mantida — o 2º argumento era a
+  // apiKey do cliente e agora é ignorado — para não mexer nos chamadores.
+  // Falhou (timeout/rede/JSON truncado) → null → o coach degrada para "sem
+  // dica", que é melhor que uma dica atrasada. O JSON continua vindo em
+  // response_format json_object, montado no controller.
+  async function ask(prompt, _apiKeyUnused, { maxTokens = 320, temperature = 0.6, timeoutMs = 9000, model = 'gpt-4o-mini', source = 'live_coach' } = {}) {
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: maxTokens,
-          temperature,
-          response_format: { type: 'json_object' },
-        }),
-        signal: ctrl.signal,
-      });
-      clearTimeout(timeoutId);
-      if (!response.ok) return null;
-      const data = await response.json();
-      try { return JSON.parse(data.choices[0]?.message?.content || 'null'); } catch (e) { return null; }
+      const data = await window.API.coachComplete(
+        { prompt, maxTokens, temperature, model, source },
+        { timeoutMs }
+      );
+      if (!data || !data.content) return null;
+      try { return JSON.parse(data.content); } catch (e) { return null; }
     } catch (e) {
-      clearTimeout(timeoutId);
       return null;
     }
   }

@@ -295,6 +295,31 @@ const API = (() => {
   // Sem retry: chamada por dica, sensível a latência — melhor perder uma busca que atrasar
   async function retrieveKnowledge(query, k) { return await post('/api/knowledge/retrieve', { query, k: k || 4 }, 0); }
   async function getCoachCore() { return await get('/api/knowledge/core'); }
+
+  // Dica do Live Coach gerada no BACKEND (a chave da OpenAI nunca vem pro
+  // navegador). Timeout curto próprio e SEM retry: se falhar, devolve null e o
+  // coach degrada para "sem dica" — melhor que uma dica atrasada. O uso é
+  // medido por tenant no servidor (ai_usage).
+  async function coachComplete(payload, { timeoutMs = 9000 } = {}) {
+    const base = getBaseUrl();
+    if (base === null) return null;
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(`${base}/api/coach/complete`, {
+        method: 'POST',
+        headers: buildHeaders(),
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(id);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (err) {
+      clearTimeout(id);
+      return null;
+    }
+  }
   async function uploadKnowledgeDoc(file, coachId) {
     const base = getBaseUrl();
     if (base === null) return null;
@@ -398,6 +423,7 @@ const API = (() => {
     deleteKnowledgeDoc,
     retrieveKnowledge,
     getCoachCore,
+    coachComplete,
   };
 
 })();

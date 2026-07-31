@@ -13,6 +13,7 @@ const schedCtrl = require('../controllers/scheduledSessionsController');
 const liveCtrl = require('../controllers/liveCallsController');
 const waCtrl = require('../controllers/whatsappController');
 const knowCtrl = require('../controllers/knowledgeController');
+const coachCtrl = require('../controllers/coachController');
 
 const syncRouter = express.Router();
 syncRouter.use(authenticate);
@@ -102,4 +103,10 @@ whatsappRouter.post('/disconnect', authorize('manager', 'seller'), waCtrl.discon
 whatsappRouter.get('/briefing', authorize('manager', 'seller'), waCtrl.getBriefing);
 whatsappRouter.put('/briefing', authorize('manager', 'seller'), waCtrl.putBriefing);
 
-module.exports = { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter, liveCallsRouter, liveProfilesRouter, whatsappRouter, knowledgeRouter };
+// Live Coach: a dica é gerada no backend (chave da OpenAI nunca vai ao
+// navegador) e o uso é medido por tenant. Usado pelo coach de áudio e WhatsApp.
+const coachRouter = express.Router();
+coachRouter.use(authenticate);
+coachRouter.post('/complete', authorize('manager', 'seller'), coachCtrl.complete);
+
+module.exports = { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter, liveCallsRouter, liveProfilesRouter, whatsappRouter, knowledgeRouter, coachRouter };

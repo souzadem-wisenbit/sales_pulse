@@ -5,7 +5,7 @@ const express = require('express');
 const cors = require('cors');
 
 const authRoutes = require('./routes/auth');
-const { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter, liveCallsRouter, liveProfilesRouter, whatsappRouter, knowledgeRouter } = require('./routes/index');
+const { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter, liveCallsRouter, liveProfilesRouter, whatsappRouter, knowledgeRouter, coachRouter } = require('./routes/index');
 
 const app = express();
 
@@ -14,7 +14,9 @@ const app = express();
 app.set('etag', false);
 
 app.use(cors());
-app.use(express.json());
+// Limite maior: o prompt do Live Coach (método ISCA + conversa inteira +
+// briefing) pode passar dos 100kb padrão do express.json.
+app.use(express.json({ limit: '2mb' }));
 
 // Garante que NENHUMA resposta de API seja cacheada pelo navegador/CDN.
 // Sem isso, criar um cliente em um dispositivo não refletia em outro até
@@ -40,6 +42,7 @@ app.use('/api/live_calls', liveCallsRouter);
 app.use('/api/live_profiles', liveProfilesRouter);
 app.use('/api/whatsapp', whatsappRouter);
 app.use('/api/knowledge', knowledgeRouter);
+app.use('/api/coach', coachRouter);
 
 // Basic health check
 app.get('/api/health', (req, res) => {
