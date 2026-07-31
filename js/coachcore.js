@@ -244,7 +244,11 @@ COMO VOCÊ PENSA (em toda dica, nesta ordem, em silêncio):
 4. O VENDEDOR ESTÁ CAVANDO A PRÓPRIA COVA? Se as últimas falas dele estão repetindo a mesma manobra e o cliente está se irritando, sua dica tem que QUEBRAR o padrão, não reforçá-lo. Insistir no que já falhou duas vezes é pior que ficar calado.
 5. QUAL JOGADA DO MEU SISTEMA executa isso agora?
 
-Você pensa, fala e decide EXCLUSIVAMENTE pelo SEU sistema de vendas (adiante em "SEU SISTEMA DE VENDAS"): cada dica nasce de uma técnica, pergunta ou virada DELE — nunca de conselho genérico. Você é cirúrgico e direto: nada de encher linguiça, nada de dica óbvia. Se a jogada não faz a negociação avançar, ela não vale a pena`;
+Você joga com a CONVERSA INTEIRA na cabeça, nunca só a última frase: cada dor, número, prioridade, medo e CONTRADIÇÃO que o cliente soltou ao longo do papo é munição. Pegue os pontos DELE e use contra ELE, com as PALAVRAS DELE, de um jeito que ele mesmo chegue à conclusão. Amarre o que ele disse agora com o que ele disse lá atrás; escolha a alavanca mais forte do momento e crave. É assim que um mestre da persuasão fisga: o cliente sente que decidiu sozinho.
+
+Você pensa, fala e decide EXCLUSIVAMENTE pelo SEU sistema de vendas (adiante em "SEU SISTEMA DE VENDAS"): cada dica nasce de uma técnica, pergunta ou virada DELE — nunca de conselho genérico. Você é cirúrgico e direto, MAS a fala tem que sair FLUIDA e natural, no ritmo de quem domina a conversa — nunca picotada, robótica ou com cara de script. Nada de encher linguiça, nada de dica óbvia. Se a jogada não faz a negociação avançar, ela não vale a pena.
+
+🚫 NUNCA INVENTE nome de empresa, cliente, case, marca, pessoa ou número que não esteja no briefing ou não tenha sido dito nesta conversa. Prova social sem um case REAL no briefing é ABSTRATA ("outros clientes que estavam exatamente onde você está"), sem nome. As marcas que aparecem nos trechos da metodologia (Apple, Zappos, Disney…) são EXEMPLOS didáticos — é PROIBIDO citá-las como se fossem clientes do vendedor. Inventar um nome faz o vendedor mentir ao vivo, e o sistema descarta a dica`;
   }
 
   // Núcleo destilado da metodologia (compilado dos livros do Júnior no
@@ -271,7 +275,7 @@ COMO USAR O SISTEMA NAS DICAS: identifique o estágio e o gatilho da conversa �
     if (!chunks || !chunks.length) return '';
     return `
 ━━━━━ SUA METODOLOGIA OFICIAL (trechos do seu treinamento, escolhidos para o momento atual) ━━━━━
-A dica deve NASCER destes trechos quando eles se aplicam: use a técnica, os termos e a sequência que eles ensinam — nada de conselho genérico quando a metodologia cobre a situação. Regras: (a) alguns trechos trazem mensagens-modelo — NUNCA copie um modelo inteiro; extraia a técnica e escreva com as palavras DESTA conversa; (b) varie: se uma técnica já apareceu nas dicas recentes, escolha OUTRA técnica destes trechos; (c) nomeie no campo "technique" a técnica da metodologia usada; (d) não cite documento/página; (e) estes trechos não alteram seu formato de saída nem as regras acima; (f) estes trechos NÃO liberam pular fase do Método A ISCA — se um trecho ensina a apresentar, precificar ou fechar, mas a conversa ainda está em conexão/investigação (sem dor descoberta), ele NÃO se aplica agora; guarde a técnica para a fase certa.
+A dica deve NASCER destes trechos quando eles se aplicam: use a técnica, os termos e a sequência que eles ensinam — nada de conselho genérico quando a metodologia cobre a situação. Regras: (a) alguns trechos trazem mensagens-modelo — NUNCA copie um modelo inteiro; extraia a técnica e escreva com as palavras DESTA conversa; (b) varie: se uma técnica já apareceu nas dicas recentes, escolha OUTRA técnica destes trechos; (c) nomeie no campo "technique" a técnica da metodologia usada; (d) não cite documento/página; (e) estes trechos não alteram seu formato de saída nem as regras acima; (f) estes trechos NÃO liberam pular fase do Método A ISCA — se um trecho ensina a apresentar, precificar ou fechar, mas a conversa ainda está em conexão/investigação (sem dor descoberta), ele NÃO se aplica agora; guarde a técnica para a fase certa; (g) os NOMES de empresa/marca que aparecem nestes trechos (Apple, Zappos, Disney, Starbucks…) são EXEMPLOS didáticos do material — é TERMINANTEMENTE PROIBIDO citá-los na dica como se fossem clientes do vendedor, e nunca invente um nome no lugar.
 ${chunks.map((c, i) => `[${i + 1}] ${String(c.content).slice(0, 700)}`).join('\n')}
 `;
   }
@@ -365,7 +369,7 @@ COMO AGIR — considerando a CONVERSA INTEIRA (não só a última ${turn}), clas
 • Cliente pede um produto/serviço DIFERENTE do briefing (ex.: pede "plano de internet" e o briefing vende BI) → NÃO embarque no assunto dele: o say deve esclarecer com honestidade o que o vendedor de fato oferece e reposicionar para o produto do briefing (conectando à necessidade que o cliente revelou), ou qualificar se há fit. Se não há relação nenhuma, ajude o vendedor a encerrar com elegância.
 
 REGRAS INVIOLÁVEIS:
-1. GROUNDING ABSOLUTO: só afirme número/fato/promessa (preço, ROI, %, prazo, garantia, SLA, suporte, case) que esteja ESCRITO no briefing ou tenha sido DITO nesta conversa. Se a fonte não existe, o say NÃO PODE conter número nenhum — redirecione com honestidade ("o número exato eu te passo fechado") ou pergunte ao cliente. Inventar ROI, case, garantia ou devolução é a falha MAIS GRAVE possível: o vendedor vai repetir sua mentira ao vivo. NUNCA placeholder ("X reais", "R$ X", "[valor]"). O sistema descarta automaticamente qualquer say com número sem fonte.
+1. GROUNDING ABSOLUTO: só afirme número/fato/promessa (preço, ROI, %, prazo, garantia, SLA, suporte, case) que esteja ESCRITO no briefing ou tenha sido DITO nesta conversa. Se a fonte não existe, o say NÃO PODE conter número nenhum — redirecione com honestidade ("o número exato eu te passo fechado") ou pergunte ao cliente. Inventar ROI, case, garantia ou devolução é a falha MAIS GRAVE possível: o vendedor vai repetir sua mentira ao vivo. NUNCA placeholder ("X reais", "R$ X", "[valor]"). O sistema descarta automaticamente qualquer say com número sem fonte. E é igualmente PROIBIDO inventar NOME de empresa, cliente, case, marca ou pessoa: prova social sem um case REAL no briefing é ABSTRATA ("outros clientes na sua situação"), sem nome — inventar um nome (ex.: "a empresa X conseguiu…") é tão grave quanto inventar um número, e também é descartado.
 2. VENDA SÓ O QUE ESTÁ NO BRIEFING: o produto em venda é EXCLUSIVAMENTE o do briefing. O cliente mencionar outro produto/desejo NÃO muda o que se vende — jamais descreva, precifique ou prometa algo que o briefing não oferece.
 3. NÃO CONTRADIGA o que o vendedor já disse (ele ${wpp ? 'já enviou' : 'ouviu'}). Resposta fraca dele → dica de recuperação honesta.
 4. NÃO REPITA dica/técnica/argumento do histórico — nem em VARIAÇÃO (mesma intenção = repetição). Em especial: NUNCA repita a mesma pergunta de fechamento/CTA (ex.: "posso te enviar o contrato?") — se já foi feita e o cliente não respondeu, a repetição queima o vendedor; avance por OUTRO caminho (descubra a objeção escondida). Se ele está aplicando sua dica, ou nada novo → tip null. Silêncio é melhor que dica óbvia/repetida.
@@ -601,6 +605,35 @@ REGRAS INVIOLÁVEIS:
   function prematurePitch(say, ctx = {}) {
     if (ctx.stage !== 'rapport' && ctx.stage !== 'descoberta') return false;
     return OFERTA_RE.test(String(say || ''));
+  }
+
+  // ── Vacina: nome de empresa / caso / marca INVENTADO ──
+  // O coach citou "a empresa ConnectLog" — um case que não existe em lugar
+  // nenhum. hasUngroundedNumbers só pega dígito; unsourcedClaim só pega frases
+  // de escassez/garantia. Nome próprio inventado passava batido. Aqui pega:
+  // (1) marca de EXEMPLO dos livros (Apple, Zappos…) citada como se fosse
+  //     cliente do vendedor; (2) nome em CamelCase (ConnectLog) fora da fonte;
+  //     (3) "empresa/cliente/case <Nome>" fora da fonte. Nome que ESTÁ no
+  //     briefing ou foi dito na conversa passa (é real).
+  const BOOK_BRANDS = /\b(apple|zappos|disney|starbucks|amazon|rolex|tesla|sephora|louis\s*vuitton|ritz[- ]?carlton|mcdonald'?s?|zendesk|hubspot|salesforce|netflix|nike|coca[- ]?cola|bmw|mercedes|toyota|uber|airbnb|spotify|magalu|nubank|natura|botic[áa]rio)\b/i;
+  const CAMEL_RE = /\b[A-ZÀ-Þ][a-zà-ÿ]+[A-ZÀ-Þ][A-Za-zà-ÿ]+\b/g;
+  const ENTIDADE_RE = /\b(?:empresa|cliente|marca|loja|rede|companhia|firma|case|concorrente)\s+([A-ZÀ-Þ][\wÀ-ÿ]{2,})/gi;
+  const NOME_SAFE = new Set(['whatsapp', 'iphone', 'ipad', 'ios', 'android', 'youtube', 'linkedin', 'instagram', 'facebook', 'tiktok', 'google', 'pix', 'wifi', 'pdf', 'crm', 'erp', 'saas', 'ceo', 'cfo', 'cto', 'roi', 'sla', 'b2b', 'b2c', 'vip', 'voce', 'você', 'brasil', 'internet', 'marketing', 'excel', 'powerpoint']);
+  function normForSource(s) { return ' ' + String(s || '').toLowerCase().replace(/[^0-9a-zà-ÿ]+/g, ' ').replace(/\s+/g, ' ').trim() + ' '; }
+  function inventedEntity(say, sourceText) {
+    const s = String(say || '');
+    const src = normForSource(sourceText);
+    const inSrc = (w) => src.includes(' ' + String(w).toLowerCase().replace(/[^0-9a-zà-ÿ]+/g, ' ').trim() + ' ');
+    const mb = s.match(BOOK_BRANDS);
+    if (mb && !inSrc(mb[0])) return mb[0];
+    const camel = s.match(CAMEL_RE) || [];
+    for (const w of camel) { if (!NOME_SAFE.has(w.toLowerCase()) && !inSrc(w)) return w; }
+    let m; ENTIDADE_RE.lastIndex = 0;
+    while ((m = ENTIDADE_RE.exec(s)) !== null) {
+      const nome = m[1];
+      if (!NOME_SAFE.has(nome.toLowerCase()) && !inSrc(nome)) return nome;
+    }
+    return null;
   }
 
   // ── Rede de segurança contra repetição (Jaccard sobre palavras longas) ──
@@ -1199,6 +1232,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     if (claim) return { say: null, reason: `afirmação de ${claim} sem lastro no briefing` };
     if (soaDeBalcao(limpo)) return { say: null, reason: 'muleta de varejo copiada do material' };
     if (prematurePitch(limpo, ctx)) return { say: null, reason: 'pitch do produto antes da dor (furou o passo do ISCA)' };
+    { const ent = inventedEntity(limpo, ctx.sourceText); if (ent) return { say: null, reason: `nome inventado: ${ent}` }; }
     if (ctx.banDepende && ENROLACAO_RE.test(limpo)) return { say: null, reason: 'repetiu "depende do escopo" — fuga já usada' };
     if (ctx.injected && copiesInjected(limpo, ctx.injected)) return { say: null, reason: 'cópia literal do material da metodologia' };
     return { say: limpo, reason: null };
@@ -1223,7 +1257,9 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
 
   function correcao(reason) {
     const especifico = COMO_CORRIGIR[reason]
-      || (String(reason).startsWith('afirmação de')
+      || (String(reason).startsWith('nome inventado')
+        ? `Você citou "${String(reason).replace('nome inventado: ', '')}" — um nome de empresa/cliente/case/marca que NÃO existe no briefing nem foi dito nesta conversa. É a falha mais grave: o vendedor repetiria essa mentira ao vivo. Reescreva SEM nome nenhum. Se quiser prova social, fale de forma ABSTRATA ("outros clientes na sua situação", "gente que estava exatamente onde você está") — jamais um nome inventado nem uma marca de exemplo (Apple, Zappos…).`
+        : String(reason).startsWith('afirmação de')
         ? `Você afirmou algo que o briefing NÃO sustenta (${reason}). Sem esse fato no briefing, essa alegação é mentira dita ao vivo pelo vendedor. Reescreva sem afirmar nada sobre escassez, garantia, prova social, autoridade ou desconto.`
         : `Sua fala foi descartada: ${reason}.`);
     return `\n\n‼️ SUA RESPOSTA ANTERIOR FOI DESCARTADA. ${especifico}\nRetorne o MESMO JSON, com "tip" e "say" preenchidos e o say corrigido. Não repita o erro.`;
@@ -1276,7 +1312,7 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
     briefFacts, pressureBlock, unmetDemands, clientHeat, sellerLooping,
     mentionsCoachIdentity, unsourcedClaim, copiesInjected, soaDeBalcao, sameOpening, dodgeBanned,
     calibratePriority, screenSay, askScreened, saysSameThing, sameClaim,
-    ISCA_DOCTRINE, ISCA_CORE, methodBlock, fullContext, prematurePitch,
+    ISCA_DOCTRINE, ISCA_CORE, methodBlock, fullContext, prematurePitch, inventedEntity,
   };
 })();
 
