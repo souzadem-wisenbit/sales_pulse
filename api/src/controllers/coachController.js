@@ -6,8 +6,15 @@
 // De quebra, cada chamada é MEDIDA por usuário (ai_usage) para faturar por
 // tenant e vigiar a margem (o custo da OpenAI é variável).
 // ================================================
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const db = require('../db/pool');
 const knowledge = require('../services/knowledgeService');
+
+// gpt-4o-mini-transcribe pode não existir na conta. Depois da 1ª falha,
+// paramos de tentá-lo (senão toda transcrição paga uma chamada perdida).
+let _miniTranscribeOk = true;
 
 // Só modelos aprovados podem ser pedidos pelo cliente — evita alguém apontar
 // a SUA chave para um modelo caro. maxTokens e prompt têm teto (anti-abuso).
@@ -65,4 +72,65 @@ async function complete(req, res) {
   }
 }
 
-module.exports = { complete };
+// Transcrição do Live Coach — WAV 16kHz do navegador → Whisper no servidor.
+// A chave da OpenAI nunca vem para o browser. Tenta gpt-4o-mini-transcribe
+// (mais preciso) e cai para whisper-1 com verbose_json + filtro estatístico de
+// alucinação — a MESMA lógica que rodava no cliente, agora centralizada aqui.
+async function transcribe(req, res) {
+  if (!req.file) return res.status(400).json({ error: 'áudio obrigatório' });
+  const prompt = String(req.body.prompt || '').slice(0, 500);
+  const language = /^[a-z]{2}$/i.test(req.body.language || '') ? req.body.language : 'pt';
+  const ext = (path.extname(req.file.originalname || '').replace('.', '') || 'wav').toLowerCase();
+  let tmp;
+  try {
+    const openai = await knowledge.getOpenAI();
+    tmp = path.join(os.tmpdir(), `coach_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`);
+    fs.writeFileSync(tmp, req.file.buffer);
+
+    let text = '';
+    let seconds = null;
+    let done = false;
+
+    if (_miniTranscribeOk) {
+      try {
+        const r = await openai.audio.transcriptions.create(
+          { file: fs.createReadStream(tmp), model: 'gpt-4o-mini-transcribe', language, temperature: 0, prompt },
+          { timeout: 15000, maxRetries: 0 }
+        );
+        text = (r.text || '').trim();
+        done = true;
+      } catch (e) {
+        _miniTranscribeOk = false; // some do caminho quente; cai para whisper-1
+      }
+    }
+
+    if (!done) {
+      const r = await openai.audio.transcriptions.create(
+        { file: fs.createReadStream(tmp), model: 'whisper-1', language, temperature: 0, prompt, response_format: 'verbose_json' },
+        { timeout: 15000, maxRetries: 0 }
+      );
+      const segs = (r.segments || []).filter((s) =>
+        (s.no_speech_prob === undefined || s.no_speech_prob < 0.5) &&
+        (s.avg_logprob === undefined || s.avg_logprob > -1.2)
+      );
+      text = segs.map((s) => s.text).join(' ').replace(/\s+/g, ' ').trim();
+      seconds = r.duration != null ? Math.round(r.duration) : null;
+    }
+
+    // Medição por tenant (best-effort; nunca bloqueia a resposta)
+    const managerId = req.user.role === 'manager' ? req.user.id : (req.user.manager_id || null);
+    db.query(
+      `INSERT INTO ai_usage (user_id, manager_id, model, source, audio_seconds) VALUES ($1, $2, $3, 'transcribe', $4)`,
+      [req.user.id, managerId, done ? 'gpt-4o-mini-transcribe' : 'whisper-1', seconds]
+    ).catch((e) => console.error('[AI_USAGE transcribe]', e.message));
+
+    return res.json({ text });
+  } catch (err) {
+    console.error('[COACH TRANSCRIBE]', err && err.message);
+    return res.status(502).json({ error: 'Falha na transcrição' });
+  } finally {
+    if (tmp) { try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ } }
+  }
+}
+
+module.exports = { complete, transcribe };

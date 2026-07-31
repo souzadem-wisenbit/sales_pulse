@@ -815,50 +815,13 @@ const LiveCoach = (() => {
     return `Reunião de vendas em português brasileiro por videochamada. Termos comuns: proposta, orçamento, contrato, desconto, prazo, reunião, cliente, produto. ${tail}`;
   }
 
+  // A transcrição agora roda no BACKEND (window.API.coachTranscribe →
+  // POST /api/coach/transcribe): a chave da OpenAI nunca vem para o navegador.
+  // O servidor faz a seleção de modelo (gpt-4o-mini-transcribe → whisper-1), o
+  // filtro de alucinação e a medição de uso. Falhou → '' → o chunk é ignorado.
   async function whisperTranscribe(blob, speaker) {
-    const key = getApiKey();
-
-    // 1ª opção: gpt-4o-mini-transcribe (mais preciso, menos alucinação)
-    if (transcribeModelOk) {
-      try {
-        const fd = new FormData();
-        fd.append('file', blob, 'chunk.wav');
-        fd.append('model', 'gpt-4o-mini-transcribe');
-        fd.append('language', 'pt');
-        fd.append('temperature', '0');
-        fd.append('prompt', buildTranscribePrompt(speaker));
-        const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-          method: 'POST', headers: { 'Authorization': `Bearer ${key}` }, body: fd,
-        });
-        if (res.ok) {
-          const data = await res.json();
-          return (data.text || '').trim();
-        }
-        // Modelo indisponível na conta → passa a usar whisper-1 direto
-        if (res.status === 404 || res.status === 400 || res.status === 403) transcribeModelOk = false;
-        else return '';
-      } catch (e) { /* cai para o fallback */ }
-    }
-
-    // Fallback: whisper-1 com verbose_json → filtro estatístico de alucinação
-    const fd = new FormData();
-    fd.append('file', blob, 'chunk.wav');
-    fd.append('model', 'whisper-1');
-    fd.append('language', 'pt');
-    fd.append('temperature', '0');
-    fd.append('response_format', 'verbose_json');
-    fd.append('prompt', buildTranscribePrompt(speaker));
-    const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST', headers: { 'Authorization': `Bearer ${key}` }, body: fd,
-    });
-    if (!res.ok) return '';
-    const data = await res.json();
-    // Descarta segmentos que o próprio modelo considera prováveis alucinações
-    const segs = (data.segments || []).filter(s =>
-      (s.no_speech_prob === undefined || s.no_speech_prob < 0.5) &&
-      (s.avg_logprob === undefined || s.avg_logprob > -1.2)
-    );
-    return segs.map(s => s.text).join(' ').replace(/\s+/g, ' ').trim();
+    const r = await window.API.coachTranscribe(blob, { prompt: buildTranscribePrompt(speaker), language: 'pt' });
+    return r && typeof r.text === 'string' ? r.text.trim() : '';
   }
 
   function normalizeText(t) {

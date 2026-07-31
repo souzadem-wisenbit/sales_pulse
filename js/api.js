@@ -320,6 +320,35 @@ const API = (() => {
       return null;
     }
   }
+
+  // Transcrição do Live Coach gerada no BACKEND (chave da OpenAI fora do
+  // navegador). Multipart: NÃO setar Content-Type na mão — o browser põe o
+  // boundary. Falhou → null → o chunk de áudio é ignorado (sem transcrição).
+  async function coachTranscribe(blob, { prompt = '', language = 'pt', timeoutMs = 15000 } = {}) {
+    const base = getBaseUrl();
+    if (base === null) return null;
+    const fd = new FormData();
+    fd.append('audio', blob, 'chunk.wav');
+    if (prompt) fd.append('prompt', prompt);
+    fd.append('language', language);
+    const token = getToken();
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(`${base}/api/coach/transcribe`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+        signal: controller.signal,
+      });
+      clearTimeout(id);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (err) {
+      clearTimeout(id);
+      return null;
+    }
+  }
   async function uploadKnowledgeDoc(file, coachId) {
     const base = getBaseUrl();
     if (base === null) return null;
@@ -424,6 +453,7 @@ const API = (() => {
     retrieveKnowledge,
     getCoachCore,
     coachComplete,
+    coachTranscribe,
   };
 
 })();

@@ -105,8 +105,10 @@ whatsappRouter.put('/briefing', authorize('manager', 'seller'), waCtrl.putBriefi
 
 // Live Coach: a dica é gerada no backend (chave da OpenAI nunca vai ao
 // navegador) e o uso é medido por tenant. Usado pelo coach de áudio e WhatsApp.
+const uploadAudio = multer({ limits: { fileSize: 25 * 1024 * 1024 } });
 const coachRouter = express.Router();
 coachRouter.use(authenticate);
 coachRouter.post('/complete', authorize('manager', 'seller'), coachCtrl.complete);
+coachRouter.post('/transcribe', authorize('manager', 'seller'), uploadAudio.single('audio'), coachCtrl.transcribe);
 
 module.exports = { usersRouter, scenariosRouter, sessionsRouter, syncRouter, clientsRouter, productsRouter, scheduledRouter, liveCallsRouter, liveProfilesRouter, whatsappRouter, knowledgeRouter, coachRouter };
