@@ -29,13 +29,201 @@ const CoachCore = (() => {
     ['logistica', '🚚 Logística / Transporte'],
   ];
 
+  // Rótulos das 5 fases do MÉTODO A ISCA (as chaves internas — rapport/…/
+  // fechamento — são preservadas; muda só o nome exibido para a linguagem do
+  // método). Isca propriamente dita = Atendimento + Investigação (você fisga
+  // sem o cliente perceber). Fechamento em 2 tempos: Objeções → Preço.
   const STAGE_LABELS = {
-    rapport:      { label: 'Rapport',      icon: '🤝' },
-    descoberta:   { label: 'Descoberta',   icon: '🔍' },
-    apresentacao: { label: 'Apresentação', icon: '🎯' },
-    objecoes:     { label: 'Objeções',     icon: '🛡' },
-    fechamento:   { label: 'Fechamento',   icon: '✍️' },
+    rapport:      { label: 'Atendimento',  icon: '🤝' },   // Fase 1 — A Isca
+    descoberta:   { label: 'Investigação', icon: '🔍' },   // Fase 2 — A Isca
+    apresentacao: { label: 'Solução',      icon: '🎯' },   // Fase 3 — Solução de Dores
+    objecoes:     { label: 'Objeções',     icon: '🛡' },   // Fase 4 — Contorno de Objeções
+    fechamento:   { label: 'Fechamento',   icon: '✍️' },   // Fase 5 — Ataque o Fechamento
   };
+
+  // ════════════════════════════════════════════════════════════════════
+  // MÉTODO A ISCA — a doutrina AUTORITATIVA das 5 fases da venda.
+  //
+  // Escrita à mão a partir dos 15 materiais do Júnior Smarzaro (Tenha o Melhor
+  // Atendimento, 1000 Perguntas, Mestre das Objeções, Aprenda a Cobrar Caro,
+  // Gatilhos Mentais, O Livro Definitivo do Fechamento…). É esta doutrina — e
+  // não a destilada por LLM no backend — que rege CADA dica: o doctrineBlock
+  // nasce daqui. Cada fase carrega a regra da vez, o que fazer/o que queima,
+  // as viradas nomeadas do Júnior e o critério para só então avançar.
+  //
+  // Mesma forma dos campos já consumidos pelo doctrineBlock (principio,
+  // objetivo, fazer[], naoFazer[], viradas[], quandoInsiste, preRequisito,
+  // comoEleFormula) — muda o CONTEÚDO, não o esqueleto. Vale para as duas
+  // modalidades do Live Coach (áudio e WhatsApp) de uma vez.
+  // ════════════════════════════════════════════════════════════════════
+  const ISCA_DOCTRINE = {
+    // FASE 1 — ATENDIMENTO (a abordagem que não parece abordagem)
+    rapport: {
+      objetivo: 'Quebrar o gelo e criar conexão humana genuína ANTES de qualquer coisa comercial. Aqui você fisga o cliente sem ele perceber.',
+      principio: 'A primeira impressão se forma em ~7 segundos e o cliente lembra mais de COMO foi tratado do que da solução. É uma conversa, não uma abordagem.',
+      fazer: [
+        'Cumprimentar, se apresentar e capturar/usar o NOME do cliente — nome cria rapport e confiança.',
+        'Puxar conversa leve e sincera sobre ele ou o negócio dele, com interesse real.',
+        'Espelhar o registro e o ritmo do cliente (objetivo → seja direto; conversador → puxe prosa).',
+        'Sorrir na voz/no texto e demonstrar boa vontade — é sentido mesmo sem imagem.',
+        'Deixar o cliente à vontade, sem pressa e sem cheiro de venda.',
+      ],
+      naoFazer: [
+        'Falar de produto, benefício ou preço — é cedo demais e queima a isca.',
+        'Cavar a dor agora (isso é a Fase 2).',
+        'Abrir com script robótico ou "posso ajudar?" seco.',
+        'Demonstrar pressa de vender.',
+        'Deixar de perguntar/usar o nome do cliente.',
+      ],
+      viradas: [
+        'Elogiar algo ESPECÍFICO e verdadeiro do cliente ou do negócio dele para criar conexão imediata.',
+        'Devolver interesse genuíno pela história dele ("como começou isso?") para ele baixar a guarda.',
+        'Espelhar a energia dele para gerar rapport sem esforço.',
+      ],
+      quandoInsiste: 'Se o cliente já chega querendo preço/produto, acolha em uma frase e faça UMA pergunta que o traga para a conversa — não dispare pitch no primeiro "oi".',
+      preRequisito: 'O cliente relaxou, respondeu com mais de uma palavra e entrou no clima da conversa (interesse inicial).',
+      comoEleFormula: 'Frases curtas, calorosas e informais, com o nome do cliente e zero jargão. Uma pergunta leve de cada vez.',
+    },
+
+    // FASE 2 — INVESTIGAÇÃO (a conversa que colhe ouro)
+    descoberta: {
+      objetivo: 'Conhecer a vida e o negócio do cliente e, acima de tudo, descobrir a DOR central — colhendo os dados que você vai usar nas próximas fases.',
+      principio: 'Regra 80/20: 80% do tempo quem fala é o CLIENTE, 20% é você. Perguntas exploratórias convertem 69% mais. Ache a dor ANTES de mostrar qualquer solução.',
+      fazer: [
+        'Fazer perguntas ABERTAS, uma de cada vez, do leve (história/negócio) ao profundo (a dor).',
+        'Escutar ativamente e DEVOLVER a dor com as palavras do próprio cliente ("então o que te trava é X?").',
+        'Cavar o impacto da dor ("o que acontece se isso continuar assim?") — pergunta de implicação.',
+        'Buscar a dor implícita: não parar na primeira reclamação superficial.',
+        'Mapear em silêncio: quem decide, orçamento, o que ele já tentou antes.',
+      ],
+      naoFazer: [
+        'Falar do produto ou do preço antes de ter uma dor clara na mão.',
+        'Metralhar perguntas fechadas ou transformar a conversa em interrogatório/formulário.',
+        'Falar mais que o cliente (romper o 80/20).',
+        'Aceitar a primeira dor rasa e correr para vender.',
+        'Pular para a solução sem o cliente ter admitido que a dor incomoda.',
+      ],
+      viradas: [
+        'Devolver a pergunta que faz o cliente dimensionar sozinho o custo da dor.',
+        'Usar a palavra ou o número que ele mesmo deu como gancho para aprofundar.',
+        'Perguntar "como você resolve isso hoje?" para expor a insatisfação com o status quo.',
+      ],
+      quandoInsiste: 'Se o cliente quer pular para o preço, dê a deixa honesta ("já te passo — só preciso entender uma coisa pra te dar o número certo") e faça a pergunta que falta.',
+      preRequisito: 'O cliente verbalizou uma dor clara E demonstrou que ela incomoda; você já consegue repetir a dor na voz dele.',
+      comoEleFormula: 'Perguntas abertas curtas e curiosas, encadeadas na resposta anterior. Zero pitch.',
+    },
+
+    // FASE 3 — SOLUÇÃO DE DORES (o produto amarrado na dor dele)
+    apresentacao: {
+      objetivo: 'Apresentar o produto amarrando CADA benefício a uma dor específica que o cliente acabou de revelar, construindo VALOR percebido antes de qualquer número.',
+      principio: 'Preço é o que ele paga; VALOR é o que ele percebe. Venda o resultado e a transformação, não a ficha técnica. Não é catálogo — é devolver a solução do problema que ele mesmo descreveu.',
+      fazer: [
+        'Amarrar benefício ↔ dor: "você disse [dor]; é exatamente isso que [solução] resolve, porque [resultado]".',
+        'Traduzir cada característica em "o que isso FAZ por você" (resultado, não feature).',
+        'Ancorar valor: mostrar primeiro a referência mais completa ou o custo do problema, antes do número.',
+        'Usar prova social/depoimento — só se estiver no briefing.',
+        'Validar enquanto apresenta ("isso faz sentido pra você?") para manter o cliente junto.',
+      ],
+      naoFazer: [
+        'Despejar features desconectadas da dor dele.',
+        'Falar preço aqui — ainda não é a hora.',
+        'Apresentar solução genérica que ignora o que ele contou.',
+        'Prometer o que o briefing não sustenta (ROI, garantia, case inventados).',
+        'Falar mais que o cliente e não checar receptividade.',
+      ],
+      viradas: [
+        'Efeito isca/contraste: posicionar uma opção menos vantajosa que faça a opção-alvo parecer óbvia (básico / INTERMEDIÁRIO / premium).',
+        'Ancoragem de valor: colocar a referência alta primeiro para o seu número soar acessível depois.',
+        'Projetar o cliente USANDO a solução e colhendo o resultado que ele disse buscar.',
+      ],
+      quandoInsiste: 'Se ele pede o preço no meio da apresentação, dê uma pincelada de valor e prepare a deixa para entregar o número — sem fugir, mas ancorando.',
+      preRequisito: 'O cliente demonstrou receptividade: concorda, faz perguntas de detalhe ("funciona pra…?") ou se imagina usando.',
+      comoEleFormula: 'Afirmações curtas que conectam a fala DELE ao resultado. Uma prova ou uma âncora por vez, sempre checando se fez sentido.',
+    },
+
+    // FASE 4 — CONTORNO DE OBJEÇÕES (Fechamento, tempo 1)
+    objecoes: {
+      objetivo: 'Transformar cada "não" em "me convença": isolar a objeção REAL e derrubá-la sem discutir, para destravar o fechamento.',
+      principio: 'Objeção é pedido de informação, não porta fechada. 80% das vendas fecham depois da 4ª objeção, mas 80% dos vendedores desistem na 2ª. 60% das objeções são medo de errar — empatia fecha mais que pressão.',
+      fazer: [
+        '3 Simples Passos: ESCUTE a objeção inteira sem interromper → VALIDE a preocupação → RESOLVA com pergunta ou resposta específica.',
+        'Pergunta devolutiva: em vez de justificar, devolva ("caro em relação a quê?" / "o que exatamente te preocupa?").',
+        'Isolar a objeção verdadeira quando ele empilha desculpas ("além disso, tem mais alguma coisa te segurando?").',
+        'Expor o custo de NÃO decidir (as oportunidades e os problemas de adiar).',
+        'Usar garantia/reversão de risco, prova social ou escassez — só quando REAIS no briefing.',
+      ],
+      naoFazer: [
+        'Justificar o preço na hora, antes de entender com o que ele está comparando.',
+        'Discutir, "ganhar" do cliente ou responder na defensiva.',
+        'Ceder desconto na primeira pressão (nem inventar desconto fora do briefing).',
+        'Desistir na 2ª objeção ou empilhar dados irrelevantes.',
+        'Repetir a mesma manobra que já falhou — quebre o padrão.',
+      ],
+      viradas: [
+        '"É caro" → faça-o especificar o que achou caro e volte ao valor; nunca justifique de cara.',
+        '"Vou pensar" → é interesse, dúvida ou preço? Isole qual dos três e resolva agora.',
+        '"Falar com sócio/esposa" → "o que ele precisaria saber pra te ajudar a decidir?" e dê munição ao cliente.',
+        '"Não tenho tempo" → vire em motivo de compra: mostre como a solução ECONOMIZA tempo.',
+        '"Já tentei e não deu" → valide, pergunte o que falhou e mostre por que o seu é diferente.',
+        'Concessão com contrapartida: nunca ceda de graça ("consigo isso SE fecharmos até [prazo]").',
+      ],
+      quandoInsiste: 'Se ele repete a mesma objeção, pare de argumentar em cima dela: descubra se é a objeção REAL ou um blefe e enderece a verdadeira de frente.',
+      preRequisito: 'A objeção real foi resolvida, o cliente concordou ("faz sentido") e voltou a falar de uso/quando/como.',
+      comoEleFormula: 'Escuta → validação curta (sem "entendo" clichê) → pergunta devolutiva ou resposta específica. Calma e firmeza, nunca defensiva.',
+    },
+
+    // FASE 5 — ATAQUE O FECHAMENTO (Fechamento, tempo 2)
+    fechamento: {
+      objetivo: 'Falar o preço e PEDIR a venda — com firmeza, sem titubear e sem enrolar.',
+      principio: 'Se você não pede, não recebe (o gênio do Aladdin). Chegou aqui = você conquistou o direito de pedir a venda, e o cliente está esperando você pedir. Elimine o "depois": o momento é AGORA.',
+      fazer: [
+        'Reforçar o valor em UMA frase, dizer o número (se o briefing tem) e CALAR A BOCA — quem fala primeiro perde.',
+        'Pedir a venda de forma explícita e direta ("bora fechar?").',
+        'Usar escolha alternativa ("cartão ou pix?", "começamos segunda ou quarta?") — as duas respostas fecham.',
+        'Fechamento por reversão de risco: encerrar a hesitação com a garantia REAL do briefing.',
+        'Ler o sinal de compra (pergunta de preço/prazo/como contrata) e PARAR de vender para pedir.',
+      ],
+      naoFazer: [
+        'Apresentar bem e NÃO pedir a venda — o erro clássico que mata o fechamento.',
+        'Enrolar, gaguejar ou pedir desculpa pelo preço.',
+        'Continuar vendendo depois que o cliente já disse sim (você desvende a venda).',
+        'Inventar preço, desconto ou garantia fora do briefing.',
+        'Deixar a decisão no colo do cliente ("qualquer coisa me chama").',
+      ],
+      viradas: [
+        'Fechamento presumível: agir como se o sim já estivesse dado ("vou já reservar o seu").',
+        '"Vou pensar" aqui → descubra se é interesse, dúvida ou preço, resolva na hora e reagende de imediato.',
+        'Âncora colada no número: referência alta / custo de não resolver antes do preço, para ele soar acessível.',
+        'Custo de adiar: "resolver agora sai mais barato que continuar convivendo com o problema, concorda?".',
+      ],
+      quandoInsiste: 'Se ele trava mesmo com o valor construído, ofereça a reversão de risco (garantia real) ou isole a última objeção — mas mantenha o pedido de fechamento na mesa, não recue para explicar tudo de novo.',
+      preRequisito: 'O cliente decidiu ou assumiu o próximo passo concreto (fecha, agenda a assinatura, pede a proposta para assinar).',
+      comoEleFormula: 'Reforço de valor curtíssimo → (PAUSA) → número → pergunta de fechamento direta ou alternativa. Confiante, sem floreio.',
+    },
+  };
+
+  // Núcleo do MÉTODO A ISCA — o "sistema operacional de vendas" em texto.
+  // Entra no lugar do núcleo destilado no backend quando ele não existe
+  // (sem DB / instalação nova): garante que o coach roda o método completo
+  // mesmo offline. Se o backend tem núcleo, ele é usado; este é a rede.
+  const ISCA_CORE = `# MÉTODO A ISCA — o sistema de vendas do Júnior Smarzaro
+
+Ninguém morde um anzol nu. Você não fisga empurrando produto — fisga CONVERSANDO: deixa o cliente falar, descobre a dor e só então mostra que a solução é o que ele mesmo disse que precisava. A venda vira consequência de uma boa conversa; o cliente sente que DECIDIU, não que foi vendido.
+
+## OS PILARES
+1. Regra 80/20: 80% do tempo quem fala é o cliente, 20% é você. Perguntas exploratórias convertem 69% mais.
+2. Ache a DOR antes de mostrar a solução; construa VALOR antes de falar o PREÇO (preço é o que ele paga, valor é o que ele percebe).
+3. Objeção é "me convença", não "não". Peça a venda quando conquistar o direito — quem não pede, não recebe.
+4. Use o nome do cliente, escute ativamente e devolva a fala DELE. Ética inegociável: escassez, prova social e garantia só quando reais.
+
+## A SEQUÊNCIA (5 fases — nunca pule etapa)
+1. ATENDIMENTO — quebrar o gelo, sem cheiro de venda (a isca).
+2. INVESTIGAÇÃO — perguntas abertas até achar a dor (a isca).
+3. SOLUÇÃO DE DORES — cada benefício amarrado a uma dor revelada; ancore o valor.
+4. CONTORNO DE OBJEÇÕES — 3 Simples Passos + pergunta devolutiva; isole a objeção real.
+5. ATAQUE O FECHAMENTO — reforça o valor, diz o número e PEDE a venda, sem titubear.
+
+Preço sem dor investigada é caro; solução sem dor descoberta é empurro; objeção contornada sem valor construído é discussão. Cada fase só abre quando a anterior deu o sinal de avanço.`;
 
   // ── Persona do coach atribuído pelo gestor ──
   // Idêntica nas duas modalidades: o vendedor tem UM coach, seja por voz
@@ -63,10 +251,13 @@ Você pensa, fala e decide EXCLUSIVAMENTE pelo SEU sistema de vendas (adiante em
   // backend). Entra como bloco ESTÁTICO do prompt — mesma string a chamada
   // inteira → o prompt cache da OpenAI absorve o custo depois da 1ª dica.
   function coreBlock(core) {
-    if (!core) return '';
+    // Sem núcleo destilado no backend, roda o Método A ISCA embutido: o coach
+    // nunca fica sem o "sistema operacional de vendas", nem numa instalação nova.
+    const sistema = core || ISCA_CORE;
+    if (!sistema) return '';
     return `
 ━━━━━ SEU SISTEMA DE VENDAS (a metodologia Júnior Smarzaro — você a ensina e a aplica em CADA dica) ━━━━━
-${core}
+${sistema}
 COMO USAR O SISTEMA NAS DICAS: identifique o estágio e o gatilho da conversa → escolha a técnica/virada/pergunta DESTE sistema que ataca esse momento → escreva o say com a formulação característica dele adaptada às palavras desta conversa. No campo "technique", use o NOME da técnica como aparece no sistema. Varie as técnicas entre dicas.
 `;
   }
@@ -528,14 +719,17 @@ REGRAS INVIOLÁVEIS:
   const STAGE_ORDER = ['rapport', 'descoberta', 'apresentacao', 'objecoes', 'fechamento'];
 
   function doctrineBlock(doctrine, stage) {
-    if (!doctrine) return '';
     const key = STAGE_ORDER.includes(stage) ? stage : 'rapport';
-    const d = doctrine[key];
+    // MÉTODO A ISCA é a doutrina AUTORITATIVA (escrita à mão, aterrada nos
+    // materiais do Júnior). A doutrina destilada no backend só entra se, por
+    // algum motivo, a fase ISCA faltar — na prática, ISCA sempre vence.
+    const d = ISCA_DOCTRINE[key] || (doctrine && doctrine[key]);
     if (!d) return '';
     const label = (STAGE_LABELS[key] || {}).label || key;
+    const faseN = STAGE_ORDER.indexOf(key) + 1;
     const next = STAGE_ORDER[STAGE_ORDER.indexOf(key) + 1];
     return `
-━━━━━ O QUE VOCÊ ENSINA SOBRE ESTE MOMENTO — ${label.toUpperCase()} (a dica TEM que nascer daqui) ━━━━━
+━━━━━ MÉTODO A ISCA · FASE ${faseN}/5 — ${label.toUpperCase()} (a dica TEM que nascer daqui) ━━━━━
 PRINCÍPIO: ${d.principio || ''}
 OBJETIVO AGORA: ${d.objetivo || ''}
 FAÇA: ${(d.fazer || []).join(' | ')}
@@ -627,7 +821,12 @@ ${list.map(p => `${p.n}. [${p.estagio}] ${p.name}
   // do cliente perguntar preço), e aí a doutrina injetada era a errada. Aqui
   // a última fala do cliente força o estágio mínimo — nunca deixa recuar.
   const STAGE_SIGNALS = [
-    { stage: 'fechamento', re: /como (faço|fa[çc]o) (pra|para) (contratar|comprar|fechar)|quero (fechar|contratar|assinar)|manda o contrato|como funciona o contrato|quando (come[çc]a|consigo come[çc]ar)|fidelidade/i },
+    // "Como faço pra começar / como começo / por onde começo / onde assino /
+    // como pago" são sinais de COMPRA tão fortes quanto "como contrato" — a
+    // fase 5 do ISCA (Ataque o Fechamento) tem que disparar neles. Antes só
+    // "contratar/comprar/fechar" contavam, e o coach seguia em Objeções no
+    // exato momento em que o cliente pediu para fechar.
+    { stage: 'fechamento', re: /como (eu )?(come[çc]o|contrato|assino|adquiro|pago)|(faço|fa[çc]o) (pra|para) (contratar|comprar|fechar|come[çc]ar|assinar|aderir|adquirir)|por onde (eu )?come[çc]o|quero (come[çc]ar|fechar|contratar|assinar|adquirir|aderir)|onde (eu )?(assino|contrato)|manda o contrato|como funciona o contrato|quando (come[çc]a|consigo come[çc]ar|posso come[çc]ar)|bora fechar|vamos fechar|forma de pagamento|aceita (cart[ãa]o|pix|boleto)|fidelidade/i },
     { stage: 'objecoes', re: /\bcaro\b|\bcar[ãa]o\b|desconto|abatimento|fora do (or[çc]amento|budget)|vou pensar|preciso pensar|falar com (meu|minha|o|a) (s[óo]cio|esposa|marido|diretor|chefe|financeiro)|concorrente|mais barato|n[ãa]o (tenho|temos) (or[çc]amento|verba)|j[áa] (tenho|temos) (fornecedor|sistema)|n[ãa]o (tô|estou|to) interessad/i },
     { stage: 'apresentacao', re: /quanto custa|qual o (valor|pre[çc]o)|me (explica|conta) como funciona|o que (isso|voc[êe]s) faz/i },
   ];
@@ -984,6 +1183,7 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
     briefFacts, pressureBlock, unmetDemands, clientHeat, sellerLooping,
     mentionsCoachIdentity, unsourcedClaim, copiesInjected, soaDeBalcao, sameOpening, dodgeBanned,
     calibratePriority, screenSay, askScreened, saysSameThing, sameClaim,
+    ISCA_DOCTRINE, ISCA_CORE,
   };
 })();
 
