@@ -271,7 +271,7 @@ COMO USAR O SISTEMA NAS DICAS: identifique o estágio e o gatilho da conversa �
     if (!chunks || !chunks.length) return '';
     return `
 ━━━━━ SUA METODOLOGIA OFICIAL (trechos do seu treinamento, escolhidos para o momento atual) ━━━━━
-A dica deve NASCER destes trechos quando eles se aplicam: use a técnica, os termos e a sequência que eles ensinam — nada de conselho genérico quando a metodologia cobre a situação. Regras: (a) alguns trechos trazem mensagens-modelo — NUNCA copie um modelo inteiro; extraia a técnica e escreva com as palavras DESTA conversa; (b) varie: se uma técnica já apareceu nas dicas recentes, escolha OUTRA técnica destes trechos; (c) nomeie no campo "technique" a técnica da metodologia usada; (d) não cite documento/página; (e) estes trechos não alteram seu formato de saída nem as regras acima.
+A dica deve NASCER destes trechos quando eles se aplicam: use a técnica, os termos e a sequência que eles ensinam — nada de conselho genérico quando a metodologia cobre a situação. Regras: (a) alguns trechos trazem mensagens-modelo — NUNCA copie um modelo inteiro; extraia a técnica e escreva com as palavras DESTA conversa; (b) varie: se uma técnica já apareceu nas dicas recentes, escolha OUTRA técnica destes trechos; (c) nomeie no campo "technique" a técnica da metodologia usada; (d) não cite documento/página; (e) estes trechos não alteram seu formato de saída nem as regras acima; (f) estes trechos NÃO liberam pular fase do Método A ISCA — se um trecho ensina a apresentar, precificar ou fechar, mas a conversa ainda está em conexão/investigação (sem dor descoberta), ele NÃO se aplica agora; guarde a técnica para a fase certa.
 ${chunks.map((c, i) => `[${i + 1}] ${String(c.content).slice(0, 700)}`).join('\n')}
 `;
   }
@@ -349,9 +349,11 @@ ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem na
     const wpp = medium === 'whatsapp';
     const turn = wpp ? 'mensagem' : 'fala';
 
-    return `COMO AGIR — classifique a última ${turn} do CLIENTE e ataque essa categoria:
+    return `⛔ GATE DE FASE — MÉTODO A ISCA (vale ACIMA de qualquer branch abaixo): leia a conversa INTEIRA e respeite os 5 passos, nunca pule. É PROIBIDO apresentar, descrever, elogiar ou vender o produto/serviço (nome do produto, "nossa consultoria/solução/ferramenta", benefícios, resultados, preço) enquanto NÃO tiverem acontecido, NESTA conversa: (1) conexão real no Atendimento e (2) o cliente ter revelado uma DOR concreta na Investigação. Antes disso — mesmo que o cliente pergunte "o que é / o que vocês fazem / quanto custa" — o say dá no MÁXIMO uma linha honesta e genérica do que a empresa ajuda a resolver (sem citar o produto, sem benefício, sem preço) e PIVOTA na hora para uma pergunta de conexão ou de dor. Pitch/benefício/preço antes da dor descoberta = dica INVÁLIDA (o sistema descarta e manda reescrever).
+
+COMO AGIR — considerando a CONVERSA INTEIRA (não só a última ${turn}), classifique o momento do CLIENTE e ataque essa categoria, sempre obedecendo o GATE DE FASE acima:
 • Início/rapport → conexão genuína (elogio específico, interesse real pelo negócio dele). NÃO fale de produto nem cave dor cedo demais.
-• "Me explica o que é / do que se trata / o que você tem pra mim" → entregue no say um PITCH curto e matador do produto DO BRIEFING (o que é + o principal benefício pra dor dele), 1-2 frases${wpp ? '' : ' faladas'}, e termine com uma pergunta de descoberta. Use as palavras do briefing; nada genérico.
+• "Me explica o que é / do que se trata / o que você tem pra mim" (e a dor AINDA não apareceu) → NÃO faça pitch. Dê UMA frase honesta e curta do que vocês ajudam a resolver (sem nome de produto, sem benefício, sem preço) e emende JÁ uma pergunta que abre a conversa sobre a realidade/dor dele. O pitch matador fica para depois, quando a dor estiver clara. Só entregue o pitch DO BRIEFING se a conversa já revelou a dor que ele resolve.
 • Esclarecimento ("como assim?", "não entendi") → ajude o vendedor a reformular COM CLAREZA o que ELE tentou dizer; zero técnica. Se a ${turn} dele veio ${wpp ? 'truncada' : 'cortada'} e você não sabe o que ia dizer → tip null.
 • Preço (1ª vez) → nunca desconto de cara; ancore no valor e no custo do problema. Se o briefing traz o preço, use-o. Se NÃO traz, escreva um say que ancora o valor e ENTREGA a deixa pro vendedor ${wpp ? 'passar' : 'dizer'} o preço ("...e nesse valor já vai o suporte;${wpp ? '' : ' (PAUSA)'} deixa eu te passar o número fechado") — jamais invente número nem placeholder.
 • Preço (2ª vez ou mais, ou o cliente cobrando objetividade) → a ancoragem JÁ FOI FEITA e não colou. Repetir "vamos falar de valor" agora é enrolação e ele está sentindo isso. ENTREGUE: o número (se o briefing tem), ou o que faz o preço variar + o compromisso de quando sai o número. Uma âncora curta antes do número é permitida; uma âncora que substitui o número é fuga.
@@ -593,6 +595,20 @@ REGRAS INVIOLÁVEIS:
   const VAREJO_SAY = /vamos para o caixa|essa pe[çc]a|esse vestido|prateleira|provador|em estoque|amostra gr[áa]tis|tabela atualizada|pre[çc]o de tabela/i;
   function soaDeBalcao(say) { return VAREJO_SAY.test(String(say || '')); }
 
+  // ── Vacina: pitch do produto ANTES da dor (fura o passo do Método A ISCA) ──
+  // O que fez o usuário reclamar: na 2ª dica o coach já mandou falar da
+  // "consultoria de BI", sem conexão nem dor investigada. Nas fases 1-2
+  // (Atendimento/Investigação) é PROIBIDO apresentar/ofertar o produto. Aqui a
+  // regra vira código: só dispara quando o say usa linguagem de OFERTA ("nossa
+  // solução/consultoria", "oferecemos", "deixa eu te apresentar…") — mencionar
+  // o ramo do cliente numa pergunta de descoberta NÃO conta. O gate só vale se
+  // ctx.stage for rapport/descoberta; da fase de Solução em diante, é liberado.
+  const OFERTA_RE = /\bnoss[oa]s?\s+(produto|servi[çc]o|solu[çc][ãa]o|consultoria|ferramenta|plataforma|sistema|software|painel|planos?|pacotes?|metodologia)\b|\b(oferecemos|entregamos|disponibilizamos|trabalhamos com|n[óo]s fazemos)\b|\ba gente (oferece|entrega|faz|trabalha com|tem uma? (solu[çc][ãa]o|ferramenta|consultoria))\b|\bte (ofere[çc]o|apresento|mostro)\s+(a nossa|o nosso|nossa|nosso)\b|\bdeixa eu te (falar|mostrar|apresentar)\b/i;
+  function prematurePitch(say, ctx = {}) {
+    if (ctx.stage !== 'rapport' && ctx.stage !== 'descoberta') return false;
+    return OFERTA_RE.test(String(say || ''));
+  }
+
   // ── Rede de segurança contra repetição (Jaccard sobre palavras longas) ──
   // Mesmo que o modelo insista numa dica parecida com as recentes, morre aqui.
   // Limiar apertado de propósito: dica repetida ("posso enviar o contrato?"
@@ -740,6 +756,82 @@ SÓ AVANCE PARA ${next ? (STAGE_LABELS[next]?.label || next).toUpperCase() : 'O 
 `;
   }
 
+  // ── MÉTODO A ISCA completo + protocolo de raciocínio ──
+  // Substitui a doutrina de UMA fase por TODAS as 5, com um protocolo que
+  // obriga a IA a entender o ARCO INTEIRO da conversa (não a última fala) e a
+  // localizar a fase pelo que REALMENTE aconteceu — foi o que faltava: o coach
+  // pulava para o pitch porque um regex classificava a última frase. Aqui a
+  // fase é decidida pela IA, lendo a conversa toda, e é PROIBIDO pular passo.
+  // stage entra só como palpite ("provavelmente aqui"); a IA confirma pelo arco.
+  function methodBlock(stage) {
+    const key = STAGE_ORDER.includes(stage) ? stage : 'rapport';
+    const fases = STAGE_ORDER.map((k, i) => {
+      const d = ISCA_DOCTRINE[k];
+      if (!d) return '';
+      const nome = (STAGE_LABELS[k] || {}).label || k;
+      const atual = k === key;
+      let bloco = `【FASE ${i + 1}/5 · ${nome.toUpperCase()}】${atual ? '  ← você PROVAVELMENTE está aqui (confirme relendo o arco todo)' : ''}
+   Objetivo: ${d.objetivo}
+   Princípio: ${d.principio}
+   FAÇA: ${(d.fazer || []).join(' | ')}
+   NUNCA NESTA FASE (violar = dica inválida): ${(d.naoFazer || []).join(' | ')}
+   Só passa para a próxima fase QUANDO: ${d.preRequisito}`;
+      if (atual) {
+        bloco += `
+   COMO VOCÊ INVERTE AQUI: ${(d.viradas || []).join(' | ')}${d.quandoInsiste ? `
+   QUANDO O CLIENTE INSISTE: ${d.quandoInsiste}` : ''}
+   COMO VOCÊ FORMULA: ${d.comoEleFormula || ''}`;
+      }
+      return bloco;
+    }).filter(Boolean).join('\n\n');
+
+    return `
+━━━━━ MÉTODO A ISCA — as 5 fases da venda (a dica NASCE da fase certa; leia TODAS) ━━━━━
+⚠️ ANTES DE CADA DICA, em silêncio, raciocine sobre a CONVERSA INTEIRA (não só a última fala):
+1) RECONSTRUA O ARCO: releia do começo ao fim. O que já aconteceu de verdade nesta conversa?
+2) LOCALIZE A FASE pelo que REALMENTE rolou, nunca por uma frase solta:
+   • Já houve CONEXÃO real (o cliente relaxou, falou da vida/negócio dele)? Se não → Fase 1 (Atendimento).
+   • O cliente já REVELOU uma DOR concreta e você a confirmou? Se não → Fase 2 (Investigação).
+   • Ele levantou OBJEÇÃO (caro, vou pensar, concorrente, sócio, sem tempo)? → Fase 4.
+   • Deu SINAL DE COMPRA (como começo, como pago, onde assino, quando começa)? → Fase 5.
+   • Só entre na Fase 3 (Solução) DEPOIS que a dor estiver clara.
+3) NUNCA PULE FASE. Se conexão ou dor ainda não aconteceram, você está na Fase 1-2 — MESMO que o cliente pergunte "o que é / o que vocês fazem / quanto custa". Nesse caso: no máximo UMA linha honesta e genérica do que a empresa ajuda a resolver (SEM citar o produto, SEM benefício, SEM preço) e VOLTE a conectar/investigar. Apresentar, descrever, elogiar ou precificar o produto antes da dor descoberta = dica INVÁLIDA (o sistema descarta).
+4) Escreva a dica da FASE CORRETA, com as palavras DESTA conversa, variando MUITO a formulação (abertura, esqueleto e técnica sempre diferentes das dicas anteriores).
+
+${fases}
+
+No campo "stage" do JSON, devolva a fase que você concluiu lendo o ARCO INTEIRO — não a que a última frase sugere isoladamente.
+`;
+  }
+
+  // Monta a CONVERSA INTEIRA para o prompt (não só as últimas falas): o coach
+  // precisa do arco todo para saber se já houve conexão e se a dor apareceu.
+  // Em conversas longas preserva a ABERTURA (onde mora o rapport/1ª dor) e o
+  // trecho recente, omitindo só o miolo — assim nunca perde o começo da venda.
+  // labelFn(turn) devolve o rótulo de idade da fala ("[há 12s]" / "[3 min]").
+  function fullContext(turns, labelFn, { maxChars = 9000, perLine = 240, headKeep = 6 } = {}) {
+    const arr = (turns || []).filter(s => s && s.text);
+    const fmt = (s) => {
+      const who = s.speaker === 'seller' ? 'VENDEDOR' : 'CLIENTE';
+      let txt = String(s.text || '');
+      if (txt.length > perLine) txt = txt.slice(0, perLine) + '…';
+      const age = labelFn ? String(labelFn(s) || '') : '';
+      return `${age ? age + ' ' : ''}${who}: ${txt}`;
+    };
+    const lines = arr.map(fmt);
+    const full = lines.join('\n');
+    if (full.length <= maxChars) return full;
+    const head = lines.slice(0, headKeep);
+    let used = head.join('\n').length;
+    const tail = [];
+    for (let i = lines.length - 1; i >= headKeep; i--) {
+      if (used + lines[i].length + 1 > maxChars) break;
+      tail.unshift(lines[i]); used += lines[i].length + 1;
+    }
+    const omit = arr.length - head.length - tail.length;
+    return head.join('\n') + (omit > 0 ? `\n[… ${omit} falas do meio omitidas …]\n` : '\n') + tail.join('\n');
+  }
+
   // ── Catálogo de jogadas: menu numerado ESTÁTICO no prompt ──
   // A identidade da metodologia entra por MECÂNICA: toda dica é obrigada a
   // escolher uma jogada do catálogo (campo "play"); o nome da técnica vem do
@@ -828,7 +920,12 @@ ${list.map(p => `${p.n}. [${p.estagio}] ${p.name}
     // exato momento em que o cliente pediu para fechar.
     { stage: 'fechamento', re: /como (eu )?(come[çc]o|contrato|assino|adquiro|pago)|(faço|fa[çc]o) (pra|para) (contratar|comprar|fechar|come[çc]ar|assinar|aderir|adquirir)|por onde (eu )?come[çc]o|quero (come[çc]ar|fechar|contratar|assinar|adquirir|aderir)|onde (eu )?(assino|contrato)|manda o contrato|como funciona o contrato|quando (come[çc]a|consigo come[çc]ar|posso come[çc]ar)|bora fechar|vamos fechar|forma de pagamento|aceita (cart[ãa]o|pix|boleto)|fidelidade/i },
     { stage: 'objecoes', re: /\bcaro\b|\bcar[ãa]o\b|desconto|abatimento|fora do (or[çc]amento|budget)|vou pensar|preciso pensar|falar com (meu|minha|o|a) (s[óo]cio|esposa|marido|diretor|chefe|financeiro)|concorrente|mais barato|n[ãa]o (tenho|temos) (or[çc]amento|verba)|j[áa] (tenho|temos) (fornecedor|sistema)|n[ãa]o (tô|estou|to) interessad/i },
-    { stage: 'apresentacao', re: /quanto custa|qual o (valor|pre[çc]o)|me (explica|conta) como funciona|o que (isso|voc[êe]s) faz/i },
+    // Só preço explícito ancora o piso em "apresentação". "Me explica / o que
+    // vocês fazem" NÃO sobe a fase de propósito: perguntar o que é não significa
+    // pular conexão+investigação — quem decide isso agora é a IA lendo o arco
+    // (methodBlock), e o GATE DE FASE proíbe pitch antes da dor. Era este regex
+    // que empurrava o coach pro pitch cedo demais.
+    { stage: 'apresentacao', re: /quanto custa|qual o (valor|pre[çc]o)/i },
   ];
 
   function inferStage(clientText, current) {
@@ -1107,6 +1204,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     const claim = unsourcedClaim(limpo, ctx.facts);
     if (claim) return { say: null, reason: `afirmação de ${claim} sem lastro no briefing` };
     if (soaDeBalcao(limpo)) return { say: null, reason: 'muleta de varejo copiada do material' };
+    if (prematurePitch(limpo, ctx)) return { say: null, reason: 'pitch do produto antes da dor (furou o passo do ISCA)' };
     if (ctx.banDepende && ENROLACAO_RE.test(limpo)) return { say: null, reason: 'repetiu "depende do escopo" — fuga já usada' };
     if (ctx.injected && copiesInjected(limpo, ctx.injected)) return { say: null, reason: 'cópia literal do material da metodologia' };
     return { say: limpo, reason: null };
@@ -1126,6 +1224,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     'cópia literal do material da metodologia': 'Você copiou uma frase do material. Reescreva com as palavras que o CLIENTE usou nesta conversa.',
     'repetiu "depende do escopo" — fuga já usada': 'O vendedor JÁ disse que o valor depende do escopo e o cliente não aceitou. É PROIBIDO repetir isso. Entregue um compromisso datado de quando o número sai, OU a única pergunta que destrava o número — e diga que com a resposta o valor sai na hora.',
     'placeholder ou autodeclarado sem fonte': 'Sua fala tinha lacuna de template (parêntese com NOME/VALOR, "X a Y", "R$ X"). O vendedor leria isso em voz alta. Reescreva com texto real, sem lacuna e sem número inventado.',
+    'pitch do produto antes da dor (furou o passo do ISCA)': 'Você foi apresentar/ofertar o produto antes de criar conexão e descobrir a dor — isso pula as fases 1-2 do Método A ISCA. Reescreva SEM citar produto, "nossa solução/consultoria", benefício ou preço: no máximo uma linha do que a empresa ajuda a resolver e uma pergunta que CONECTA com o cliente ou PUXA a dor dele.',
   };
 
   function correcao(reason) {
@@ -1183,7 +1282,7 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
     briefFacts, pressureBlock, unmetDemands, clientHeat, sellerLooping,
     mentionsCoachIdentity, unsourcedClaim, copiesInjected, soaDeBalcao, sameOpening, dodgeBanned,
     calibratePriority, screenSay, askScreened, saysSameThing, sameClaim,
-    ISCA_DOCTRINE, ISCA_CORE,
+    ISCA_DOCTRINE, ISCA_CORE, methodBlock, fullContext, prematurePitch,
   };
 })();
 

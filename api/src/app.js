@@ -46,16 +46,29 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', environment: process.env.NODE_ENV });
 });
 
-// Serve static frontend files from the root of the project
+// Serve static frontend files from the root of the project.
+// index.html (e qualquer .html) vai com no-store: o navegador SEMPRE busca o
+// HTML fresco, então as tags <script src="...?v=NN"> apontam para a versão
+// nova a cada deploy. Sem isso, um HTML cacheado seguia pedindo o ?v antigo e
+// as mudanças "não efetivavam" no navegador do usuário mesmo já publicadas.
+// Os JS/CSS podem ser cacheados: o ?v=NN muda a URL a cada versão (immutable).
 const path = require('path');
 const frontendPath = path.join(__dirname, '..', '..');
-app.use(express.static(frontendPath));
+app.use(express.static(frontendPath, {
+  etag: true,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+  },
+}));
 
-// Fallback for frontend routing (SPA)
+// Fallback for frontend routing (SPA) — index.html também no-store
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api')) {
     return next();
   }
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 

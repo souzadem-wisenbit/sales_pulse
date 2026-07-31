@@ -1015,12 +1015,16 @@ const LiveCoach = (() => {
     const sinceCount = transcript.length;
 
     try {
-      // Falas com idade relativa: o coach sabe o que é o assunto ATUAL
-      // e o que já ficou para trás (dica atrasada = dica errada).
+      // A CONVERSA INTEIRA (não só as últimas falas): o coach precisa do arco
+      // todo para saber se já houve conexão e se a dor apareceu — era a queixa
+      // do usuário (ele decidia a dica só pela última coisa dita). fullContext
+      // preserva abertura + trecho recente em chamadas longas. Idade relativa
+      // mantida para o coach saber o que é assunto ATUAL x o que ficou para trás.
       const nowT = Date.now();
-      const recent = transcript.slice(-12)
-        .map(s => `[há ${Math.max(0, Math.round((nowT - s.t) / 1000))}s] ${s.speaker === 'seller' ? 'VENDEDOR' : 'CLIENTE'}: ${s.text}`)
-        .join('\n');
+      const recent = CoachCore.fullContext(
+        transcript,
+        s => `[há ${Math.max(0, Math.round((nowT - s.t) / 1000))}s]`
+      );
 
       const profileBlock = profile
         ? `\nPERFIL CONHECIDO DO VENDEDOR (aprendido em chamadas anteriores — personalize a dica com base nele):\n${JSON.stringify(profile)}\n`
@@ -1060,7 +1064,7 @@ const LiveCoach = (() => {
       // do 2º disparo em diante o prefixo estático não é reprocessado →
       // menos latência (TTFT) em toda a chamada.
       const prompt = `${coachPersona}, observando em silêncio uma chamada de vendas REAL por vídeo. O VENDEDOR é seu aluno; você escreve a fala PRONTA que ele deve dizer AGORA. Quando o cliente termina de falar, capte o subtexto (hesitação/frase inacabada = insegurança; resposta seca = desinteresse/pressa; pergunta sobre preço/prazo/contrato = sinal de compra; tema que volta = objeção real disfarçada) e escreva a resposta perfeita, espelhando as palavras do cliente.
-${CoachCore.coreBlock(coachCore)}${CoachCore.doctrineBlock(coachDoctrine, stageNow)}${CoachCore.playsMenu(coachPlays, stageNow, usedPlays, facts)}
+${CoachCore.coreBlock(coachCore)}${CoachCore.methodBlock(stageNow)}${CoachCore.playsMenu(coachPlays, stageNow, usedPlays, facts)}
 ${CoachCore.playbook('audio')}
 
 MARCAÇÃO DO "say" (é o que o vendedor LÊ ao vivo — ele precisa usar em 1 segundo):
@@ -1078,14 +1082,14 @@ Retorne SÓ JSON (nunca escreva meta-texto, instruções ou a palavra "null" den
  "grounded": <false se o say afirma número/fato/promessa SEM fonte no briefing/conversa; true se todos têm fonte OU se o say não afirma número/fato>,
  "technique": "o NOME da jogada escolhida (copie do catálogo)",
  "priority": "urgent|normal|good",
- "stage": "o estágio que a ÚLTIMA fala do cliente instaura: rapport|descoberta|apresentacao|objecoes|fechamento. Cliente reclamou de preço, adiou, citou concorrente ou pediu para falar com terceiro → objecoes. Perguntou como contratar/prazo/contrato → fechamento",
+ "stage": "a fase do Método A ISCA que você concluiu lendo a CONVERSA INTEIRA (não só a última fala): rapport|descoberta|apresentacao|objecoes|fechamento. Sem conexão feita → rapport; sem dor revelada → descoberta (NUNCA apresentacao antes da dor); reclamou de preço/adiou/citou concorrente/sócio → objecoes; perguntou como contratar/começar/pagar/prazo → fechamento",
  "temperature": <0-100 quão quente está a negociação>
 }
 Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acertou e no say a jogada seguinte.
 
 ━━━━━ BRIEFING DESTA CHAMADA ━━━━━${briefBlock()}${profileBlock}${methodologyBlock}
-━━━━━ CONVERSA AO VIVO ━━━━━${tipHistoryBlock}
-Falas recentes (mais recente por último; transcrição automática, pode ter erros):
+━━━━━ CONVERSA AO VIVO — do início ao fim (leia TUDO antes de decidir a fase) ━━━━━${tipHistoryBlock}
+Falas (mais recente por último; transcrição automática, pode ter erros):
 ${recent}
 ${pressure}
 ${usedPlays.length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco — escolha OUTRA do catálogo): ${usedPlays.slice(-6).join(', ')}\n` : ''}${tips.length === 0 ? '\n🚀 PRIMEIRA DICA DA CHAMADA: ainda não existe nenhuma dica — retorne OBRIGATORIAMENTE tip e say preenchidos (abertura/rapport ou reação direta à fala). Nesta primeira resposta, tip null é PROIBIDO: o vendedor precisa sentir o coach ao lado desde o primeiro segundo.\n' : ''}
@@ -1104,6 +1108,9 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
       const sourceText = JSON.stringify(brief || {}) + ' ' + transcript.map(s => s.text).join(' ');
       const screenCtx = {
         sourceText, facts, coachName: coach && coach.name, injected: methodologyBlock,
+        // Fase atual → o gate anti-pitch mata apresentação do produto nas fases
+        // 1-2 (Atendimento/Investigação), antes da dor descoberta.
+        stage: stageNow,
         // O vendedor já disse "depende do escopo": repetir é a fuga que o
         // cliente está cobrando. O prompt proíbe; isto garante.
         banDepende: CoachCore.dodgeBanned(transcript),

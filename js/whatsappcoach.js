@@ -610,9 +610,10 @@ const WhatsAppCoach = (() => {
 
     try {
       const now = Date.now();
-      const recent = chat.messages.slice(-CONTEXT_MSGS)
-        .map(m => `[${agoLabel(m.t)}] ${m.speaker === 'seller' ? 'VENDEDOR' : 'CLIENTE'}: ${m.text}`)
-        .join('\n');
+      // A CONVERSA INTEIRA (não só as últimas mensagens): o coach precisa do
+      // arco todo para saber se já houve conexão e se a dor apareceu. fullContext
+      // preserva a abertura + o trecho recente em conversas longas.
+      const recent = CoachCore.fullContext(chat.messages, m => `[${agoLabel(m.t)}]`);
 
       const profileBlock = profile
         ? `\nPERFIL CONHECIDO DO VENDEDOR (aprendido em chamadas anteriores — personalize a dica com base nele):\n${JSON.stringify(profile)}\n`
@@ -646,7 +647,7 @@ const WhatsAppCoach = (() => {
       // Bloco estático primeiro (persona + playbook + formato) e dinâmico por
       // último: ativa o cache de prompt da OpenAI e derruba a latência.
       const prompt = `${CoachCore.persona(coach)}, acompanhando em silêncio uma conversa de vendas REAL por WhatsApp. O VENDEDOR é seu aluno; você escreve a MENSAGEM PRONTA que ele deve enviar AGORA. Quando o cliente escreve, capte o subtexto (resposta seca ou monossilábica = desinteresse ou pressa; "vou ver", "depois te falo" = objeção não dita; pergunta sobre preço/prazo/contrato = sinal de compra; áudio/vídeo enviado = quer atenção e detalhe; tema que volta = objeção real disfarçada) e escreva a resposta perfeita, espelhando as palavras dele.
-${CoachCore.coreBlock(coachCore)}${CoachCore.doctrineBlock(coachDoctrine, stageNow)}${CoachCore.playsMenu(coachPlays, stageNow, chat.usedPlays, facts)}
+${CoachCore.coreBlock(coachCore)}${CoachCore.methodBlock(stageNow)}${CoachCore.playsMenu(coachPlays, stageNow, chat.usedPlays, facts)}
 ${CoachCore.playbook('whatsapp')}
 
 FORMATO DO "say" (é a mensagem que o vendedor vai COPIAR e COLAR no WhatsApp — precisa servir sem edição):
@@ -666,7 +667,7 @@ Retorne SÓ JSON (nunca escreva meta-texto, instruções ou a palavra "null" den
  "grounded": <false se o say afirma número/fato/promessa SEM fonte no briefing/conversa; true se todos têm fonte OU se o say não afirma número/fato>,
  "technique": "o NOME da jogada escolhida (copie do catálogo)",
  "priority": "urgent|normal|good",
- "stage": "o estágio que a ÚLTIMA mensagem do cliente instaura: rapport|descoberta|apresentacao|objecoes|fechamento. Reclamou de preço, adiou, citou concorrente ou pediu para falar com terceiro → objecoes. Perguntou como contratar/prazo/contrato → fechamento",
+ "stage": "a fase do Método A ISCA que você concluiu lendo a CONVERSA INTEIRA (não só a última mensagem): rapport|descoberta|apresentacao|objecoes|fechamento. Sem conexão feita → rapport; sem dor revelada → descoberta (NUNCA apresentacao antes da dor); reclamou de preço/adiou/citou concorrente/sócio → objecoes; perguntou como contratar/começar/pagar/prazo → fechamento",
  "temperature": <0-100 quão quente está a negociação>
 }
 Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acertou e no say a jogada seguinte.
@@ -685,6 +686,7 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
       const sourceText = JSON.stringify(brief || {}) + ' ' + chat.messages.map(m => m.text).join(' ');
       const screenCtx = {
         sourceText, facts, coachName: coach && coach.name, injected: methodologyBlock,
+        stage: stageNow, // gate anti-pitch nas fases 1-2 (antes da dor)
         banDepende: CoachCore.dodgeBanned(chat.messages.map(m => ({ speaker: m.speaker, text: m.text }))),
         isRepeat: (say) => CoachCore.tooSimilar({ tip: '', say }, chat.tips),
       };
