@@ -688,6 +688,8 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
         sourceText, facts, coachName: coach && coach.name, injected: methodologyBlock,
         stage: stageNow, // gate anti-pitch nas fases 1-2 (antes da dor)
         sellerLines: chat.messages.filter(m => m.speaker === 'seller').map(m => m.text), // barra repetir o que ele já disse
+        clientLines: chat.messages.filter(m => m.speaker === 'client').map(m => m.text), // barra pressupor o cliente
+        productTerms: CoachCore.productTerms(brief),
         banDepende: CoachCore.dodgeBanned(chat.messages.map(m => ({ speaker: m.speaker, text: m.text }))),
         isRepeat: (say) => CoachCore.tooSimilar({ tip: '', say }, chat.tips),
       };

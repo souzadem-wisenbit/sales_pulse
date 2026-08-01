@@ -1077,6 +1077,10 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
         // Falas do próprio vendedor → a vacina barra mandar repetir o que ele
         // JÁ disse ao cliente ("repetindo informação já falada").
         sellerLines: transcript.filter(s => s.speaker === 'seller').map(s => s.text),
+        // Falas do CLIENTE + termos do produto → a vacina barra atribuir ao
+        // cliente uma preocupação sobre o produto que ele nunca citou.
+        clientLines: transcript.filter(s => s.speaker === 'client').map(s => s.text),
+        productTerms: CoachCore.productTerms(brief),
         // O vendedor já disse "depende do escopo": repetir é a fuga que o
         // cliente está cobrando. O prompt proíbe; isto garante.
         banDepende: CoachCore.dodgeBanned(transcript),

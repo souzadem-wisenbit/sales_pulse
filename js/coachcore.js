@@ -250,6 +250,8 @@ Você pensa, fala e decide EXCLUSIVAMENTE pelo SEU sistema de vendas (adiante em
 
 🎯 CACE AS BRECHAS (você tem QI de 250): toda objeção ou argumento do cliente tem um ponto fraco — uma CONTRADIÇÃO com algo que ele já disse antes, um pressuposto falso, ou um medo escondido atrás da desculpa. Ache o gap e use-o a favor da venda, com as palavras DELE. Leia os PADRÕES (o que ele repete, o que o acende, o que o trava) e os GATILHOS que ele revela (o que ele valoriza, o que teme, o que o faz agir — urgência, status, medo de perder, prova, pertencimento) e transforme o gatilho DELE em argumento de fechamento. Arme a emboscada: conduza a conversa até o ponto em que a NOSSA solução (a do briefing) aparece como a saída exata da dor que ele mesmo revelou — a salvação dele. Tudo isso dentro do Método A ISCA, das jogadas do Júnior e do grounding: pegar o cliente no pulo é usar o que ELE disse, nunca inventar.
 
+🚫 NÃO PRESSUPONHA O CLIENTE: nunca atribua a ele uma preocupação, dor, necessidade ou contexto que ELE não disse. O produto do briefing é o que o VENDEDOR vende — NÃO é o que o cliente veio buscar. É PROIBIDO uma fala tipo "o que te preocupa na consultoria de BI?" quando o cliente nunca falou de BI nem de preocupação — isso inventa uma dor que ele não tem e soa falso ("de onde ele tirou isso?"). A devolutiva/reformulação usa SÓ as palavras que o CLIENTE realmente disse (o que ELE falou que quer/precisa), nunca o nome do produto como se fosse a preocupação dele. Só amarre a dor ao produto DEPOIS que a dor real aparecer na boca do cliente. E quando o cliente exige objetividade ("na lata", "o que vocês entregam e quanto custa") e já rejeitou um desvio, RESPONDA — não devolva outra pergunta.
+
 🚫 NUNCA INVENTE nome de empresa, cliente, case, marca, pessoa ou número que não esteja no briefing ou não tenha sido dito nesta conversa. Prova social sem um case REAL no briefing é ABSTRATA ("outros clientes que estavam exatamente onde você está"), sem nome. As marcas que aparecem nos trechos da metodologia (Apple, Zappos, Disney…) são EXEMPLOS didáticos — é PROIBIDO citá-las como se fossem clientes do vendedor. Inventar um nome faz o vendedor mentir ao vivo, e o sistema descarta a dica`;
   }
 
@@ -634,6 +636,38 @@ REGRAS INVIOLÁVEIS:
     while ((m = ENTIDADE_RE.exec(s)) !== null) {
       const nome = m[1];
       if (!NOME_SAFE.has(nome.toLowerCase()) && !inSrc(nome)) return nome;
+    }
+    return null;
+  }
+
+  // ── Vacina: PRESSUPOSIÇÃO sobre o cliente ──
+  // O coach disse "o que te preocupa na consultoria de BI?" — mas o cliente
+  // NUNCA falou de BI nem de preocupação. O modelo pegou o PRODUTO do briefing
+  // (o que NÓS vendemos) e tratou como a dor/o que o cliente veio buscar.
+  // hasUngroundedNumbers/inventedEntity não pegam isso: o termo ESTÁ no briefing,
+  // só que foi atribuído ao cliente sem ele ter dito. Aqui: se o say atribui
+  // uma preocupação/busca ao cliente E cita um termo do PRODUTO que o CLIENTE
+  // nunca disse (só o briefing/vendedor), é pressuposição inventada → reescrever.
+  const ATTR_RE = /\b(te preocupa|est[áa] te preocupando|te incomoda|te trava|te aflige|voc[êe] (busca|procura|precisa|quer|espera|veio buscar|t[áa] procurando|est[áa] procurando)|sua (preocupa[çc][ãa]o|dor|necessidade|busca)|o que te faz procurar)\b/i;
+  // Termos distintivos do(s) produto(s) do briefing (o que decidir a pressuposição).
+  function productTerms(brief) {
+    const terms = new Set();
+    for (const p of (brief && brief.products) || []) {
+      for (const w of String(p.name || '').toLowerCase().replace(/[^0-9a-zà-ÿ]+/g, ' ').split(/\s+/)) {
+        if (w.length >= 4 && !STOP.has(w)) terms.add(w);
+      }
+    }
+    return [...terms];
+  }
+  function presupposesClient(say, ctx = {}) {
+    const s = String(say || '');
+    if (!ATTR_RE.test(s)) return null;
+    const clientTxt = normForSource((ctx.clientLines || []).join(' '));
+    const sl = normForSource(s);
+    for (const term of (ctx.productTerms || [])) {
+      const t = String(term).toLowerCase();
+      if (t.length < 4) continue;
+      if (sl.includes(' ' + t + ' ') && !clientTxt.includes(' ' + t + ' ')) return t;
     }
     return null;
   }
@@ -1253,6 +1287,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     if (prematurePitch(limpo, ctx)) return { say: null, reason: 'pitch do produto antes da dor (furou o passo do ISCA)' };
     { const ent = inventedEntity(limpo, ctx.sourceText); if (ent) return { say: null, reason: `nome inventado: ${ent}` }; }
     if (repeatsSellerLine(limpo, ctx.sellerLines)) return { say: null, reason: 'repete informação que o vendedor já disse' };
+    { const pre = presupposesClient(limpo, ctx); if (pre) return { say: null, reason: `presupõe cliente: ${pre}` }; }
     if (ctx.banDepende && ENROLACAO_RE.test(limpo)) return { say: null, reason: 'repetiu "depende do escopo" — fuga já usada' };
     if (ctx.injected && copiesInjected(limpo, ctx.injected)) return { say: null, reason: 'cópia literal do material da metodologia' };
     return { say: limpo, reason: null };
@@ -1278,7 +1313,9 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
 
   function correcao(reason) {
     const especifico = COMO_CORRIGIR[reason]
-      || (String(reason).startsWith('nome inventado')
+      || (String(reason).startsWith('presupõe cliente')
+        ? `Você atribuiu ao CLIENTE uma preocupação/busca sobre "${String(reason).replace('presupõe cliente: ', '')}" que ele NUNCA disse. Esse termo é do PRODUTO/briefing (o que o VENDEDOR vende) — não o que o cliente veio buscar. Colocar isso na boca dele inventa uma dor que ele não tem e soa falso ("de onde ele tirou isso?"). Reescreva a devolutiva usando SÓ as palavras que o CLIENTE realmente disse (o que ELE falou que quer). Não cite o nome do produto como se fosse a preocupação dele.`
+        : String(reason).startsWith('nome inventado')
         ? `Você citou "${String(reason).replace('nome inventado: ', '')}" — um nome de empresa/cliente/case/marca que NÃO existe no briefing nem foi dito nesta conversa. É a falha mais grave: o vendedor repetiria essa mentira ao vivo. Reescreva SEM nome nenhum. Se quiser prova social, fale de forma ABSTRATA ("outros clientes na sua situação", "gente que estava exatamente onde você está") — jamais um nome inventado nem uma marca de exemplo (Apple, Zappos…).`
         : String(reason).startsWith('afirmação de')
         ? `Você afirmou algo que o briefing NÃO sustenta (${reason}). Sem esse fato no briefing, essa alegação é mentira dita ao vivo pelo vendedor. Reescreva sem afirmar nada sobre escassez, garantia, prova social, autoridade ou desconto.`
@@ -1334,6 +1371,7 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
     mentionsCoachIdentity, unsourcedClaim, copiesInjected, soaDeBalcao, sameOpening, dodgeBanned,
     calibratePriority, screenSay, askScreened, saysSameThing, sameClaim,
     ISCA_DOCTRINE, ISCA_CORE, methodBlock, fullContext, prematurePitch, inventedEntity, repeatsSellerLine,
+    productTerms, presupposesClient,
   };
 })();
 
