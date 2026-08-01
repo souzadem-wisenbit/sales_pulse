@@ -1087,7 +1087,9 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
         // O modelo tem uma 2ª chance ANTES de a dica sumir: se o say repetir
         // o que já foi dito, ele recebe a frase recusada e a ordem de mudar
         // de jogada. Sem isso a dica boa era perdida e sobrava silêncio.
-        isRepeat: (say) => CoachCore.tooSimilar({ tip: '', say }, tips),
+        // Mesmo critério do deliverTip (similaridade E técnica) — o retry do
+        // askScreened resolve os dois, evitando descarte MUDO na entrega.
+        isRepeat: (t) => CoachCore.tooSimilar(t, tips) || CoachCore.repeatsTechnique(t, tips),
       };
       // Vacina reprovou → o motivo volta para o modelo e ele reescreve, em vez
       // de a dica simplesmente sumir. Só custa a 2ª chamada quando reprova.

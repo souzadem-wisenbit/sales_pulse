@@ -691,7 +691,7 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
         clientLines: chat.messages.filter(m => m.speaker === 'client').map(m => m.text), // barra pressupor o cliente
         productTerms: CoachCore.productTerms(brief),
         banDepende: CoachCore.dodgeBanned(chat.messages.map(m => ({ speaker: m.speaker, text: m.text }))),
-        isRepeat: (say) => CoachCore.tooSimilar({ tip: '', say }, chat.tips),
+        isRepeat: (t) => CoachCore.tooSimilar(t, chat.tips) || CoachCore.repeatsTechnique(t, chat.tips),
       };
       // Vacina reprovou → o motivo volta para o modelo, que reescreve (mesma
       // mecânica do Live Coach por áudio).

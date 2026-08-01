@@ -1399,17 +1399,24 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
 
   async function askScreened(prompt, apiKey, ctx, opts) {
     let parsed = await ask(prompt, apiKey, opts);
+    // parsed === null = falha transitória (timeout/rede/JSON truncado do backend),
+    // NÃO silêncio deliberado do modelo. Uma 2ª tentativa evita mudez à toa.
+    if (!parsed) parsed = await ask(prompt, apiKey, opts);
     if (!parsed || !parsed.tip) return { parsed, screened: { say: null, reason: 'silêncio do modelo' } };
 
     let screened = screenSay(parsed.say, { ...ctx, grounded: parsed.grounded });
-    const ok = (s) => !!(s.say && !(ctx.isRepeat && ctx.isRepeat(s.say)));
+    // isRepeat recebe o TIP inteiro (tip+say+technique) — assim o retry resolve
+    // AQUI tanto a similaridade quanto a técnica repetida. Antes só a similaridade
+    // era checada aqui e a técnica só no deliverTip: a dica passava, era descartada
+    // na entrega e caía num retry lento e MUDO. Alinhar as duas camadas mata isso.
+    const ok = () => !!(screened.say && !(ctx.isRepeat && ctx.isRepeat({ tip: parsed.tip, say: screened.say, technique: parsed.technique })));
 
     // ATÉ 2 correções ENCADEADAS: cada retry ataca o motivo ATUAL (a vacina que
     // matou, OU a repetição). Antes havia só 1 retry — com muitas vacinas,
     // arrumar uma tripava outra e o coach ficava MUDO (queixa do vendedor). Agora
     // ele tem 3 chances no total de produzir uma fala limpa e não-repetida.
     let corrigida = false;
-    for (let i = 0; i < 2 && !ok(screened); i++) {
+    for (let i = 0; i < 2 && !ok(); i++) {
       const corr = !screened.say ? correcao(screened.reason) : correcaoRepeticao(screened.say);
       const retry = await ask(prompt + corr, apiKey, opts);
       if (!retry || !retry.tip) break;
@@ -1418,7 +1425,7 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
       corrigida = true;
     }
 
-    if (!ok(screened)) return { parsed, screened: { say: null, reason: screened.reason || 'repetição' } };
+    if (!ok()) return { parsed, screened: { say: null, reason: screened.reason || 'repetição' } };
     return { parsed, screened, corrigida };
   }
 
