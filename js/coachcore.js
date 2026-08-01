@@ -250,7 +250,7 @@ Você pensa, fala e decide EXCLUSIVAMENTE pelo SEU sistema de vendas (adiante em
 
 🎯 CACE AS BRECHAS (você tem QI de 250): toda objeção ou argumento do cliente tem um ponto fraco — uma CONTRADIÇÃO com algo que ele já disse antes, um pressuposto falso, ou um medo escondido atrás da desculpa. Ache o gap e use-o a favor da venda, com as palavras DELE. Leia os PADRÕES (o que ele repete, o que o acende, o que o trava) e os GATILHOS que ele revela (o que ele valoriza, o que teme, o que o faz agir — urgência, status, medo de perder, prova, pertencimento) e transforme o gatilho DELE em argumento de fechamento. Arme a emboscada: conduza a conversa até o ponto em que a NOSSA solução (a do briefing) aparece como a saída exata da dor que ele mesmo revelou — a salvação dele. Tudo isso dentro do Método A ISCA, das jogadas do Júnior e do grounding: pegar o cliente no pulo é usar o que ELE disse, nunca inventar.
 
-🚫 NÃO PRESSUPONHA O CLIENTE: nunca atribua a ele uma preocupação, dor, necessidade ou contexto que ELE não disse. O produto do briefing é o que o VENDEDOR vende — NÃO é o que o cliente veio buscar. É PROIBIDO uma fala tipo "o que te preocupa na consultoria de BI?" quando o cliente nunca falou de BI nem de preocupação — isso inventa uma dor que ele não tem e soa falso ("de onde ele tirou isso?"). A devolutiva/reformulação usa SÓ as palavras que o CLIENTE realmente disse (o que ELE falou que quer/precisa), nunca o nome do produto como se fosse a preocupação dele. Só amarre a dor ao produto DEPOIS que a dor real aparecer na boca do cliente. E quando o cliente exige objetividade ("na lata", "o que vocês entregam e quanto custa") e já rejeitou um desvio, RESPONDA — não devolva outra pergunta.
+🚫 NÃO PRESSUPONHA O CLIENTE: nunca atribua a ele uma preocupação, dor, necessidade ou contexto que ELE não disse. O produto do briefing é o que o VENDEDOR vende — NÃO é o que o cliente veio buscar. É PROIBIDO uma fala tipo "o que te preocupa na consultoria de BI?" quando o cliente nunca falou de BI nem de preocupação — isso inventa uma dor que ele não tem e soa falso ("de onde ele tirou isso?"). A devolutiva/reformulação usa SÓ as palavras que o CLIENTE realmente disse (o que ELE falou que quer/precisa), nunca o nome do produto como se fosse a preocupação dele. Só amarre a dor ao produto DEPOIS que a dor real aparecer na boca do cliente. Isso vale também para o TIPO DE NEGÓCIO: NUNCA chame o negócio do cliente por um tipo específico de estabelecimento (clínica, loja, restaurante, consultório, academia…) — o ramo que aparece no briefing é só uma HIPÓTESE do que ele PODE ser, não um fato. Diga sempre "sua empresa" ou "seu negócio" (genérico) até o cliente falar de que ramo se trata. E quando o cliente exige objetividade ("na lata", "o que vocês entregam e quanto custa") e já rejeitou um desvio, RESPONDA — não devolva outra pergunta.
 
 🚫 NUNCA INVENTE nome de empresa, cliente, case, marca, pessoa ou número que não esteja no briefing ou não tenha sido dito nesta conversa. Prova social sem um case REAL no briefing é ABSTRATA ("outros clientes que estavam exatamente onde você está"), sem nome. As marcas que aparecem nos trechos da metodologia (Apple, Zappos, Disney…) são EXEMPLOS didáticos — é PROIBIDO citá-las como se fossem clientes do vendedor. Inventar um nome faz o vendedor mentir ao vivo, e o sistema descarta a dica`;
   }
@@ -670,6 +670,22 @@ REGRAS INVIOLÁVEIS:
       if (sl.includes(' ' + t + ' ') && !clientTxt.includes(' ' + t + ' ')) return t;
     }
     return null;
+  }
+
+  // ── Vacina: TIPO de estabelecimento presumido ──
+  // O coach disse "sua clínica" — mas o cliente é uma agência (Visu Digital). O
+  // "clínica" veio do RAMO do briefing (Saúde/Clínicas), que é só uma HIPÓTESE.
+  // Até o cliente dizer de que ramo é, o negócio dele é "empresa/negócio",
+  // genérico. Se o say chama o negócio do cliente por um tipo específico que o
+  // CLIENTE não disse, reescreve para o genérico.
+  const ESTAB_RE = /\b(?:sua|seu|tua|teu)\s+(cl[íi]nica|consult[óo]rio|loja|restaurante|escrit[óo]rio|academia|farm[áa]cia|hospital|sal[ãa]o|oficina|escola|ag[êe]ncia|imobili[áa]ria|concession[áa]ria|supermercado|mercado|padaria|hotel|pousada|lanchonete|ateli[êe]|est[úu]dio|f[áa]brica|ind[úu]stria|distribuidora|transportadora|barbearia|[óo]tica|laborat[óo]rio|pizzaria|cafeteria|joalheria|gr[áa]fica|cl[íi]nica)\b/i;
+  function assumesEstablishment(say, ctx = {}) {
+    const m = String(say || '').match(ESTAB_RE);
+    if (!m) return null;
+    const estab = m[1].toLowerCase();
+    const client = normForSource((ctx.clientLines || []).join(' '));
+    if (client.includes(' ' + estab + ' ')) return null; // o cliente já disse: é real
+    return estab;
   }
 
   // ── Rede de segurança contra repetição (Jaccard sobre palavras longas) ──
@@ -1288,6 +1304,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     { const ent = inventedEntity(limpo, ctx.sourceText); if (ent) return { say: null, reason: `nome inventado: ${ent}` }; }
     if (repeatsSellerLine(limpo, ctx.sellerLines)) return { say: null, reason: 'repete informação que o vendedor já disse' };
     { const pre = presupposesClient(limpo, ctx); if (pre) return { say: null, reason: `presupõe cliente: ${pre}` }; }
+    { const est = assumesEstablishment(limpo, ctx); if (est) return { say: null, reason: `tipo de estabelecimento presumido: ${est}` }; }
     if (ctx.banDepende && ENROLACAO_RE.test(limpo)) return { say: null, reason: 'repetiu "depende do escopo" — fuga já usada' };
     if (ctx.injected && copiesInjected(limpo, ctx.injected)) return { say: null, reason: 'cópia literal do material da metodologia' };
     return { say: limpo, reason: null };
@@ -1313,7 +1330,9 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
 
   function correcao(reason) {
     const especifico = COMO_CORRIGIR[reason]
-      || (String(reason).startsWith('presupõe cliente')
+      || (String(reason).startsWith('tipo de estabelecimento')
+        ? `Você chamou o negócio do cliente de "${String(reason).split(': ')[1]}", mas ele NUNCA disse que é isso — veio do RAMO do briefing, que é só uma hipótese, não um fato deste cliente (ele pode ser de qualquer ramo). Reescreva trocando por "sua empresa" ou "seu negócio" (genérico). Só use o tipo específico DEPOIS que o cliente falar de que ramo se trata.`
+        : String(reason).startsWith('presupõe cliente')
         ? `Você atribuiu ao CLIENTE uma preocupação/busca sobre "${String(reason).replace('presupõe cliente: ', '')}" que ele NUNCA disse. Esse termo é do PRODUTO/briefing (o que o VENDEDOR vende) — não o que o cliente veio buscar. Colocar isso na boca dele inventa uma dor que ele não tem e soa falso ("de onde ele tirou isso?"). Reescreva a devolutiva usando SÓ as palavras que o CLIENTE realmente disse (o que ELE falou que quer). Não cite o nome do produto como se fosse a preocupação dele.`
         : String(reason).startsWith('nome inventado')
         ? `Você citou "${String(reason).replace('nome inventado: ', '')}" — um nome de empresa/cliente/case/marca que NÃO existe no briefing nem foi dito nesta conversa. É a falha mais grave: o vendedor repetiria essa mentira ao vivo. Reescreva SEM nome nenhum. Se quiser prova social, fale de forma ABSTRATA ("outros clientes na sua situação", "gente que estava exatamente onde você está") — jamais um nome inventado nem uma marca de exemplo (Apple, Zappos…).`
@@ -1371,7 +1390,7 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
     mentionsCoachIdentity, unsourcedClaim, copiesInjected, soaDeBalcao, sameOpening, dodgeBanned,
     calibratePriority, screenSay, askScreened, saysSameThing, sameClaim,
     ISCA_DOCTRINE, ISCA_CORE, methodBlock, fullContext, prematurePitch, inventedEntity, repeatsSellerLine,
-    productTerms, presupposesClient,
+    productTerms, presupposesClient, assumesEstablishment,
   };
 })();
 
