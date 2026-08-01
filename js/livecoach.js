@@ -21,7 +21,7 @@
 
 const LiveCoach = (() => {
 
-  const COACH_GAP_CLIENT_MS = 1200;  // cooldown mínimo entre chamadas do coach (anti-duplicata)
+  const COACH_GAP_CLIENT_MS = 250;   // cooldown mínimo (só anti-duplicata) — o objetivo é dica em CADA fala do cliente; o coachBusy já pacea pela geração
   const TIP_MAX_HOLD_MS = 45000;   // dica segurada por mais que isso = assunto já mudou, descarta
   const TIP_FORCE_SHOW_MS = 4000;  // sem pausa na conversa até aqui: mostra assim mesmo — dica sumida é pior
   const SAVE_INTERVAL_MS = 12000;  // frequência de persistência no backend
