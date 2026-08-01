@@ -259,6 +259,8 @@ Você pensa, fala e decide EXCLUSIVAMENTE pelo SEU sistema de vendas (adiante em
 
 ⚡ PREFIRA DAR A DICA: o vendedor conta com você a CADA fala do cliente. Só fique em silêncio (tip null) se a fala veio truncada/inaudível ou se REALMENTE não há nada novo e útil a acrescentar. Na dúvida entre uma boa jogada e o silêncio, ENTREGUE a jogada — ficar mudo no meio da venda deixa o vendedor na mão.
 
+🎬 CONSTRUA A NARRATIVA: você não dá dicas soltas — conduz UMA história ao longo da conversa toda, rumo a um DESFECHO incrível (o fechamento). Cada dica é um capítulo que se apoia nos anteriores: amarre o que o cliente disse lá atrás com o agora, plante uma semente numa dica e colha nas seguintes, e vá construindo tensão (a dor crescendo, o custo de não agir, o gap que ele mesmo revelou) até o clímax em que a solução do briefing vira A VIRADA da história dele. O vendedor tem que sentir que cada fala encaixa na anterior e empurra a venda um passo adiante — nunca um amontoado de dicas desconexas.
+
 🚫 NÃO PRESSUPONHA O CLIENTE: nunca atribua a ele uma preocupação, dor, necessidade ou contexto que ELE não disse. O produto do briefing é o que o VENDEDOR vende — NÃO é o que o cliente veio buscar. É PROIBIDO uma fala tipo "o que te preocupa na consultoria de BI?" quando o cliente nunca falou de BI nem de preocupação — isso inventa uma dor que ele não tem e soa falso ("de onde ele tirou isso?"). A devolutiva/reformulação usa SÓ as palavras que o CLIENTE realmente disse (o que ELE falou que quer/precisa), nunca o nome do produto como se fosse a preocupação dele. Só amarre a dor ao produto DEPOIS que a dor real aparecer na boca do cliente. Isso vale também para o TIPO DE NEGÓCIO: NUNCA chame o negócio do cliente por um tipo específico de estabelecimento (clínica, loja, restaurante, consultório, academia…) — o ramo que aparece no briefing é só uma HIPÓTESE do que ele PODE ser, não um fato. Diga sempre "sua empresa" ou "seu negócio" (genérico) até o cliente falar de que ramo se trata. E vale para OBJEÇÕES: NUNCA argumente contra uma objeção que o cliente NÃO levantou — é PROIBIDO trazer "caro"/preço ("o que você considera caro?") se ele nunca falou de preço. Se ele perguntou sobre SUPORTE, como funciona, entrega ou "tem alguém pegando na mão?", RESPONDA exatamente isso — não antecipe uma objeção de preço que ele não fez. E quando o cliente exige objetividade ("na lata", "o que vocês entregam e quanto custa") e já rejeitou um desvio, RESPONDA — não devolva outra pergunta.
 
 🚫 NUNCA INVENTE nome de empresa, cliente, case, marca, pessoa ou número que não esteja no briefing ou não tenha sido dito nesta conversa. Prova social sem um case REAL no briefing é ABSTRATA ("outros clientes que estavam exatamente onde você está"), sem nome. As marcas que aparecem nos trechos da metodologia (Apple, Zappos, Disney…) são EXEMPLOS didáticos — é PROIBIDO citá-las como se fossem clientes do vendedor. Inventar um nome faz o vendedor mentir ao vivo, e o sistema descarta a dica`;
@@ -727,6 +729,25 @@ REGRAS INVIOLÁVEIS:
     return true;
   }
 
+  // ── Vacina: CASE inventado (anônimo, sem nome próprio) ──
+  // O coach segue inventando prova social: "temos um cliente na mesma situação,
+  // com 20 funcionários, conseguiram reduzir X e tiveram retorno" / "empresas
+  // como a sua conseguiram economizar tempo e evitar multas". Sem nome próprio,
+  // o inventedEntity não pega. Aqui: se o say narra um cliente/empresa/caso de
+  // TERCEIRO com um RESULTADO atribuído E o briefing NÃO tem case real (facts sem
+  // prova_social), é fabricação → dá a volta por cima (investiga, não inventa).
+  // A prova social ABSTRATA sem resultado ("outros clientes na sua situação")
+  // passa — o que mata é o case ESPECÍFICO com resultado inventado.
+  const CASE_REF = /\btemos\s+(um|uma|v[áa]rios|outros?)\s+clientes?\b|\b(um|uma)\s+cliente\s+(que|na\s+mesma|parecid|como|igual)|\boutro\s+cliente\b|\bum\s+caso\b|\bcaso\s+de\s+sucesso\b|\bempresas?\s+(como\s+a\s+sua|do\s+seu\s+(porte|ramo|setor|segmento|tamanho)|iguais?\s+[àa]\s+sua|parecid)|\bneg[óo]cios?\s+(como|igual|parecid)|\bclientes?\s+como\s+(voc[êe]|o\s+seu|a\s+sua)|\bgente\s+como\s+voc[êe]\b/i;
+  const CASE_RESULT = /consegui(u|ram)|reduzi(u|ram|ndo)|aumentou|aumentaram|otimiz(ou|aram|ar|ando)|melhor(ou|aram|ando)|economiz(ou|aram|ar|ando)|evit(ou|aram|ar|ando)|tiver(am|a)\b|\bteve\b|viram|trouxe[^.?!]{0,25}retorno|retorno\s+(significativo|de|maior)|resultado[^.?!]{0,25}(deles|pra\s+eles|para\s+eles)|no\s+neg[óo]cio\s+deles|(pra|para)\s+eles\b/i;
+  function fabricatesCase(say, ctx = {}) {
+    const s = String(say || '');
+    if (!CASE_REF.test(s) || !CASE_RESULT.test(s)) return false;
+    const facts = ctx.facts;
+    if (facts && facts.has && facts.has('prova_social')) return false; // há case real no briefing
+    return true;
+  }
+
   // ── Rede de segurança contra repetição (Jaccard sobre palavras longas) ──
   // Mesmo que o modelo insista numa dica parecida com as recentes, morre aqui.
   // Limiar apertado de propósito: dica repetida ("posso enviar o contrato?"
@@ -972,9 +993,11 @@ No campo "stage" do JSON, devolva a fase que você concluiu lendo o ARCO INTEIRO
     if (!brief) return facts;
     const prods = (brief.products || []);
     const txt = [
-      ...prods.map(p => `${p.name || ''} ${p.description || ''} ${(p.benefits || []).join(' ')}`),
+      ...prods.map(p => `${p.name || ''} ${p.description || ''} ${(p.benefits || []).join(' ')} ${p.details ? Object.values(p.details).join(' ') : ''}`),
       brief.extraProduct || '', brief.directives || '',
     ].join(' ').toLowerCase();
+    // Case REAL cadastrado (campo details.cases preenchido) libera prova social.
+    const temCaseReal = prods.some(p => p.details && String(p.details.cases || '').trim().length > 3);
     // Preço exige um VALOR, não a palavra "preço": o briefing que diz "não
     // temos tabela de preço fechada" mencionava preço e ligava o fato — aí o
     // coach era instruído a "entregar o número" que não existe em lugar nenhum.
@@ -982,7 +1005,7 @@ No campo "stage" do JSON, devolva a fase que você concluiu lendo o ARCO INTEIRO
       || /r\$\s*\d|\d[\d.,]*\s*(mil|reais)\b|\d[\d.,]*\s*\/\s*m[êe]s|\d[\d.,]*\s*(por|ao)\s*m[êe]s/i.test(txt);
     if (temValor) facts.add('preco');
     if (/garantia|devolu[çc][ãa]o|reembolso|piloto|teste gr[áa]tis|trial|sla|cancelamento|sem fidelidade/.test(txt)) facts.add('garantia');
-    if (/case|clientes? (como|que|atendidos)|depoimento|refer[êe]ncia|j[áa] atende|portf[óo]lio|premiad/.test(txt)) facts.add('prova_social');
+    if (temCaseReal || /depoimento|refer[êe]ncia|j[áa] atende|portf[óo]lio|premiad/.test(txt)) facts.add('prova_social');
     if (/anos de (mercado|experi[êe]ncia|casa)|certifica|especialista em|fundad|premiad|reconhecid/.test(txt)) facts.add('autoridade');
     if (/vaga[s]? limitada|estoque|lote|promo[çc][ãa]o|at[ée] o dia|prazo final|edi[çc][ãa]o limitada|agenda fechando/.test(txt)) facts.add('escassez');
     if (/desconto|abatimento|margem de negocia|condi[çc][ãa]o especial|flexibilidade de pre[çc]o/.test(txt)) facts.add('desconto');
@@ -1345,6 +1368,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     { const pre = presupposesClient(limpo, ctx); if (pre) return { say: null, reason: `presupõe cliente: ${pre}` }; }
     { const est = assumesEstablishment(limpo, ctx); if (est) return { say: null, reason: `tipo de estabelecimento presumido: ${est}` }; }
     if (fabricatesObjection(limpo, ctx)) return { say: null, reason: 'objeção de preço fabricada (cliente não falou de preço)' };
+    if (fabricatesCase(limpo, ctx)) return { say: null, reason: 'case inventado (sem case real no briefing)' };
     if (ctx.banDepende && ENROLACAO_RE.test(limpo)) return { say: null, reason: 'repetiu "depende do escopo" — fuga já usada' };
     if (ctx.injected && copiesInjected(limpo, ctx.injected)) return { say: null, reason: 'cópia literal do material da metodologia' };
     return { say: limpo, reason: null };
@@ -1366,6 +1390,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     'placeholder ou autodeclarado sem fonte': 'Sua fala tinha lacuna de template (parêntese com NOME/VALOR, "X a Y", "R$ X"). O vendedor leria isso em voz alta. Reescreva com texto real, sem lacuna e sem número inventado.',
     'repete informação que o vendedor já disse': 'O vendedor JÁ falou isso ao cliente — o cliente já ouviu. Repetir queima. Traga um ângulo NOVO: uma brecha/contradição na fala do cliente, um gatilho que ele revelou, ou o PRÓXIMO PASSO concreto que avança o compromisso. Nunca rerun.',
     'objeção de preço fabricada (cliente não falou de preço)': 'O cliente NUNCA falou de preço nem disse que é caro — você INVENTOU uma objeção de preço. Ele fez outra pergunta (sobre suporte, como funciona, entrega, o passo a passo…). RESPONDA a pergunta REAL dele com o que o briefing sustenta. É PROIBIDO trazer "caro"/preço/"o que você considera caro" se ele não tocou nisso — argumentar contra uma objeção que não existe queima a venda.',
+    'case inventado (sem case real no briefing)': 'Você INVENTOU um case/cliente ("temos um cliente que…", "empresas como a sua conseguiram…", "eles reduziram…") — NÃO existe case real cadastrado no briefing. É PROIBIDO inventar cliente, empresa, número ou resultado. DÊ A VOLTA POR CIMA: em vez do case falso, INVESTIGUE o negócio dele pra depois mostrar o encaixe. Ex.: "antes me fala como é a gestão aí na sua empresa", "como os funcionários lidam com a escala hoje?", "que tipo de retorno você espera alcançar?". Investigar e trucar > inventar. (Se quiser prova social sem case, só de forma ABSTRATA e SEM resultado específico: "outros clientes na sua situação já passaram por isso".)',
     'pitch do produto antes da dor (furou o passo do ISCA)': 'Você foi apresentar/ofertar o produto antes de criar conexão e descobrir a dor — isso pula as fases 1-2 do Método A ISCA. Reescreva SEM citar produto, "nossa solução/consultoria", benefício ou preço: no máximo uma linha do que a empresa ajuda a resolver e uma pergunta que CONECTA com o cliente ou PUXA a dor dele.',
   };
 
@@ -1437,7 +1462,7 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
     mentionsCoachIdentity, unsourcedClaim, copiesInjected, soaDeBalcao, sameOpening, dodgeBanned,
     calibratePriority, screenSay, askScreened, saysSameThing, sameClaim,
     ISCA_DOCTRINE, ISCA_CORE, methodBlock, fullContext, prematurePitch, inventedEntity, repeatsSellerLine,
-    productTerms, presupposesClient, assumesEstablishment, fabricatesObjection,
+    productTerms, presupposesClient, assumesEstablishment, fabricatesObjection, fabricatesCase,
   };
 })();
 
