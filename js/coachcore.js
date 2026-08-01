@@ -91,14 +91,16 @@ const CoachCore = (() => {
 
     // FASE 2 — INVESTIGAÇÃO (a conversa que colhe ouro)
     descoberta: {
-      objetivo: 'Conhecer a vida e o negócio do cliente e, acima de tudo, descobrir a DOR central — colhendo os dados que você vai usar nas próximas fases.',
-      principio: 'Regra 80/20: 80% do tempo quem fala é o CLIENTE, 20% é você. Perguntas exploratórias convertem 69% mais. Ache a dor ANTES de mostrar qualquer solução.',
+      objetivo: 'Entender A FUNDO a empresa E a pessoa do cliente e descobrir a DOR central. Quanto mais detalhe você extrai (sem invadir), mais MUNIÇÃO pra argumentar e trucar o cliente nas próximas fases.',
+      principio: 'Regra 80/20: 80% do tempo quem fala é o CLIENTE, 20% é você. Perguntas exploratórias convertem 69% mais. Cave fundo: quem entende os detalhes do cliente domina a negociação. Ache a dor ANTES de mostrar qualquer solução.',
       fazer: [
         'Fazer perguntas ABERTAS, uma de cada vez, do leve (história/negócio) ao profundo (a dor).',
+        'INVESTIGAR fundo a empresa: tamanho da equipe, área de atuação, nº de clientes/carteira, como o processo funciona hoje, o que ele já tentou e por que não deu certo, quem decide.',
+        'Captar contexto pessoal/profissional LEVE e NÃO invasivo (o que o motiva, o que o estressa no dia a dia, prioridades, ambições, o momento do negócio) — cada detalhe vira munição pra argumentar depois.',
         'Escutar ativamente e DEVOLVER a dor com as palavras do próprio cliente ("então o que te trava é X?").',
         'Cavar o impacto da dor ("o que acontece se isso continuar assim?") — pergunta de implicação.',
-        'Buscar a dor implícita: não parar na primeira reclamação superficial.',
-        'Mapear em silêncio: quem decide, orçamento, o que ele já tentou antes.',
+        'Buscar a dor implícita: não parar na primeira reclamação superficial — puxe mais uma camada.',
+        'Mapear em silêncio: quem decide, orçamento, o que ele já tentou antes, contradições e gatilhos que ele revela.',
       ],
       naoFazer: [
         'Falar do produto ou do preço antes de ter uma dor clara na mão.',
@@ -157,6 +159,7 @@ const CoachCore = (() => {
         'Usar garantia/reversão de risco, prova social ou escassez — só quando REAIS no briefing.',
       ],
       naoFazer: [
+        'FABRICAR uma objeção que o cliente NÃO fez (trazer "caro"/preço quando ele perguntou sobre suporte, como funciona ou entrega) — responda a pergunta REAL dele.',
         'Justificar o preço na hora, antes de entender com o que ele está comparando.',
         'Discutir, "ganhar" do cliente ou responder na defensiva.',
         'Ceder desconto na primeira pressão (nem inventar desconto fora do briefing).',
@@ -254,7 +257,9 @@ Você pensa, fala e decide EXCLUSIVAMENTE pelo SEU sistema de vendas (adiante em
 
 🎯 CACE AS BRECHAS (você tem QI de 250): toda objeção ou argumento do cliente tem um ponto fraco — uma CONTRADIÇÃO com algo que ele já disse antes, um pressuposto falso, ou um medo escondido atrás da desculpa. Ache o gap e use-o a favor da venda, com as palavras DELE. Leia os PADRÕES (o que ele repete, o que o acende, o que o trava) e os GATILHOS que ele revela (o que ele valoriza, o que teme, o que o faz agir — urgência, status, medo de perder, prova, pertencimento) e transforme o gatilho DELE em argumento de fechamento. Arme a emboscada: conduza a conversa até o ponto em que a NOSSA solução (a do briefing) aparece como a saída exata da dor que ele mesmo revelou — a salvação dele. Tudo isso dentro do Método A ISCA, das jogadas do Júnior e do grounding: pegar o cliente no pulo é usar o que ELE disse, nunca inventar.
 
-🚫 NÃO PRESSUPONHA O CLIENTE: nunca atribua a ele uma preocupação, dor, necessidade ou contexto que ELE não disse. O produto do briefing é o que o VENDEDOR vende — NÃO é o que o cliente veio buscar. É PROIBIDO uma fala tipo "o que te preocupa na consultoria de BI?" quando o cliente nunca falou de BI nem de preocupação — isso inventa uma dor que ele não tem e soa falso ("de onde ele tirou isso?"). A devolutiva/reformulação usa SÓ as palavras que o CLIENTE realmente disse (o que ELE falou que quer/precisa), nunca o nome do produto como se fosse a preocupação dele. Só amarre a dor ao produto DEPOIS que a dor real aparecer na boca do cliente. Isso vale também para o TIPO DE NEGÓCIO: NUNCA chame o negócio do cliente por um tipo específico de estabelecimento (clínica, loja, restaurante, consultório, academia…) — o ramo que aparece no briefing é só uma HIPÓTESE do que ele PODE ser, não um fato. Diga sempre "sua empresa" ou "seu negócio" (genérico) até o cliente falar de que ramo se trata. E quando o cliente exige objetividade ("na lata", "o que vocês entregam e quanto custa") e já rejeitou um desvio, RESPONDA — não devolva outra pergunta.
+⚡ PREFIRA DAR A DICA: o vendedor conta com você a CADA fala do cliente. Só fique em silêncio (tip null) se a fala veio truncada/inaudível ou se REALMENTE não há nada novo e útil a acrescentar. Na dúvida entre uma boa jogada e o silêncio, ENTREGUE a jogada — ficar mudo no meio da venda deixa o vendedor na mão.
+
+🚫 NÃO PRESSUPONHA O CLIENTE: nunca atribua a ele uma preocupação, dor, necessidade ou contexto que ELE não disse. O produto do briefing é o que o VENDEDOR vende — NÃO é o que o cliente veio buscar. É PROIBIDO uma fala tipo "o que te preocupa na consultoria de BI?" quando o cliente nunca falou de BI nem de preocupação — isso inventa uma dor que ele não tem e soa falso ("de onde ele tirou isso?"). A devolutiva/reformulação usa SÓ as palavras que o CLIENTE realmente disse (o que ELE falou que quer/precisa), nunca o nome do produto como se fosse a preocupação dele. Só amarre a dor ao produto DEPOIS que a dor real aparecer na boca do cliente. Isso vale também para o TIPO DE NEGÓCIO: NUNCA chame o negócio do cliente por um tipo específico de estabelecimento (clínica, loja, restaurante, consultório, academia…) — o ramo que aparece no briefing é só uma HIPÓTESE do que ele PODE ser, não um fato. Diga sempre "sua empresa" ou "seu negócio" (genérico) até o cliente falar de que ramo se trata. E vale para OBJEÇÕES: NUNCA argumente contra uma objeção que o cliente NÃO levantou — é PROIBIDO trazer "caro"/preço ("o que você considera caro?") se ele nunca falou de preço. Se ele perguntou sobre SUPORTE, como funciona, entrega ou "tem alguém pegando na mão?", RESPONDA exatamente isso — não antecipe uma objeção de preço que ele não fez. E quando o cliente exige objetividade ("na lata", "o que vocês entregam e quanto custa") e já rejeitou um desvio, RESPONDA — não devolva outra pergunta.
 
 🚫 NUNCA INVENTE nome de empresa, cliente, case, marca, pessoa ou número que não esteja no briefing ou não tenha sido dito nesta conversa. Prova social sem um case REAL no briefing é ABSTRATA ("outros clientes que estavam exatamente onde você está"), sem nome. As marcas que aparecem nos trechos da metodologia (Apple, Zappos, Disney…) são EXEMPLOS didáticos — é PROIBIDO citá-las como se fossem clientes do vendedor. Inventar um nome faz o vendedor mentir ao vivo, e o sistema descarta a dica`;
   }
@@ -704,6 +709,22 @@ REGRAS INVIOLÁVEIS:
     const client = normForSource((ctx.clientLines || []).join(' '));
     if (client.includes(' ' + estab + ' ')) return null; // o cliente já disse: é real
     return estab;
+  }
+
+  // ── Vacina: OBJEÇÃO fabricada (argumenta contra objeção que o cliente NÃO fez) ──
+  // Caso real: o cliente perguntou "vocês dão um passo a passo? tem alguém pegando
+  // na mão?" (sobre SUPORTE) e o coach mandou "se você considerar caro..." —
+  // inventou uma objeção de PREÇO que o cliente nunca levantou. Se o say enquadra
+  // o cliente numa objeção de preço ("considera caro", "se for caro pra você"…)
+  // mas o CLIENTE nunca tocou em preço/caro em TODA a conversa, é fabricação →
+  // reescrever respondendo a pergunta REAL dele.
+  const SAY_PRICE_OBJ = /\bconsidera\w*\s+(que\s+)?(é\s+|isso\s+|ele\s+)?caro\b|\bacha\w*\s+(que\s+)?(é\s+|isso\s+)?caro\b|se\s+(voc[êe]\s+)?(for|considerar|achar)\b[^.?!]{0,18}\bcaro\b|pra\s+voc[êe]\b[^.?!]{0,12}\bcaro\b|pre[çc]o\s+(parece|pode\s+parecer|est[áa]|t[áa])\s+(alto|caro|salgado|elevado)/i;
+  const CLIENT_PRICE_RE = /\bcaro\b|pre[çc]o|valor|custa|custo|quanto\s+(custa|cobra|[ée]|sai|fica|vou|vai)|bolso|investimento|pagar|or[çc]amento|mensalidade|caber|salgad|fora do or[çc]|t[áa]\s+caro/i;
+  function fabricatesObjection(say, ctx = {}) {
+    if (!SAY_PRICE_OBJ.test(String(say || ''))) return false;
+    const client = (ctx.clientLines || []).join(' ').toLowerCase();
+    if (CLIENT_PRICE_RE.test(client)) return false; // o cliente tocou em preço → objeção real
+    return true;
   }
 
   // ── Rede de segurança contra repetição (Jaccard sobre palavras longas) ──
@@ -1323,6 +1344,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     if (repeatsSellerLine(limpo, ctx.sellerLines)) return { say: null, reason: 'repete informação que o vendedor já disse' };
     { const pre = presupposesClient(limpo, ctx); if (pre) return { say: null, reason: `presupõe cliente: ${pre}` }; }
     { const est = assumesEstablishment(limpo, ctx); if (est) return { say: null, reason: `tipo de estabelecimento presumido: ${est}` }; }
+    if (fabricatesObjection(limpo, ctx)) return { say: null, reason: 'objeção de preço fabricada (cliente não falou de preço)' };
     if (ctx.banDepende && ENROLACAO_RE.test(limpo)) return { say: null, reason: 'repetiu "depende do escopo" — fuga já usada' };
     if (ctx.injected && copiesInjected(limpo, ctx.injected)) return { say: null, reason: 'cópia literal do material da metodologia' };
     return { say: limpo, reason: null };
@@ -1343,6 +1365,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     'repetiu "depende do escopo" — fuga já usada': 'O vendedor JÁ disse que o valor depende do escopo e o cliente não aceitou. É PROIBIDO repetir isso. Entregue um compromisso datado de quando o número sai, OU a única pergunta que destrava o número — e diga que com a resposta o valor sai na hora.',
     'placeholder ou autodeclarado sem fonte': 'Sua fala tinha lacuna de template (parêntese com NOME/VALOR, "X a Y", "R$ X"). O vendedor leria isso em voz alta. Reescreva com texto real, sem lacuna e sem número inventado.',
     'repete informação que o vendedor já disse': 'O vendedor JÁ falou isso ao cliente — o cliente já ouviu. Repetir queima. Traga um ângulo NOVO: uma brecha/contradição na fala do cliente, um gatilho que ele revelou, ou o PRÓXIMO PASSO concreto que avança o compromisso. Nunca rerun.',
+    'objeção de preço fabricada (cliente não falou de preço)': 'O cliente NUNCA falou de preço nem disse que é caro — você INVENTOU uma objeção de preço. Ele fez outra pergunta (sobre suporte, como funciona, entrega, o passo a passo…). RESPONDA a pergunta REAL dele com o que o briefing sustenta. É PROIBIDO trazer "caro"/preço/"o que você considera caro" se ele não tocou nisso — argumentar contra uma objeção que não existe queima a venda.',
     'pitch do produto antes da dor (furou o passo do ISCA)': 'Você foi apresentar/ofertar o produto antes de criar conexão e descobrir a dor — isso pula as fases 1-2 do Método A ISCA. Reescreva SEM citar produto, "nossa solução/consultoria", benefício ou preço: no máximo uma linha do que a empresa ajuda a resolver e uma pergunta que CONECTA com o cliente ou PUXA a dor dele.',
   };
 
@@ -1375,29 +1398,28 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
   }
 
   async function askScreened(prompt, apiKey, ctx, opts) {
-    const parsed = await ask(prompt, apiKey, opts);
+    let parsed = await ask(prompt, apiKey, opts);
     if (!parsed || !parsed.tip) return { parsed, screened: { say: null, reason: 'silêncio do modelo' } };
 
-    const screened = screenSay(parsed.say, { ...ctx, grounded: parsed.grounded });
-    if (!screened.say) {
-      const retry = await ask(prompt + correcao(screened.reason), apiKey, opts);
-      if (retry && retry.tip) {
-        const s2 = screenSay(retry.say, { ...ctx, grounded: retry.grounded });
-        if (s2.say && !(ctx.isRepeat && ctx.isRepeat(s2.say))) return { parsed: retry, screened: s2, corrigida: true };
-      }
-      return { parsed, screened };
+    let screened = screenSay(parsed.say, { ...ctx, grounded: parsed.grounded });
+    const ok = (s) => !!(s.say && !(ctx.isRepeat && ctx.isRepeat(s.say)));
+
+    // ATÉ 2 correções ENCADEADAS: cada retry ataca o motivo ATUAL (a vacina que
+    // matou, OU a repetição). Antes havia só 1 retry — com muitas vacinas,
+    // arrumar uma tripava outra e o coach ficava MUDO (queixa do vendedor). Agora
+    // ele tem 3 chances no total de produzir uma fala limpa e não-repetida.
+    let corrigida = false;
+    for (let i = 0; i < 2 && !ok(screened); i++) {
+      const corr = !screened.say ? correcao(screened.reason) : correcaoRepeticao(screened.say);
+      const retry = await ask(prompt + corr, apiKey, opts);
+      if (!retry || !retry.tip) break;
+      parsed = retry;
+      screened = screenSay(retry.say, { ...ctx, grounded: retry.grounded });
+      corrigida = true;
     }
 
-    // Passou nas vacinas mas diz o que já foi dito: 2ª chance com o texto
-    // recusado na mão, antes de sumir da tela do vendedor.
-    if (ctx.isRepeat && ctx.isRepeat(screened.say)) {
-      const retry = await ask(prompt + correcaoRepeticao(screened.say), apiKey, opts);
-      if (retry && retry.tip) {
-        const s2 = screenSay(retry.say, { ...ctx, grounded: retry.grounded });
-        if (s2.say && !ctx.isRepeat(s2.say)) return { parsed: retry, screened: s2, corrigida: true };
-      }
-    }
-    return { parsed, screened };
+    if (!ok(screened)) return { parsed, screened: { say: null, reason: screened.reason || 'repetição' } };
+    return { parsed, screened, corrigida };
   }
 
   return {
@@ -1408,7 +1430,7 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
     mentionsCoachIdentity, unsourcedClaim, copiesInjected, soaDeBalcao, sameOpening, dodgeBanned,
     calibratePriority, screenSay, askScreened, saysSameThing, sameClaim,
     ISCA_DOCTRINE, ISCA_CORE, methodBlock, fullContext, prematurePitch, inventedEntity, repeatsSellerLine,
-    productTerms, presupposesClient, assumesEstablishment,
+    productTerms, presupposesClient, assumesEstablishment, fabricatesObjection,
   };
 })();
 
