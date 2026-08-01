@@ -1966,6 +1966,36 @@ const Manager = (() => {
                   <input type="text" class="tags-input" placeholder="Adicionar objeção..." onkeydown="Manager.handleTagInput(event,'prd-objections')">
                 </div>
               </div>
+
+              <div style="border-top:1px solid var(--border);padding-top:var(--sp-4);margin-top:var(--sp-2)">
+                <div class="text-muted fs-xs" style="margin-bottom:var(--sp-3)">⚙️ MUNIÇÃO PRO COACH (quanto mais preencher, mais o coach fundamenta a dica — e menos ele precisa improvisar)</div>
+                <div class="form-group">
+                  <label class="form-label">Público-alvo / Cliente ideal (ICP)</label>
+                  <textarea class="form-textarea" id="prd-icp" rows="2" placeholder="Pra quem é: porte, setor, cargo do decisor, momento..."></textarea>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Diferenciais (vs concorrência)</label>
+                  <textarea class="form-textarea" id="prd-diferenciais" rows="2" placeholder="O que só você entrega / por que escolher você e não o concorrente..."></textarea>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">📌 Cases / provas reais <span class="text-muted fs-xs">(o coach só cita case se estiver AQUI — senão dá a volta por cima)</span></label>
+                  <textarea class="form-textarea" id="prd-cases" rows="3" placeholder="Cases REAIS com nome/número que o vendedor pode citar. Ex: 'Cliente X reduziu 20% de custo em 6 meses'. Deixe vazio se não tiver — o coach NÃO inventa."></textarea>
+                </div>
+                <div class="config-grid">
+                  <div class="form-group">
+                    <label class="form-label">Garantia / condições</label>
+                    <input type="text" class="form-input" id="prd-garantia" placeholder="Ex: 30 dias, cancela sem multa">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Prazo de entrega / implantação</label>
+                    <input type="text" class="form-input" id="prd-prazo" placeholder="Ex: implanta em 7 dias">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Resultados / ROI esperado</label>
+                  <textarea class="form-textarea" id="prd-resultados" rows="2" placeholder="Que resultado o cliente tende a ter (com número quando houver)..."></textarea>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2016,6 +2046,14 @@ const Manager = (() => {
         setVal('prd-category', p.category || 'Software');
         setVal('prd-price', p.price || '');
         setVal('prd-description', p.description || '');
+        // Munição pro coach (details)
+        const d = p.details || {};
+        setVal('prd-icp', d.icp || '');
+        setVal('prd-diferenciais', d.diferenciais || '');
+        setVal('prd-cases', d.cases || '');
+        setVal('prd-garantia', d.garantia || '');
+        setVal('prd-prazo', d.prazo || '');
+        setVal('prd-resultados', d.resultados || '');
         // Benefits tags
         const bc = document.getElementById('prd-benefits-container');
         if (bc) {
@@ -2048,6 +2086,7 @@ const Manager = (() => {
     } else {
       title.textContent = 'Novo Produto';
       setVal('prd-name', ''); setVal('prd-category', 'Software'); setVal('prd-price', ''); setVal('prd-description', '');
+      ['prd-icp','prd-diferenciais','prd-cases','prd-garantia','prd-prazo','prd-resultados'].forEach(el => setVal(el, ''));
       document.getElementById('prd-benefits-container')?.querySelectorAll('.tag').forEach(t => t.remove());
       document.getElementById('prd-objections-container')?.querySelectorAll('.tag').forEach(t => t.remove());
       document.querySelectorAll('.prd-client-check').forEach(cb => cb.checked = false);
@@ -2109,6 +2148,14 @@ const Manager = (() => {
       description:         document.getElementById('prd-description')?.value.trim() || '',
       benefits:            getTagValues('prd-benefits-container'),
       objections:          getTagValues('prd-objections-container'),
+      details: {
+        icp:          document.getElementById('prd-icp')?.value.trim() || '',
+        diferenciais: document.getElementById('prd-diferenciais')?.value.trim() || '',
+        cases:        document.getElementById('prd-cases')?.value.trim() || '',
+        garantia:     document.getElementById('prd-garantia')?.value.trim() || '',
+        prazo:        document.getElementById('prd-prazo')?.value.trim() || '',
+        resultados:   document.getElementById('prd-resultados')?.value.trim() || '',
+      },
     };
 
     try {

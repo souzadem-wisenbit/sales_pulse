@@ -63,15 +63,19 @@ const CoachCore = (() => {
       principio: 'A primeira impressão se forma em ~7 segundos e o cliente lembra mais de COMO foi tratado do que da solução. É uma conversa, não uma abordagem.',
       fazer: [
         'Cumprimentar, se apresentar e capturar/usar o NOME do cliente — nome cria rapport e confiança.',
-        'Puxar conversa leve e sincera sobre ele ou o negócio dele, com interesse real.',
+        'CONTEXTUALIZAR a conversa com naturalidade antes de qualquer negócio: comentar/perguntar sobre o mercado ou o setor dele, o momento do negócio, uma novidade do ramo — mostra repertório e cria terreno comum.',
+        'Puxar um assunto leve e NÃO invasivo (como está sendo o dia, de onde ele fala, algo do contexto) pra soltar o clima.',
+        'Puxar conversa sincera sobre ele ou o negócio dele, com interesse REAL, e REAGIR ao que ele responde (conversa de gente, nunca formulário nem roteiro).',
         'Espelhar o registro e o ritmo do cliente (objetivo → seja direto; conversador → puxe prosa).',
         'Sorrir na voz/no texto e demonstrar boa vontade — é sentido mesmo sem imagem.',
         'Deixar o cliente à vontade, sem pressa e sem cheiro de venda.',
       ],
       naoFazer: [
+        'Ir DIRETO AO PONTO / ao negócio sem antes criar conexão real — começar seco e comercial queima a isca.',
         'Falar de produto, benefício ou preço — é cedo demais e queima a isca.',
         'Cavar a dor agora (isso é a Fase 2).',
         'Abrir com script robótico ou "posso ajudar?" seco.',
+        'Fazer pergunta pessoal INVASIVA — conexão é leve e respeitosa, não intromissão.',
         'Demonstrar pressa de vender.',
         'Deixar de perguntar/usar o nome do cliente.',
       ],
@@ -81,7 +85,7 @@ const CoachCore = (() => {
         'Espelhar a energia dele para gerar rapport sem esforço.',
       ],
       quandoInsiste: 'Se o cliente já chega querendo preço/produto, acolha em uma frase e faça UMA pergunta que o traga para a conversa — não dispare pitch no primeiro "oi".',
-      preRequisito: 'O cliente relaxou, respondeu com mais de uma palavra e entrou no clima da conversa (interesse inicial).',
+      preRequisito: 'Existe CONEXÃO real: o cliente relaxou, entrou no clima e falou algo dele (não só respondeu no automático). Invista aqui mais de uma dica se preciso — começar a investigar/vender sem conexão queima a isca.',
       comoEleFormula: 'Frases curtas, calorosas e informais, com o nome do cliente e zero jargão. Uma pergunta leve de cada vez.',
     },
 
@@ -336,7 +340,19 @@ ${chunks.map((c, i) => `[${i + 1}] ${String(c.content).slice(0, 700)}`).join('\n
     // Descrição quase completa: os ÚNICOS números que o coach pode citar
     // vêm daqui — truncar cortaria justamente o ROI/métricas cadastrados.
     const prods = [
-      ...(brief.products || []).map(p => `- ${p.name}${p.price ? ` (${p.price})` : ''}${p.description ? `: ${p.description.slice(0, 500)}` : ''}${(p.benefits || []).length ? ` | Benefícios: ${p.benefits.slice(0, 8).join(', ')}` : ''}`),
+      ...(brief.products || []).map(p => {
+        const d = p.details || {};
+        const extra = [
+          (p.objections || []).length ? `Objeções esperadas: ${p.objections.slice(0, 8).join('; ')}` : '',
+          d.icp ? `Público-alvo: ${String(d.icp).slice(0, 300)}` : '',
+          d.diferenciais ? `Diferenciais: ${String(d.diferenciais).slice(0, 300)}` : '',
+          d.cases ? `CASES/PROVAS REAIS (só cite case se estiver aqui; senão NÃO invente): ${String(d.cases).slice(0, 500)}` : '',
+          d.garantia ? `Garantia/condições: ${String(d.garantia).slice(0, 200)}` : '',
+          d.prazo ? `Prazo de entrega: ${String(d.prazo).slice(0, 200)}` : '',
+          d.resultados ? `Resultados/ROI: ${String(d.resultados).slice(0, 300)}` : '',
+        ].filter(Boolean);
+        return `- ${p.name}${p.price ? ` (${p.price})` : ''}${p.description ? `: ${p.description.slice(0, 500)}` : ''}${(p.benefits || []).length ? ` | Benefícios: ${p.benefits.slice(0, 8).join(', ')}` : ''}${extra.length ? `\n   ${extra.join('\n   ')}` : ''}`;
+      }),
       ...(brief.extraProduct ? [`- ${brief.extraProduct}`] : []),
     ].join('\n');
     return `
@@ -366,6 +382,7 @@ COMO AGIR — considerando a CONVERSA INTEIRA (não só a última ${turn}), clas
 • Preço (1ª vez) → nunca desconto de cara; ancore no valor e no custo do problema. Se o briefing traz o preço, use-o. Se NÃO traz, escreva um say que ancora o valor e ENTREGA a deixa pro vendedor ${wpp ? 'passar' : 'dizer'} o preço ("...e nesse valor já vai o suporte;${wpp ? '' : ' (PAUSA)'} deixa eu te passar o número fechado") — jamais invente número nem placeholder.
 • Preço (2ª vez ou mais, ou o cliente cobrando objetividade) → a ancoragem JÁ FOI FEITA e não colou. Repetir "vamos falar de valor" agora é enrolação e ele está sentindo isso. ENTREGUE: o número (se o briefing tem), ou o que faz o preço variar + o compromisso de quando sai o número. Uma âncora curta antes do número é permitida; uma âncora que substitui o número é fuga.
 • "Será que funciona?" → prova social só se estiver no briefing; senão inversão de risco (piloto/garantia) como oferta que o VENDEDOR pode fazer.
+• Cliente pede CASE / prova / exemplo real ("me mostra um case", "tem cliente que fez isso?", "quero um case real, pode mostrar?") → se a metodologia anexada (arquivos do coach) ou o briefing traz um case REAL, use-o com os dados REAIS dele (nome/número só se estiverem lá). Se NÃO houver case real em lugar nenhum, é TERMINANTEMENTE PROIBIDO inventar nome, número ou resultado — DÊ A VOLTA POR CIMA: em vez de um case falso, faça uma pergunta que aprofunda o negócio dele e devolve o controle, pra depois mostrar o encaixe. Ex. (só exemplos, VARIE): "me fala mais da sua área de atuação", "qual o tamanho da sua equipe hoje?", "quantos clientes você tem na carteira?", "como você resolve isso hoje?". Investigar mais e trucar > inventar um case.
 • Autoridade ("falar com sócio") → isole ("se dependesse só de você, fecharia?") e amarre próximo passo com data.
 • Adiamento ("vou pensar") → descubra a dúvida escondida com pergunta calibrada.
 • Sinal de compra → PARE de vender; feche (direto/alternativo) e mande ${wpp ? 'aguardar a resposta' : 'silenciar após perguntar'}.
@@ -387,6 +404,7 @@ REGRAS INVIOLÁVEIS:
 6. ABERTURA VARIADA: PROIBIDO começar o say com muleta de atendente — "Entendo", "Entendi", "Compreendo", "Ótima pergunta", "Claro", "Que bom", "Olha, eu entendo", "Entendo sua preocupação". Comece pela SUBSTÂNCIA (a resposta, a pergunta, o número com fonte, a virada). Também PROIBIDO "Quer que eu te explique como funciona?".
 6b. VARIE A ARQUITETURA DA FRASE, não só as palavras. Se a última dica foi afirmação+pergunta, a próxima pode ser pergunta seca, ou constatação curta, ou devolução do que ele disse, ou silêncio proposital antes do número. Duas dicas seguidas com o mesmo esqueleto soam como robô mesmo com vocabulário diferente. É PROIBIDO repetir a abertura de uma dica anterior — o sistema descarta.
 7. ROTAÇÃO DE TÉCNICA: NUNCA use a mesma técnica de nenhuma das 3 últimas dicas (o sistema descarta se repetir). Seu sistema tem dezenas de jogadas — varie de verdade: se acabou de ancorar valor, a próxima é pergunta calibrada, fechamento nomeado, leitura do cliente, gatilho diferente…
+7b. VARIE FRASES, GATILHOS E FECHAMENTOS (regra prioritária): é PROIBIDO repetir a mesma frase, o mesmo gatilho ou a mesma pergunta de fechamento de dicas anteriores — o vendedor está soltando a MESMA coisa 3-4 vezes e isso queima a venda. Se você já usou uma formulação (ex.: "como isso se encaixa nas suas expectativas?", "você vai perceber um retorno", "o investimento é…") ou um gatilho (escassez, ancoragem, prova, urgência), a PRÓXIMA dica usa OUTRA formulação E OUTRO gatilho. Cada dica tem que soar NOVA — pense num sinônimo de jogada, não numa repaginação da anterior.
 8. PRIORIDADE: "urgent" é raro (errar AGORA custa o negócio); normal = "normal"; acerto do vendedor = "good". Se as últimas dicas já vieram urgentes, esta provavelmente é normal — alarme que toca sempre não é alarme.
 9. HONESTIDADE ESTRUTURAL: escassez, prova social, garantia, autoridade e desconto só podem aparecer no say se o BRIEFING sustentar o fato. Sem lastro, essas jogadas não existem nesta chamada — nem em versão suavizada. "Acho que temos poucas vagas" é a mesma mentira que "é a última vaga".`;
   }

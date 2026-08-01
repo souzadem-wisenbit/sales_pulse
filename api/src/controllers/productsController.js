@@ -42,15 +42,15 @@ async function createProduct(req, res) {
     const managerId = req.user.role === 'manager' ? req.user.id : null;
     await db.query(`
       INSERT INTO products (
-        id, name, price, description, benefits, objections, clientes_atribuidos, vendedores_atribuidos, manager_id
+        id, name, price, description, benefits, objections, clientes_atribuidos, vendedores_atribuidos, manager_id, details
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
       )
     `, [
       id, data.name, data.price, data.description,
       JSON.stringify(data.benefits || []), JSON.stringify(data.objections || []),
       JSON.stringify(data.clientesAtribuidos || []), JSON.stringify(data.vendedoresAtribuidos || []),
-      managerId
+      managerId, JSON.stringify(data.details || {})
     ]);
     res.status(201).json({ ...data, id });
   } catch (err) {
@@ -75,13 +75,13 @@ async function updateProduct(req, res) {
     await db.query(`
       UPDATE products SET
         name = $1, price = $2, description = $3, benefits = $4, objections = $5,
-        clientes_atribuidos = $6, vendedores_atribuidos = $7, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $8
+        clientes_atribuidos = $6, vendedores_atribuidos = $7, details = $8, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $9
     `, [
       data.name, data.price, data.description,
       JSON.stringify(data.benefits || []), JSON.stringify(data.objections || []),
       JSON.stringify(data.clientesAtribuidos || []), JSON.stringify(data.vendedoresAtribuidos || []),
-      id
+      JSON.stringify(data.details || {}), id
     ]);
     res.json({ success: true });
   } catch (err) {
