@@ -33,9 +33,14 @@ const {
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
   Browsers,
+  downloadMediaMessage,
 } = require('@whiskeysockets/baileys');
 const QRCode = require('qrcode');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const db = require('../db/pool');
+const knowledge = require('./knowledgeService'); // getOpenAI (chave do servidor) p/ transcrever áudio
 
 const MAX_EVENTS = 600;        // buffer por sessão (o frontend consome por seq)
 const KEYS_FLUSH_MS = 2500;    // gravação das chaves do Signal em lote
@@ -153,6 +158,42 @@ async function clearAuth(userId) {
 // ══════════════════════════════════════
 // EXTRAÇÃO DE TEXTO DA MENSAGEM
 // ══════════════════════════════════════
+// Áudio (mensagem de voz / arquivo de áudio), inclusive aninhado.
+function getAudioMessage(message) {
+  if (!message) return null;
+  if (message.audioMessage) return message.audioMessage;
+  if (message.ephemeralMessage) return getAudioMessage(message.ephemeralMessage.message);
+  if (message.viewOnceMessage) return getAudioMessage(message.viewOnceMessage.message);
+  if (message.viewOnceMessageV2) return getAudioMessage(message.viewOnceMessageV2.message);
+  return null;
+}
+
+// Baixa o áudio do WhatsApp e transcreve com Whisper (chave do SERVIDOR). O
+// coach precisa do CONTEÚDO da mensagem de voz, não de um "[áudio]" cego.
+async function transcribeAudio(s, m) {
+  let tmp;
+  try {
+    const buffer = await downloadMediaMessage(
+      m, 'buffer', {},
+      { logger: console, reuploadRequest: s.sock && s.sock.updateMediaMessage }
+    );
+    if (!buffer || !buffer.length) return null;
+    const openai = await knowledge.getOpenAI();
+    tmp = path.join(os.tmpdir(), `wa_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.ogg`);
+    fs.writeFileSync(tmp, buffer);
+    const r = await openai.audio.transcriptions.create(
+      { file: fs.createReadStream(tmp), model: 'whisper-1', language: 'pt', temperature: 0 },
+      { timeout: 20000, maxRetries: 0 }
+    );
+    return (r.text || '').trim() || null;
+  } catch (e) {
+    console.error('[WA AUDIO]', e && e.message);
+    return null;
+  } finally {
+    if (tmp) { try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ } }
+  }
+}
+
 function extractText(message) {
   if (!message) return null;
   if (message.conversation) return message.conversation;
@@ -330,16 +371,21 @@ async function startSocket(s) {
     // que por decisão de produto o coach não acompanha.
     if (!up || up.type !== 'notify') return;
     for (const m of up.messages || []) {
-      try { handleIncoming(s, m); } catch (e) { console.error('[WA MSG]', e.message); }
+      Promise.resolve(handleIncoming(s, m)).catch(e => console.error('[WA MSG]', e && e.message));
     }
   });
 }
 
-function handleIncoming(s, m) {
+async function handleIncoming(s, m) {
   const jid = m.key && m.key.remoteJid;
   if (!isCoachableJid(jid)) return;
 
-  const text = extractText(m.message);
+  let text = extractText(m.message);
+  // Mensagem de voz/áudio: baixa e transcreve para o coach ver o conteúdo real.
+  if (getAudioMessage(m.message)) {
+    const transcrito = await transcribeAudio(s, m);
+    text = transcrito || '[áudio]'; // se a transcrição falhar, mantém o marcador
+  }
   if (!text || !text.trim()) return;
 
   const fromMe = !!(m.key && m.key.fromMe);

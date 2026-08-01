@@ -289,7 +289,11 @@ const LiveCoach = (() => {
     const overlay = ensureOverlay();
     overlay.innerHTML = `${baseStyles()}
       <style>
-        .lc-mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem; max-width: 960px; margin: 0 auto; }
+        .lc-mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem; max-width: 960px; margin: 0 auto; align-items: stretch; }
+        /* O 2º card do grid é .lc-card seguindo outro .lc-card → a regra global
+           ".lc-card + .lc-card { margin-top }" (feita p/ cards EMPILHADOS) empurrava
+           o card do WhatsApp 1.25rem pra baixo, desalinhando a borda. Zera aqui. */
+        .lc-mode-grid .lc-card + .lc-card { margin-top: 0; }
         .lc-mode { text-align: left; cursor: pointer; border: 1.5px solid rgba(255,255,255,0.09); transition: all 0.2s; display: flex; flex-direction: column; gap: 0.8rem; }
         .lc-mode:hover { transform: translateY(-3px); }
         .lc-mode.audio:hover { border-color: rgba(108,99,255,0.65); box-shadow: 0 10px 34px rgba(108,99,255,0.22); }
