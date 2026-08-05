@@ -723,7 +723,22 @@ REGRAS INVIOLÁVEIS:
   // mas o CLIENTE nunca tocou em preço/caro em TODA a conversa, é fabricação →
   // reescrever respondendo a pergunta REAL dele.
   const SAY_PRICE_OBJ = /\bconsidera\w*\s+(que\s+)?(é\s+|isso\s+|ele\s+)?caro\b|\bacha\w*\s+(que\s+)?(é\s+|isso\s+)?caro\b|se\s+(voc[êe]\s+)?(for|considerar|achar)\b[^.?!]{0,18}\bcaro\b|pra\s+voc[êe]\b[^.?!]{0,12}\bcaro\b|pre[çc]o\s+(parece|pode\s+parecer|est[áa]|t[áa])\s+(alto|caro|salgado|elevado)/i;
-  const CLIENT_PRICE_RE = /\bcaro\b|pre[çc]o|valor|custa|custo|quanto\s+(custa|cobra|[ée]|sai|fica|vou|vai)|bolso|investimento|pagar|or[çc]amento|mensalidade|caber|salgad|fora do or[çc]|t[áa]\s+caro/i;
+  // ⚠️ PRECISÃO: tem que ser o preço DA OFERTA, não a dor de custo do cliente.
+  // A versão larga (que casava com "custo", "valor", "pagar" soltos) deu falso
+  // positivo numa chamada real: o cliente disse "a gente tá penando com atraso e
+  // CUSTO ALTO" (a dor de frete DELE) e a vacina concluiu "ele falou de preço",
+  // liberando o coach a perguntar "o que você considera caro?" — sobre um preço
+  // que nunca esteve em discussão. Agora exige pergunta/queixa sobre o VALOR
+  // COBRADO.
+  const CLIENT_PRICE_RE = new RegExp([
+    '\\bcaro\\b|\\bcar[íi]ssimo\\b|salgad|\\bcar[ãa]o\\b',
+    'quanto\\s+(custa|custam|cobra|cobram|[ée]|sai|fica|vale|vou\\s+(pagar|gastar|desembolsar)|vai\\s+(custar|sair|ficar))',
+    'qual\\s+(o|[ée]\\s+o|seria\\s+o|s[ãa]o\\s+os)\\s*(pre[çc]o|valor|custo|investimento|mensalidade|plano)',
+    'o\\s+pre[çc]o\\b|pre[çc]o\\s+(d[aeo]|dess|diss|fica|[ée]|t[áa]|est[áa]|justo)',
+    'cabe\\s+no\\s+bolso|no\\s+meu\\s+bolso|caber?\\s+no\\s+or[çc]amento|fora\\s+do\\s+or[çc]amento|sem\\s+or[çc]amento|n[ãa]o\\s+tenho\\s+or[çc]amento',
+    'mensalidade|me\\s+(passa|manda|d[áa]|diz|fala)\\s+(o\\s+)?(pre[çc]o|valor|n[úu]mero|quanto)',
+    'investimento\\s+(de|[ée]|fica|seria|[ée]\\s+de)|desconto|mais\\s+barato|t[áa]\\s+puxado\\s+o\\s+pre[çc]o',
+  ].join('|'), 'i');
   function fabricatesObjection(say, ctx = {}) {
     if (!SAY_PRICE_OBJ.test(String(say || ''))) return false;
     const client = (ctx.clientLines || []).join(' ').toLowerCase();
@@ -1384,24 +1399,40 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
   // Todas as vacinas num só lugar: as duas modalidades aplicavam subconjuntos
   // diferentes e divergiam com o tempo. Devolve o say saneado ou null, e o
   // motivo (para o log — dica que some sem explicação é impossível de depurar).
+  // ── Texto NU para as vacinas ──
+  // O say sai com marcação para o vendedor ler: **ênfase** e (PAUSA). As vacinas
+  // são regex sobre o texto e o "**" NO MEIO da frase quebrava o match: o coach
+  // escreveu "você considera **caro**" e a vacina de objeção fabricada não pegou
+  // (idem "sua **clínica**", "falta de **dados**"). Detecção roda no texto nu;
+  // o say ENTREGUE continua com a marcação.
+  function plainSay(say) {
+    return String(say || '')
+      .replace(/\(\s*pausa\s*\)/gi, ' ')
+      .replace(/[*_`~]+/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function screenSay(say, ctx = {}) {
     const limpo = validSay(say, ctx.grounded);
     if (!limpo) return { say: null, reason: 'placeholder ou autodeclarado sem fonte' };
-    if (mentionsCoachIdentity(limpo, ctx.coachName)) return { say: null, reason: 'persona do coach vazou para a fala do vendedor' };
-    if (hasUngroundedNumbers(limpo, ctx.sourceText)) return { say: null, reason: 'número sem fonte no briefing/conversa' };
-    const claim = unsourcedClaim(limpo, ctx.facts);
+    // Texto NU (sem **ênfase**/(PAUSA)) para TODAS as checagens de padrão.
+    const nu = plainSay(limpo);
+    if (mentionsCoachIdentity(nu, ctx.coachName)) return { say: null, reason: 'persona do coach vazou para a fala do vendedor' };
+    if (hasUngroundedNumbers(nu, ctx.sourceText)) return { say: null, reason: 'número sem fonte no briefing/conversa' };
+    const claim = unsourcedClaim(nu, ctx.facts);
     if (claim) return { say: null, reason: `afirmação de ${claim} sem lastro no briefing` };
-    if (soaDeBalcao(limpo)) return { say: null, reason: 'muleta de varejo copiada do material' };
-    if (prematurePitch(limpo, ctx)) return { say: null, reason: 'pitch do produto antes da dor (furou o passo do ISCA)' };
-    { const ent = inventedEntity(limpo, ctx.sourceText); if (ent) return { say: null, reason: `nome inventado: ${ent}` }; }
-    if (repeatsSellerLine(limpo, ctx.sellerLines)) return { say: null, reason: 'repete informação que o vendedor já disse' };
-    { const pre = presupposesClient(limpo, ctx); if (pre) return { say: null, reason: `presupõe cliente: ${pre}` }; }
-    { const est = assumesEstablishment(limpo, ctx); if (est) return { say: null, reason: `tipo de estabelecimento presumido: ${est}` }; }
-    if (fabricatesObjection(limpo, ctx)) return { say: null, reason: 'objeção de preço fabricada (cliente não falou de preço)' };
-    if (fabricatesCase(limpo, ctx)) return { say: null, reason: 'case inventado (sem case real no briefing)' };
-    { const cc = contradictsClient(limpo, ctx); if (cc) return { say: null, reason: `contradiz o cliente: ${cc}` }; }
-    if (ctx.banDepende && ENROLACAO_RE.test(limpo)) return { say: null, reason: 'repetiu "depende do escopo" — fuga já usada' };
-    if (ctx.injected && copiesInjected(limpo, ctx.injected)) return { say: null, reason: 'cópia literal do material da metodologia' };
+    if (soaDeBalcao(nu)) return { say: null, reason: 'muleta de varejo copiada do material' };
+    if (prematurePitch(nu, ctx)) return { say: null, reason: 'pitch do produto antes da dor (furou o passo do ISCA)' };
+    { const ent = inventedEntity(nu, ctx.sourceText); if (ent) return { say: null, reason: `nome inventado: ${ent}` }; }
+    if (repeatsSellerLine(nu, ctx.sellerLines)) return { say: null, reason: 'repete informação que o vendedor já disse' };
+    { const pre = presupposesClient(nu, ctx); if (pre) return { say: null, reason: `presupõe cliente: ${pre}` }; }
+    { const est = assumesEstablishment(nu, ctx); if (est) return { say: null, reason: `tipo de estabelecimento presumido: ${est}` }; }
+    if (fabricatesObjection(nu, ctx)) return { say: null, reason: 'objeção de preço fabricada (cliente não falou de preço)' };
+    if (fabricatesCase(nu, ctx)) return { say: null, reason: 'case inventado (sem case real no briefing)' };
+    { const cc = contradictsClient(nu, ctx); if (cc) return { say: null, reason: `contradiz o cliente: ${cc}` }; }
+    if (ctx.banDepende && ENROLACAO_RE.test(nu)) return { say: null, reason: 'repetiu "depende do escopo" — fuga já usada' };
+    if (ctx.injected && copiesInjected(nu, ctx.injected)) return { say: null, reason: 'cópia literal do material da metodologia' };
     return { say: limpo, reason: null };
   }
 
