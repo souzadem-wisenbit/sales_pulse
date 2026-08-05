@@ -124,6 +124,8 @@ const CoachCore = (() => {
       objetivo: 'Apresentar o produto amarrando CADA benefício a uma dor específica que o cliente acabou de revelar, construindo VALOR percebido antes de qualquer número.',
       principio: 'Preço é o que ele paga; VALOR é o que ele percebe. Venda o resultado e a transformação, não a ficha técnica. Não é catálogo — é devolver a solução do problema que ele mesmo descreveu.',
       fazer: [
+        'APRESENTAR O PRODUTO DE VERDADE: diga o NOME dele e explique em 1-2 frases claras O QUE É e COMO FUNCIONA na prática, com as palavras da FICHA DELE no briefing. O cliente não compra o que não entendeu — nesta fase ele precisa OUVIR a solução, não só responder perguntas.',
+        'Usar os dados REAIS da ficha (diferenciais, prazo, garantia, resultados, cases) — é o que dá concretude à apresentação, em vez de frase vaga.',
         'Amarrar benefício ↔ dor: "você disse [dor]; é exatamente isso que [solução] resolve, porque [resultado]".',
         'Traduzir cada característica em "o que isso FAZ por você" (resultado, não feature).',
         'Ancorar valor: mostrar primeiro a referência mais completa ou o custo do problema, antes do número.',
@@ -350,9 +352,16 @@ ${chunks.map((c, i) => `[${i + 1}] ${String(c.content).slice(0, 700)}`).join('\n
     // Descrição quase completa: os ÚNICOS números que o coach pode citar
     // vêm daqui — truncar cortaria justamente o ROI/métricas cadastrados.
     const prods = [
-      ...(brief.products || []).map(p => {
+      // FICHA ISOLADA por produto: com 2+ produtos no mesmo bloco corrido o
+      // modelo cruzava os atributos (disse que o "Sales Pulse dá visão dos
+      // dados", quando isso é da Consultoria de BI). Cada produto vira um
+      // cartão numerado e fechado, com o aviso de não misturar.
+      ...(brief.products || []).map((p, i) => {
         const d = p.details || {};
-        const extra = [
+        const linhas = [
+          p.price ? `PREÇO: ${p.price}` : '',
+          p.description ? `O QUE É: ${String(p.description).replace(/\s+/g, ' ').slice(0, 600)}` : '',
+          (p.benefits || []).length ? `BENEFÍCIOS: ${p.benefits.slice(0, 8).join(', ')}` : '',
           (p.objections || []).length ? `Objeções esperadas: ${p.objections.slice(0, 8).join('; ')}` : '',
           d.icp ? `Público-alvo: ${String(d.icp).slice(0, 300)}` : '',
           d.diferenciais ? `Diferenciais: ${String(d.diferenciais).slice(0, 300)}` : '',
@@ -361,13 +370,15 @@ ${chunks.map((c, i) => `[${i + 1}] ${String(c.content).slice(0, 700)}`).join('\n
           d.prazo ? `Prazo de entrega: ${String(d.prazo).slice(0, 200)}` : '',
           d.resultados ? `Resultados/ROI: ${String(d.resultados).slice(0, 300)}` : '',
         ].filter(Boolean);
-        return `- ${p.name}${p.price ? ` (${p.price})` : ''}${p.description ? `: ${p.description.slice(0, 500)}` : ''}${(p.benefits || []).length ? ` | Benefícios: ${p.benefits.slice(0, 8).join(', ')}` : ''}${extra.length ? `\n   ${extra.join('\n   ')}` : ''}`;
+        return `┌─ PRODUTO ${i + 1}: ${p.name} ─────────────
+${linhas.map(l => `│ ${l}`).join('\n')}
+└─ fim do PRODUTO ${i + 1} (${p.name}) ─────────`;
       }),
       ...(brief.extraProduct ? [`- ${brief.extraProduct}`] : []),
     ].join('\n');
     return `
 BRIEFING DESTA CHAMADA (definido pelo vendedor — fundamente as dicas nele):
-PRODUTOS/SERVIÇOS EM VENDA:
+PRODUTOS/SERVIÇOS EM VENDA (cada um na SUA ficha — ⛔ NUNCA misture os atributos de um com o nome do outro: antes de citar qualquer benefício/função, confirme de QUAL ficha ele veio. Atribuir ao produto A o que é do produto B destrói a credibilidade do vendedor na hora):
 ${prods || '- (não informado)'}
 RAMO DO CLIENTE: ${brief.industryLabel || 'Geral'} — adapte argumentos, exemplos e objeções típicas deste ramo.
 ${brief.directives ? `CONTEXTO DA CHAMADA (escrito pelo vendedor em linguagem natural):
@@ -809,6 +820,52 @@ REGRAS INVIOLÁVEIS:
       if (!c.re.test(s)) continue;
       if (c.re.test(bt)) continue;   // o briefing VENDE isso → é legítimo
       return c.cat;
+    }
+    return null;
+  }
+
+  // ── Vacina: MISTURA DE PRODUTOS (attribute binding) ──
+  // Com 2+ produtos no briefing o modelo cruza atributos: disse que "o Sales
+  // Pulse traz visão clara dos dados" quando isso é da Consultoria de BI. Nome
+  // certo + função do outro = o vendedor fala uma bobagem que o cliente percebe.
+  // Solução determinística e genérica (serve pra qualquer par de produtos):
+  // para cada produto calculamos os termos EXCLUSIVOS dele (que não aparecem na
+  // ficha dos outros). Se o say cita o NOME do produto A e usa termos exclusivos
+  // do produto B, é mistura → descarta e manda corrigir.
+  function productProfiles(brief) {
+    const prods = (brief && brief.products) || [];
+    if (prods.length < 2) return [];
+    const norm = (s) => String(s || '').toLowerCase().replace(/[^0-9a-zà-ÿ]+/g, ' ');
+    const toks = (s) => new Set(norm(s).split(/\s+/).filter(w => w.length > 4 && !STOP.has(w)));
+    const perfis = prods.map(p => {
+      const d = p.details || {};
+      const corpo = `${p.description || ''} ${(p.benefits || []).join(' ')} ${d.diferenciais || ''} ${d.resultados || ''} ${d.icp || ''}`;
+      return { name: p.name || '', nameNorm: norm(p.name), all: toks(corpo + ' ' + (p.name || '')) };
+    });
+    // exclusivos = termos do produto i que NÃO aparecem em nenhum outro
+    return perfis.map((pf, i) => {
+      const outros = new Set();
+      perfis.forEach((o, j) => { if (j !== i) o.all.forEach(t => outros.add(t)); });
+      const exclusivos = new Set([...pf.all].filter(t => !outros.has(t)));
+      // o próprio nome não conta como "exclusivo detectável" (é o que identifica)
+      pf.nameNorm.split(/\s+/).forEach(w => exclusivos.delete(w));
+      return { name: pf.name, nameNorm: pf.nameNorm.trim(), exclusivos };
+    });
+  }
+  function crossProductMix(say, ctx = {}) {
+    const perfis = ctx.productProfiles || [];
+    if (perfis.length < 2) return null;
+    const s = ' ' + String(say || '').toLowerCase().replace(/[^0-9a-zà-ÿ]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+    // qual(is) produto(s) o say cita pelo nome
+    const citados = perfis.filter(p => p.nameNorm && s.includes(' ' + p.nameNorm + ' '));
+    if (citados.length !== 1) return null;      // cita nenhum, ou compara os dois → não é mistura
+    const alvo = citados[0];
+    for (const outro of perfis) {
+      if (outro.name === alvo.name) continue;
+      const invasores = [...outro.exclusivos].filter(t => s.includes(' ' + t + ' '));
+      if (invasores.length >= 2) {              // 2+ termos exclusivos do outro = cruzou
+        return { citado: alvo.name, deOutro: outro.name, termos: invasores.slice(0, 3) };
+      }
     }
     return null;
   }
@@ -1466,7 +1523,11 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     if (!limpo) return { say: null, reason: 'placeholder ou autodeclarado sem fonte' };
     // Texto NU (sem **ênfase**/(PAUSA)) para TODAS as checagens de padrão.
     const nu = plainSay(limpo);
-    if (mentionsCoachIdentity(nu, ctx.coachName)) return { say: null, reason: 'persona do coach vazou para a fala do vendedor' };
+    // Exceção: quando o PRÓPRIO PRODUTO inclui o nome do coach (ex.: o SalesPulse
+    // vende "a metodologia do Júnior Smarzaro"), citá-lo é legítimo — é parte da
+    // oferta, não a persona vazando. Só barra quando o briefing não sustenta.
+    const coachNoBriefing = COACH_ID.test(String(ctx.briefText || ''));
+    if (!coachNoBriefing && mentionsCoachIdentity(nu, ctx.coachName)) return { say: null, reason: 'persona do coach vazou para a fala do vendedor' };
     if (hasUngroundedNumbers(nu, ctx.sourceText)) return { say: null, reason: 'número sem fonte no briefing/conversa' };
     const claim = unsourcedClaim(nu, ctx.facts);
     if (claim) return { say: null, reason: `afirmação de ${claim} sem lastro no briefing` };
@@ -1480,6 +1541,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     if (fabricatesCase(nu, ctx)) return { say: null, reason: 'case inventado (sem case real no briefing)' };
     { const cc = contradictsClient(nu, ctx); if (cc) return { say: null, reason: `contradiz o cliente: ${cc}` }; }
     { const ot = offTopicProduct(nu, ctx); if (ot) return { say: null, reason: `embarcou em produto fora do briefing: ${ot}` }; }
+    { const mx = crossProductMix(nu, ctx); if (mx) return { say: null, reason: `misturou produtos: atribuiu a "${mx.citado}" o que é de "${mx.deOutro}" (${mx.termos.join(', ')})` }; }
     if (ctx.banDepende && ENROLACAO_RE.test(nu)) return { say: null, reason: 'repetiu "depende do escopo" — fuga já usada' };
     if (ctx.injected && copiesInjected(nu, ctx.injected)) return { say: null, reason: 'cópia literal do material da metodologia' };
     return { say: limpo, reason: null };
@@ -1507,7 +1569,9 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
 
   function correcao(reason) {
     const especifico = COMO_CORRIGIR[reason]
-      || (String(reason).startsWith('embarcou em produto fora do briefing')
+      || (String(reason).startsWith('misturou produtos')
+        ? `Você MISTUROU OS PRODUTOS — ${String(reason).replace('misturou produtos: ', '')}. Cada produto tem a SUA ficha no briefing: é PROIBIDO atribuir a um o que pertence ao outro (o cliente percebe na hora e o vendedor perde a credibilidade). Reescreva citando o produto CERTO para essa função/benefício — releia a ficha antes. Se a dor do cliente é atendida pelo OUTRO produto, use o nome do OUTRO.`
+        : String(reason).startsWith('embarcou em produto fora do briefing')
         ? `Você EMBARCOU no assunto "${String(reason).split(': ')[1]}", que NÃO é o que esta empresa vende. O cliente pode ter se confundido de empresa — o vendedor NÃO vende isso. É PROIBIDO fazer perguntas ou dar dicas sobre essa categoria. Reescreva ESCLARECENDO com honestidade e reposicionando para o que o briefing REALMENTE oferece — sem constranger o cliente: ex. "acho que houve uma confusão: a gente não trabalha com isso, o que a gente faz é [o do briefing]. Mas me conta: [pergunta que puxa a dor que o SEU produto resolve]". Se não houver relação nenhuma, ajude a encerrar com elegância.`
         : String(reason).startsWith('contradiz o cliente')
         ? `Você CONTRADISSE o cliente: ele afirmou que TEM/já faz "${String(reason).replace('contradiz o cliente: ', '')}", e você sugeriu a FALTA/ausência disso. Ele reage na hora ("acabei de falar que tenho!") e a venda queima. NUNCA negue o que ele afirmou. Use o que ele TEM como ponto de partida e cave um gap DIFERENTE e real — ex.: "e além disso, você tem essa mesma visão de OUTRAS áreas (equipe, vendas por vendedor, estoque)?". A dor tem que nascer do que ELE disse, nunca contradizê-lo.`
@@ -1578,7 +1642,7 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
     calibratePriority, screenSay, askScreened, saysSameThing, sameClaim,
     ISCA_DOCTRINE, ISCA_CORE, methodBlock, fullContext, prematurePitch, inventedEntity, repeatsSellerLine,
     productTerms, presupposesClient, assumesEstablishment, fabricatesObjection, fabricatesCase, contradictsClient,
-    offTopicProduct, briefText,
+    offTopicProduct, briefText, productProfiles, crossProductMix,
   };
 })();
 

@@ -1093,6 +1093,8 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
         // O que a empresa REALMENTE vende → barra o coach de embarcar num
         // produto que o cliente citou por engano (ex.: "plano de internet").
         briefText: CoachCore.briefText(brief),
+        // Termos exclusivos de cada produto → barra atribuir a um o que é do outro
+        productProfiles: CoachCore.productProfiles(brief),
         // O vendedor já disse "depende do escopo": repetir é a fuga que o
         // cliente está cobrando. O prompt proíbe; isto garante.
         banDepende: CoachCore.dodgeBanned(transcript),
