@@ -346,9 +346,11 @@ const WhatsAppCoach = (() => {
     if (products.length === 0 && !extra) return null;
     const sel = document.getElementById(`${idPrefix}-industry`);
     return {
+      // details/objections também aqui (mesma munição do coach de áudio)
       products: products.map(p => ({
         id: p.id, name: p.name, price: p.price || '',
         description: p.description || '', benefits: p.benefits || [],
+        objections: p.objections || [], details: p.details || {},
       })),
       extraProduct: extra || null,
       industry: sel?.value || 'geral',

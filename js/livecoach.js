@@ -449,9 +449,14 @@ const LiveCoach = (() => {
     if (products.length === 0 && !extra) return null;
     const sel = document.getElementById('lc-brief-industry');
     return {
+      // details/objections ENTRAM no briefing: são a munição real do coach
+      // (cases de verdade, diferenciais, garantia, prazo, ICP, resultados).
+      // Sem eles o coach ficava só com nome+preço — e por isso não sabia
+      // explicar o produto nem tinha case real para citar.
       products: products.map(p => ({
         id: p.id, name: p.name, price: p.price || '',
         description: p.description || '', benefits: p.benefits || [],
+        objections: p.objections || [], details: p.details || {},
       })),
       extraProduct: extra || null,
       industry: sel?.value || 'geral',
