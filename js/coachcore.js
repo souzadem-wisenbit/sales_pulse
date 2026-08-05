@@ -261,7 +261,9 @@ Você pensa, fala e decide EXCLUSIVAMENTE pelo SEU sistema de vendas (adiante em
 
 🎬 CONSTRUA A NARRATIVA: você não dá dicas soltas — conduz UMA história ao longo da conversa toda, rumo a um DESFECHO incrível (o fechamento). Cada dica é um capítulo que se apoia nos anteriores: amarre o que o cliente disse lá atrás com o agora, plante uma semente numa dica e colha nas seguintes, e vá construindo tensão (a dor crescendo, o custo de não agir, o gap que ele mesmo revelou) até o clímax em que a solução do briefing vira A VIRADA da história dele. O vendedor tem que sentir que cada fala encaixa na anterior e empurra a venda um passo adiante — nunca um amontoado de dicas desconexas.
 
-🚫 NÃO PRESSUPONHA O CLIENTE: nunca atribua a ele uma preocupação, dor, necessidade ou contexto que ELE não disse. O produto do briefing é o que o VENDEDOR vende — NÃO é o que o cliente veio buscar. É PROIBIDO uma fala tipo "o que te preocupa na consultoria de BI?" quando o cliente nunca falou de BI nem de preocupação — isso inventa uma dor que ele não tem e soa falso ("de onde ele tirou isso?"). A devolutiva/reformulação usa SÓ as palavras que o CLIENTE realmente disse (o que ELE falou que quer/precisa), nunca o nome do produto como se fosse a preocupação dele. Só amarre a dor ao produto DEPOIS que a dor real aparecer na boca do cliente. Isso vale também para o TIPO DE NEGÓCIO: NUNCA chame o negócio do cliente por um tipo específico de estabelecimento (clínica, loja, restaurante, consultório, academia…) — o ramo que aparece no briefing é só uma HIPÓTESE do que ele PODE ser, não um fato. Diga sempre "sua empresa" ou "seu negócio" (genérico) até o cliente falar de que ramo se trata. E vale para OBJEÇÕES: NUNCA argumente contra uma objeção que o cliente NÃO levantou — é PROIBIDO trazer "caro"/preço ("o que você considera caro?") se ele nunca falou de preço. Se ele perguntou sobre SUPORTE, como funciona, entrega ou "tem alguém pegando na mão?", RESPONDA exatamente isso — não antecipe uma objeção de preço que ele não fez. E quando o cliente exige objetividade ("na lata", "o que vocês entregam e quanto custa") e já rejeitou um desvio, RESPONDA — não devolva outra pergunta.
+🚫 NÃO PRESSUPONHA O CLIENTE: nunca atribua a ele uma preocupação, dor, necessidade ou contexto que ELE não disse. O produto do briefing é o que o VENDEDOR vende — NÃO é o que o cliente veio buscar. É PROIBIDO uma fala tipo "o que te preocupa na consultoria de BI?" quando o cliente nunca falou de BI nem de preocupação — isso inventa uma dor que ele não tem e soa falso ("de onde ele tirou isso?"). A devolutiva/reformulação usa SÓ as palavras que o CLIENTE realmente disse (o que ELE falou que quer/precisa), nunca o nome do produto como se fosse a preocupação dele. Só amarre a dor ao produto DEPOIS que a dor real aparecer na boca do cliente. Isso vale também para o TIPO DE NEGÓCIO: NUNCA chame o negócio do cliente por um tipo específico de estabelecimento (clínica, loja, restaurante, consultório, academia…) — o ramo que aparece no briefing é só uma HIPÓTESE do que ele PODE ser, não um fato. Diga sempre "sua empresa" ou "seu negócio" (genérico) até o cliente falar de que ramo se trata. E vale para OBJEÇÕES: NUNCA argumente contra uma objeção que o cliente NÃO levantou — é PROIBIDO trazer "caro"/preço ("o que você considera caro?") se ele nunca falou de preço. Se ele perguntou sobre SUPORTE, como funciona, entrega ou "tem alguém pegando na mão?", RESPONDA exatamente isso — não antecipe uma objeção de preço que ele não fez.
+
+🚫 NUNCA CONTRADIGA O CLIENTE: se ele afirmou que TEM ou JÁ FAZ algo (ex.: "tenho BI, vejo TUDO em tempo real"), é PROIBIDO sugerir que ele NÃO tem, ou perguntar sobre a "falta" disso ("como você lida com a falta de dados em tempo real?"). Ele reage na hora ("acabei de falar que tenho!") e a venda queima. NÃO invente uma dor só porque ela combina com o produto — a dor tem que ser REAL e nascer do que ELE disse. Use o que ele TEM como ponto de partida e cave um gap DIFERENTE e verdadeiro: "e além do financeiro, você tem essa mesma visão em tempo real da produtividade da equipe? das vendas por vendedor? do estoque?". Aprofundar a partir da força dele > inventar uma fraqueza que ele não tem. E quando o cliente exige objetividade ("na lata", "o que vocês entregam e quanto custa") e já rejeitou um desvio, RESPONDA — não devolva outra pergunta.
 
 🚫 NUNCA INVENTE nome de empresa, cliente, case, marca, pessoa ou número que não esteja no briefing ou não tenha sido dito nesta conversa. Prova social sem um case REAL no briefing é ABSTRATA ("outros clientes que estavam exatamente onde você está"), sem nome. As marcas que aparecem nos trechos da metodologia (Apple, Zappos, Disney…) são EXEMPLOS didáticos — é PROIBIDO citá-las como se fossem clientes do vendedor. Inventar um nome faz o vendedor mentir ao vivo, e o sistema descarta a dica`;
   }
@@ -746,6 +748,34 @@ REGRAS INVIOLÁVEIS:
     const facts = ctx.facts;
     if (facts && facts.has && facts.has('prova_social')) return false; // há case real no briefing
     return true;
+  }
+
+  // ── Vacina: CONTRADIZER o cliente (negar o que ele afirmou ter) ──
+  // Caso real: o cliente disse "tenho BI, vejo TUDO em tempo real" e o coach
+  // mandou perguntar sobre "a FALTA de informações em tempo real". O cliente
+  // reage na hora: "acabei de falar que tenho!". O coach forçou uma dor que
+  // combina com o produto, ignorando a realidade dele. Aqui: se o say fala de
+  // "falta/sem/não tem X" e o cliente afirmou (sem negação) esse mesmo X
+  // (bigrama compartilhado, ex.: "tempo real"), é contradição → reescrever.
+  const LACK_RE = /(?:falta|aus[êe]ncia|car[êe]ncia|escassez)\s+(?:de\s+|d[oa]s?\s+)([a-zà-ÿ][a-zà-ÿ\s]{4,50})|(?:n[ãa]o\s+(?:tem|ter|possui|tenha|teria)|sem)\s+([a-zà-ÿ][a-zà-ÿ\s]{4,50})/i;
+  function contradictsClient(say, ctx = {}) {
+    const m = String(say || '').toLowerCase().match(LACK_RE);
+    if (!m) return null;
+    const phrase = (m[1] || m[2] || '').trim();
+    const pw = phrase.split(/\s+/).filter(w => w.length > 2 && !STOP.has(w));
+    if (pw.length < 2) return null;
+    const clientTxt = ' ' + (ctx.clientLines || []).join(' ').toLowerCase().replace(/[^0-9a-zà-ÿ]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+    // bigramas da "falta" — se um deles aparece na fala do cliente SEM negação
+    // por perto (ou seja, ele AFIRMOU ter aquilo), o coach está contradizendo.
+    for (let i = 0; i + 1 < pw.length; i++) {
+      const bi = pw[i] + ' ' + pw[i + 1];
+      const idx = clientTxt.indexOf(' ' + bi + ' ') >= 0 ? clientTxt.indexOf(bi) : -1;
+      if (idx < 0) continue;
+      const before = clientTxt.slice(Math.max(0, idx - 35), idx);
+      if (/\b(n[ãa]o|sem|falta|aus[êe]ncia|nunca|nenhum|pouca?|carece)\b/.test(before)) continue; // cliente TAMBÉM reclamou de falta → não é contradição
+      return bi;
+    }
+    return null;
   }
 
   // ── Rede de segurança contra repetição (Jaccard sobre palavras longas) ──
@@ -1369,6 +1399,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     { const est = assumesEstablishment(limpo, ctx); if (est) return { say: null, reason: `tipo de estabelecimento presumido: ${est}` }; }
     if (fabricatesObjection(limpo, ctx)) return { say: null, reason: 'objeção de preço fabricada (cliente não falou de preço)' };
     if (fabricatesCase(limpo, ctx)) return { say: null, reason: 'case inventado (sem case real no briefing)' };
+    { const cc = contradictsClient(limpo, ctx); if (cc) return { say: null, reason: `contradiz o cliente: ${cc}` }; }
     if (ctx.banDepende && ENROLACAO_RE.test(limpo)) return { say: null, reason: 'repetiu "depende do escopo" — fuga já usada' };
     if (ctx.injected && copiesInjected(limpo, ctx.injected)) return { say: null, reason: 'cópia literal do material da metodologia' };
     return { say: limpo, reason: null };
@@ -1396,7 +1427,9 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
 
   function correcao(reason) {
     const especifico = COMO_CORRIGIR[reason]
-      || (String(reason).startsWith('tipo de estabelecimento')
+      || (String(reason).startsWith('contradiz o cliente')
+        ? `Você CONTRADISSE o cliente: ele afirmou que TEM/já faz "${String(reason).replace('contradiz o cliente: ', '')}", e você sugeriu a FALTA/ausência disso. Ele reage na hora ("acabei de falar que tenho!") e a venda queima. NUNCA negue o que ele afirmou. Use o que ele TEM como ponto de partida e cave um gap DIFERENTE e real — ex.: "e além disso, você tem essa mesma visão de OUTRAS áreas (equipe, vendas por vendedor, estoque)?". A dor tem que nascer do que ELE disse, nunca contradizê-lo.`
+        : String(reason).startsWith('tipo de estabelecimento')
         ? `Você chamou o negócio do cliente de "${String(reason).split(': ')[1]}", mas ele NUNCA disse que é isso — veio do RAMO do briefing, que é só uma hipótese, não um fato deste cliente (ele pode ser de qualquer ramo). Reescreva trocando por "sua empresa" ou "seu negócio" (genérico). Só use o tipo específico DEPOIS que o cliente falar de que ramo se trata.`
         : String(reason).startsWith('presupõe cliente')
         ? `Você atribuiu ao CLIENTE uma preocupação/busca sobre "${String(reason).replace('presupõe cliente: ', '')}" que ele NUNCA disse. Esse termo é do PRODUTO/briefing (o que o VENDEDOR vende) — não o que o cliente veio buscar. Colocar isso na boca dele inventa uma dor que ele não tem e soa falso ("de onde ele tirou isso?"). Reescreva a devolutiva usando SÓ as palavras que o CLIENTE realmente disse (o que ELE falou que quer). Não cite o nome do produto como se fosse a preocupação dele.`
@@ -1462,7 +1495,7 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
     mentionsCoachIdentity, unsourcedClaim, copiesInjected, soaDeBalcao, sameOpening, dodgeBanned,
     calibratePriority, screenSay, askScreened, saysSameThing, sameClaim,
     ISCA_DOCTRINE, ISCA_CORE, methodBlock, fullContext, prematurePitch, inventedEntity, repeatsSellerLine,
-    productTerms, presupposesClient, assumesEstablishment, fabricatesObjection, fabricatesCase,
+    productTerms, presupposesClient, assumesEstablishment, fabricatesObjection, fabricatesCase, contradictsClient,
   };
 })();
 
