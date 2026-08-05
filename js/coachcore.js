@@ -198,6 +198,7 @@ const CoachCore = (() => {
         'Deixar a decisão no colo do cliente ("qualquer coisa me chama").',
       ],
       viradas: [
+        'Cross-sell/up-sell (só se o briefing tiver mais de um produto): DEPOIS do sim, amarre a segunda dor dele ao produto complementar; se a dor for maior que a solução, suba para a opção mais completa antes de fechar; se travar no preço, ofereça a opção de entrada em vez de perder a venda.',
         'Fechamento presumível: agir como se o sim já estivesse dado ("vou já reservar o seu").',
         '"Vou pensar" aqui → descubra se é interesse, dúvida ou preço, resolva na hora e reagende de imediato.',
         'Âncora colada no número: referência alta / custo de não resolver antes do preço, para ele soar acessível.',
@@ -400,7 +401,14 @@ COMO AGIR — considerando a CONVERSA INTEIRA (não só a última ${turn}), clas
 
 REGRAS INVIOLÁVEIS:
 1. GROUNDING ABSOLUTO: só afirme número/fato/promessa (preço, ROI, %, prazo, garantia, SLA, suporte, case) que esteja ESCRITO no briefing ou tenha sido DITO nesta conversa. Se a fonte não existe, o say NÃO PODE conter número nenhum — redirecione com honestidade ("o número exato eu te passo fechado") ou pergunte ao cliente. Inventar ROI, case, garantia ou devolução é a falha MAIS GRAVE possível: o vendedor vai repetir sua mentira ao vivo. NUNCA placeholder ("X reais", "R$ X", "[valor]"). O sistema descarta automaticamente qualquer say com número sem fonte. E é igualmente PROIBIDO inventar NOME de empresa, cliente, case, marca ou pessoa: prova social sem um case REAL no briefing é ABSTRATA ("outros clientes na sua situação"), sem nome — inventar um nome (ex.: "a empresa X conseguiu…") é tão grave quanto inventar um número, e também é descartado.
-2. VENDA SÓ O QUE ESTÁ NO BRIEFING: o produto em venda é EXCLUSIVAMENTE o do briefing. O cliente mencionar outro produto/desejo NÃO muda o que se vende — jamais descreva, precifique ou prometa algo que o briefing não oferece.
+2. VENDA SÓ O QUE ESTÁ NO BRIEFING: o que se vende é EXCLUSIVAMENTE o(s) produto(s) do briefing — TODOS eles estão à disposição, mas nada fora dali. O cliente mencionar outro produto/desejo NÃO muda o que se vende — jamais descreva, precifique ou prometa algo que o briefing não oferece.
+2b. VÁRIOS PRODUTOS NO BRIEFING (cross-sell / up-sell / down-sell — só quando houver mais de um):
+   • FOCO PRIMEIRO: escolha UM produto — o que ataca a dor que o cliente revelou — e conduza a venda dele até o sim. Jogar dois produtos de uma vez confunde e derruba a conversão.
+   • CROSS-SELL (produto COMPLEMENTAR): só DEPOIS do sim/aceite do primeiro, ou quando o cliente revelar uma segunda dor que o outro produto resolve. Amarre na dor dele, nunca empurre: "já que você vai resolver [dor 1], como você trata [dor 2] hoje?" — e aí conecte o segundo produto.
+   • UP-SELL: se a dor dele for maior que a solução escolhida, ofereça a opção mais completa ANTES de fechar, mostrando o que ele ganha a mais.
+   • DOWN-SELL: se travar de vez no preço e houver opção menor no briefing, ofereça a entrada em vez de perder a venda.
+   • Efeito contraste/isca: com múltiplas opções, posicione-as de modo que a opção-alvo pareça a mais óbvia (ver Gatilho do Contraste).
+   • NUNCA faça cross-sell antes da dor descoberta, nem no meio de uma objeção não resolvida — primeiro fecha o que está na mesa.
 3. NÃO CONTRADIGA o que o vendedor já disse (ele ${wpp ? 'já enviou' : 'ouviu'}). Resposta fraca dele → dica de recuperação honesta.
 4. NÃO REPITA dica/técnica/argumento do histórico — nem em VARIAÇÃO (mesma intenção = repetição). Em especial: NUNCA repita a mesma pergunta de fechamento/CTA (ex.: "posso te enviar o contrato?") — se já foi feita e o cliente não respondeu, a repetição queima o vendedor; avance por OUTRO caminho (descubra a objeção escondida). Mas "nada novo" NÃO é motivo pra silêncio: sempre existe um ângulo diferente (outra pergunta que aprofunda, outra virada, uma leitura, o próximo passo concreto) — dê ESSE ângulo em vez de tip null. As vacinas já descartam repetição, então você pode sempre tentar uma jogada FRESCA. tip null continua sendo SÓ para ruído/muletinha ou fala truncada que você não entendeu.
 4b. DESCONTO: o vendedor NÃO tem autoridade para inventar desconto. É PROIBIDO o say propor percentual ou valor de abatimento que não esteja no briefing ("te dou 10%", "consigo 15% off"). Defenda o valor, troque condição por contrapartida sem número, ou deixe o preço firme.
