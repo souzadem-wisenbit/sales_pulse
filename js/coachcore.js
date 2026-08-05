@@ -656,7 +656,11 @@ REGRAS INVIOLÁVEIS:
   //     briefing ou foi dito na conversa passa (é real).
   const BOOK_BRANDS = /\b(apple|zappos|disney|starbucks|amazon|rolex|tesla|sephora|louis\s*vuitton|ritz[- ]?carlton|mcdonald'?s?|zendesk|hubspot|salesforce|netflix|nike|coca[- ]?cola|bmw|mercedes|toyota|uber|airbnb|spotify|magalu|nubank|natura|botic[áa]rio)\b/i;
   const CAMEL_RE = /\b[A-ZÀ-Þ][a-zà-ÿ]+[A-ZÀ-Þ][A-Za-zà-ÿ]+\b/g;
-  const ENTIDADE_RE = /\b(?:empresa|cliente|marca|loja|rede|companhia|firma|case|concorrente)\s+([A-ZÀ-Þ][\wÀ-ÿ]{2,})/gi;
+  // ⚠️ SEM a flag "i": com ela, [A-ZÀ-Þ] casava minúsculas e QUALQUER palavra
+  // depois de "empresa/cliente/loja" virava "nome inventado" — a dica legítima
+  // "como você decide na sua empresa hoje?" morria por causa de "hoje". Nome
+  // próprio começa com maiúscula DE VERDADE; as keywords cobrem os dois casos.
+  const ENTIDADE_RE = /\b(?:[Ee]mpresa|[Cc]liente|[Mm]arca|[Ll]oja|[Rr]ede|[Cc]ompanhia|[Ff]irma|[Cc]ase|[Cc]oncorrente)\s+([A-ZÀ-Þ][\wÀ-ÿ]{2,})/g;
   const NOME_SAFE = new Set(['whatsapp', 'iphone', 'ipad', 'ios', 'android', 'youtube', 'linkedin', 'instagram', 'facebook', 'tiktok', 'google', 'pix', 'wifi', 'pdf', 'crm', 'erp', 'saas', 'ceo', 'cfo', 'cto', 'roi', 'sla', 'b2b', 'b2c', 'vip', 'voce', 'você', 'brasil', 'internet', 'marketing', 'excel', 'powerpoint']);
   function normForSource(s) { return ' ' + String(s || '').toLowerCase().replace(/[^0-9a-zà-ÿ]+/g, ' ').replace(/\s+/g, ' ').trim() + ' '; }
   function inventedEntity(say, sourceText) {
@@ -771,6 +775,42 @@ REGRAS INVIOLÁVEIS:
     const facts = ctx.facts;
     if (facts && facts.has && facts.has('prova_social')) return false; // há case real no briefing
     return true;
+  }
+
+  // ── Vacina: EMBARCAR em produto FORA do briefing ──
+  // Caso real: o cliente-bot abriu pedindo "plano de internet" (o briefing vendia
+  // BI/SalesPulse) e o coach foi na onda: "qual é a sua principal necessidade com
+  // a internet em casa?". O branch do playbook proíbe, mas o modelo ignorou —
+  // instrução em prompt não segura, guard em código segura. Se o say usa o
+  // vocabulário de uma CATEGORIA que o briefing não vende, morre e reposiciona.
+  const OFF_TOPIC_CATS = [
+    { cat: 'internet', re: /\b(internet|conex[ãa]o|wi-?fi|banda larga|fibra [óo]ptica|velocidade da rede|roteador)\b/i },
+    { cat: 'telefonia', re: /\b(plano de celular|telefonia|linha telef[ôo]nica|minutos|operadora)\b/i },
+    { cat: 'tv/streaming', re: /\b(tv a cabo|streaming|canais de tv|net flix)\b/i },
+    { cat: 'seguro', re: /\b(seguro de vida|seguro auto|ap[óo]lice|seguradora)\b/i },
+    { cat: 'empréstimo', re: /\b(empr[ée]stimo|financiamento|cr[ée]dito consignado|antecipa[çc][ãa]o de receb[íi]vel)\b/i },
+    { cat: 'plano de saúde', re: /\b(plano de sa[úu]de|conv[êe]nio m[ée]dico|carteirinha)\b/i },
+    { cat: 'energia', re: /\b(energia solar|placa solar|painel solar|conta de luz)\b/i },
+    { cat: 'imóvel', re: /\b(alugar um im[óo]vel|comprar um apartamento|corretor de im[óo]veis)\b/i },
+  ];
+  // Texto do briefing (o que a empresa REALMENTE vende)
+  function briefText(brief) {
+    if (!brief) return '';
+    const prods = brief.products || [];
+    return [
+      ...prods.map(p => `${p.name || ''} ${p.description || ''} ${(p.benefits || []).join(' ')} ${p.details ? Object.values(p.details).join(' ') : ''}`),
+      brief.extraProduct || '', brief.directives || '', brief.industryLabel || '',
+    ].join(' ').toLowerCase();
+  }
+  function offTopicProduct(say, ctx = {}) {
+    const s = String(say || '');
+    const bt = ctx.briefText || '';
+    for (const c of OFF_TOPIC_CATS) {
+      if (!c.re.test(s)) continue;
+      if (c.re.test(bt)) continue;   // o briefing VENDE isso → é legítimo
+      return c.cat;
+    }
+    return null;
   }
 
   // ── Vacina: CONTRADIZER o cliente (negar o que ele afirmou ter) ──
@@ -1439,6 +1479,7 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
     if (fabricatesObjection(nu, ctx)) return { say: null, reason: 'objeção de preço fabricada (cliente não falou de preço)' };
     if (fabricatesCase(nu, ctx)) return { say: null, reason: 'case inventado (sem case real no briefing)' };
     { const cc = contradictsClient(nu, ctx); if (cc) return { say: null, reason: `contradiz o cliente: ${cc}` }; }
+    { const ot = offTopicProduct(nu, ctx); if (ot) return { say: null, reason: `embarcou em produto fora do briefing: ${ot}` }; }
     if (ctx.banDepende && ENROLACAO_RE.test(nu)) return { say: null, reason: 'repetiu "depende do escopo" — fuga já usada' };
     if (ctx.injected && copiesInjected(nu, ctx.injected)) return { say: null, reason: 'cópia literal do material da metodologia' };
     return { say: limpo, reason: null };
@@ -1466,7 +1507,9 @@ Em ambas: comece reconhecendo o incômodo dele em UMA oração curta, sem pedir 
 
   function correcao(reason) {
     const especifico = COMO_CORRIGIR[reason]
-      || (String(reason).startsWith('contradiz o cliente')
+      || (String(reason).startsWith('embarcou em produto fora do briefing')
+        ? `Você EMBARCOU no assunto "${String(reason).split(': ')[1]}", que NÃO é o que esta empresa vende. O cliente pode ter se confundido de empresa — o vendedor NÃO vende isso. É PROIBIDO fazer perguntas ou dar dicas sobre essa categoria. Reescreva ESCLARECENDO com honestidade e reposicionando para o que o briefing REALMENTE oferece — sem constranger o cliente: ex. "acho que houve uma confusão: a gente não trabalha com isso, o que a gente faz é [o do briefing]. Mas me conta: [pergunta que puxa a dor que o SEU produto resolve]". Se não houver relação nenhuma, ajude a encerrar com elegância.`
+        : String(reason).startsWith('contradiz o cliente')
         ? `Você CONTRADISSE o cliente: ele afirmou que TEM/já faz "${String(reason).replace('contradiz o cliente: ', '')}", e você sugeriu a FALTA/ausência disso. Ele reage na hora ("acabei de falar que tenho!") e a venda queima. NUNCA negue o que ele afirmou. Use o que ele TEM como ponto de partida e cave um gap DIFERENTE e real — ex.: "e além disso, você tem essa mesma visão de OUTRAS áreas (equipe, vendas por vendedor, estoque)?". A dor tem que nascer do que ELE disse, nunca contradizê-lo.`
         : String(reason).startsWith('tipo de estabelecimento')
         ? `Você chamou o negócio do cliente de "${String(reason).split(': ')[1]}", mas ele NUNCA disse que é isso — veio do RAMO do briefing, que é só uma hipótese, não um fato deste cliente (ele pode ser de qualquer ramo). Reescreva trocando por "sua empresa" ou "seu negócio" (genérico). Só use o tipo específico DEPOIS que o cliente falar de que ramo se trata.`
@@ -1535,6 +1578,7 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
     calibratePriority, screenSay, askScreened, saysSameThing, sameClaim,
     ISCA_DOCTRINE, ISCA_CORE, methodBlock, fullContext, prematurePitch, inventedEntity, repeatsSellerLine,
     productTerms, presupposesClient, assumesEstablishment, fabricatesObjection, fabricatesCase, contradictsClient,
+    offTopicProduct, briefText,
   };
 })();
 

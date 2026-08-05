@@ -692,6 +692,7 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
         sellerLines: chat.messages.filter(m => m.speaker === 'seller').map(m => m.text), // barra repetir o que ele já disse
         clientLines: chat.messages.filter(m => m.speaker === 'client').map(m => m.text), // barra pressupor o cliente
         productTerms: CoachCore.productTerms(brief),
+        briefText: CoachCore.briefText(brief), // barra embarcar em produto fora do briefing
         banDepende: CoachCore.dodgeBanned(chat.messages.map(m => ({ speaker: m.speaker, text: m.text }))),
         isRepeat: (t) => CoachCore.tooSimilar(t, chat.tips) || CoachCore.repeatsTechnique(t, chat.tips),
       };

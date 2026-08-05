@@ -1090,6 +1090,9 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
         // cliente uma preocupação sobre o produto que ele nunca citou.
         clientLines: transcript.filter(s => s.speaker === 'client').map(s => s.text),
         productTerms: CoachCore.productTerms(brief),
+        // O que a empresa REALMENTE vende → barra o coach de embarcar num
+        // produto que o cliente citou por engano (ex.: "plano de internet").
+        briefText: CoachCore.briefText(brief),
         // O vendedor já disse "depende do escopo": repetir é a fuga que o
         // cliente está cobrando. O prompt proíbe; isto garante.
         banDepende: CoachCore.dodgeBanned(transcript),
