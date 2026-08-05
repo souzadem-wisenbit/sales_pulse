@@ -1029,6 +1029,10 @@ const LiveCoach = (() => {
       // precedência sobre o catálogo: foi a ausência disso que matou a
       // chamada auditada (8 pedidos de preço, 13 dicas mandando desviar).
       const pressure = CoachCore.pressureBlock(transcript, facts);
+      // Radar de gaps: cruza tudo o que o cliente já disse com o que CADA produto
+      // do briefing resolve — mostra onde a dor já está na mesa e o que ainda
+      // não foi explorado (dinheiro na mesa), sem deixar o coach empurrar.
+      const gapRadar = CoachCore.gapRadarBlock(brief, transcript.filter(s => s.speaker === 'client').map(s => s.text));
 
       // Prompt montado com o BLOCO ESTÁTICO primeiro (persona + regras +
       // formato) e o DINÂMICO por último (briefing/perfil/histórico/
@@ -1063,7 +1067,7 @@ Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acerto
 ━━━━━ CONVERSA AO VIVO — do início ao fim (leia TUDO antes de decidir a fase) ━━━━━${tipHistoryBlock}
 Falas (mais recente por último; transcrição automática, pode ter erros):
 ${recent}
-${pressure}
+${gapRadar}${pressure}
 ${usedPlays.length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco — escolha OUTRA do catálogo): ${usedPlays.slice(-6).join(', ')}\n` : ''}${tips.length === 0 ? '\n🚀 PRIMEIRA DICA DA CHAMADA: ainda não existe nenhuma dica — retorne OBRIGATORIAMENTE tip e say preenchidos (abertura/rapport ou reação direta à fala). Nesta primeira resposta, tip null é PROIBIDO: o vendedor precisa sentir o coach ao lado desde o primeiro segundo.\n' : ''}
 ${force
         ? `🆘 O VENDEDOR APERTOU "DICA AGORA" — ele está travado NESTE segundo e olhando para a tela esperando a fala.

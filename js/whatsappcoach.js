@@ -678,7 +678,7 @@ Se o vendedor mandou bem, priority "good": no tip diga a técnica que ele acerto
 ━━━━━ CONVERSA NO WHATSAPP — contato: ${chat.name} ━━━━━${tipHistoryBlock}
 Mensagens recentes (mais recente por último):
 ${recent}
-${pressure}${(chat.usedPlays || []).length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco — escolha OUTRA do catálogo): ${chat.usedPlays.slice(-6).join(', ')}\n` : ''}
+${CoachCore.gapRadarBlock(brief, chat.messages.filter(m => m.speaker === 'client').map(m => m.text))}${pressure}${(chat.usedPlays || []).length ? `\n🚫 JOGADAS PROIBIDAS AGORA (números usados há pouco — escolha OUTRA do catálogo): ${chat.usedPlays.slice(-6).join(', ')}\n` : ''}
 ${force
         ? `🆘 O VENDEDOR APERTOU "SUGERIR RESPOSTA AGORA" — ele está travado e esperando a mensagem pronta.
 tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e entregue a melhor jogada: responda a última mensagem, reabra a conversa parada ou dê o próximo passo que faz a negociação AVANÇAR.`

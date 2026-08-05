@@ -824,6 +824,96 @@ REGRAS INVIOLÁVEIS:
     return null;
   }
 
+  // ══════════════════════════════════════════════════════════════
+  // RADAR DE GAPS — a inteligência tática do coach sobre TODOS os produtos
+  //
+  // O coach conduzia a venda de um produto só e deixava os outros na mesa. Aqui
+  // o sistema cruza, a cada dica, TUDO o que o cliente já falou contra o que
+  // CADA produto do briefing resolve, e entrega ao modelo um mapa pronto:
+  //   • quais produtos JÁ TÊM GANCHO (o cliente entregou a dor — é só puxar),
+  //     com as PALAVRAS EXATAS dele como munição;
+  //   • quais ainda estão SEM SINAL (gap não explorado) — para o coach sondar.
+  // É determinístico (não depende do modelo "lembrar") e genérico: funciona com
+  // qualquer produto cadastrado. Serve a metodologia do Júnior: a dor vem
+  // SEMPRE da boca do cliente; o radar só mostra onde ela já apareceu.
+  // ══════════════════════════════════════════════════════════════
+  const GAP_STOP = new Set(['empresa', 'negocio', 'negócio', 'cliente', 'clientes', 'produto', 'produtos',
+    'servico', 'serviço', 'servicos', 'solucao', 'solução', 'sistema', 'plataforma', 'ferramenta',
+    'trabalho', 'equipe', 'pessoas', 'tempo', 'forma', 'maneira', 'coisa', 'coisas', 'gente',
+    'melhor', 'melhorar', 'ajuda', 'ajudar', 'fazer', 'fazendo', 'precisa', 'preciso', 'quero',
+    'consigo', 'consegue', 'muito', 'pouco', 'ainda', 'agora', 'hoje', 'sempre', 'nunca', 'tudo']);
+
+  function gapTokens(s) {
+    return new Set(String(s || '').toLowerCase()
+      .replace(/[^0-9a-zà-ÿ]+/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 4 && !STOP.has(w) && !GAP_STOP.has(w)));
+  }
+
+  // Ganchos de cada produto: o vocabulário da DOR que ele resolve.
+  function productHooks(brief) {
+    return ((brief && brief.products) || []).map(p => {
+      const d = p.details || {};
+      const corpo = [p.description || '', (p.benefits || []).join(' '), (p.objections || []).join(' '),
+        d.icp || '', d.diferenciais || '', d.resultados || ''].join(' ');
+      return { name: p.name || '', hooks: gapTokens(corpo) };
+    });
+  }
+
+  // Cruza o que o CLIENTE falou com os ganchos EXCLUSIVOS de cada produto.
+  // ⚠️ Só termos exclusivos: no teste com dados reais, o match por token solto
+  // apontou "Sales Pulse" (treinamento) por causa de "controle" — palavra que
+  // aparece na documentação técnica dele — enquanto o produto certo (BI) ficava
+  // sem sinal. Exclusivo + 2 evidências = sinal confiável; abaixo disso, quem
+  // decide é a leitura semântica do modelo (ver gapRadarBlock).
+  function gapRadar(brief, clientLines) {
+    const prods = productHooks(brief);
+    if (!prods.length) return [];
+    const perfis = productProfiles(brief); // termos exclusivos por produto
+    const excl = {};
+    perfis.forEach(pf => { excl[pf.name] = pf.exclusivos; });
+    const ditos = gapTokens((clientLines || []).join(' '));
+    return prods.map(p => {
+      const base = excl[p.name] ? [...p.hooks].filter(h => excl[p.name].has(h)) : [...p.hooks];
+      const evid = base.filter(h => ditos.has(h));
+      return { name: p.name, evidencias: evid.slice(0, 6), score: evid.length };
+    }).sort((a, b) => b.score - a.score);
+  }
+
+  // Resumo curto do que cada produto resolve (para o modelo cruzar semanticamente)
+  function productGist(p) {
+    const d = p.details || {};
+    const txt = [p.description || '', (p.benefits || []).join(', '), d.diferenciais || '', d.resultados || '']
+      .join(' ').replace(/[#*_`]/g, ' ').replace(/\s+/g, ' ').trim();
+    return txt.slice(0, 220);
+  }
+
+  // Bloco injetado no prompt (só quando há produto no briefing).
+  // HÍBRIDO: o código entrega o mapa e as evidências fortes; a análise
+  // semântica (que o modelo faz bem) é ORDENADA de forma estruturada.
+  function gapRadarBlock(brief, clientLines) {
+    const prods = (brief && brief.products) || [];
+    if (!prods.length) return '';
+    const radar = gapRadar(brief, clientLines);
+    const scoreDe = {};
+    radar.forEach(r => { scoreDe[r.name] = r; });
+    const linhas = prods.map(p => {
+      const r = scoreDe[p.name] || { evidencias: [], score: 0 };
+      const marca = r.score >= 2 ? '🎯 GANCHO FORTE' : '⚪ A VERIFICAR';
+      const ev = r.score >= 2 ? ` | o cliente já usou: "${r.evidencias.join('", "')}"` : '';
+      return `${marca} — ${p.name}: resolve → ${productGist(p)}${ev}`;
+    });
+    return `
+━━━━━ RADAR DE GAPS — TODOS os produtos desta sessão (não deixe dinheiro na mesa) ━━━━━
+${linhas.join('\n')}
+⚡ FAÇA ESTE CRUZAMENTO EM SILÊNCIO, A CADA DICA: para CADA produto acima, releia a conversa INTEIRA e pergunte-se "o cliente já revelou alguma dor, queixa, meta ou limitação que ESTE produto resolve?".
+ • Se JÁ revelou (mesmo com outras palavras — ex.: "acompanho tudo manualmente/no feeling/sem relatório" É a dor de quem precisa de dados e decisão): esse é um GAP ABERTO. Puxe-o com as PALAVRAS DELE, aprofunde a dor e conduza para o produto CERTO.
+ • Se AINDA NÃO revelou: é um gap NÃO EXPLORADO. Em uma fala oportuna, faça UMA pergunta-sonda que revele se existe dor ali — investigue, NUNCA empurre o produto.
+ • "🎯 GANCHO FORTE" é uma pista já confirmada pelo sistema; "⚪ A VERIFICAR" NÃO significa ausência de dor — significa que cabe a VOCÊ avaliar semanticamente.
+ • O gancho não autoriza pular fase (ISCA): sem conexão/dor confirmada, use a evidência para APROFUNDAR, não para pitchar. E jamais atribua a um produto o que é do outro.
+`;
+  }
+
   // ── Vacina: MISTURA DE PRODUTOS (attribute binding) ──
   // Com 2+ produtos no briefing o modelo cruza atributos: disse que "o Sales
   // Pulse traz visão clara dos dados" quando isso é da Consultoria de BI. Nome
@@ -1643,6 +1733,7 @@ MUDE A JOGADA. Se a anterior explicava o que define o valor, esta tem que ENTREG
     ISCA_DOCTRINE, ISCA_CORE, methodBlock, fullContext, prematurePitch, inventedEntity, repeatsSellerLine,
     productTerms, presupposesClient, assumesEstablishment, fabricatesObjection, fabricatesCase, contradictsClient,
     offTopicProduct, briefText, productProfiles, crossProductMix,
+    productHooks, gapRadar, gapRadarBlock,
   };
 })();
 
