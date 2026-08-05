@@ -50,7 +50,7 @@ const WhatsAppCoach = (() => {
   let coachCore = null;             // identidade destilada da metodologia (tom + regras de ouro)
   let coachPlays = [];              // catálogo de jogadas — toda dica escolhe uma por número
   let coachDoctrine = null;         // doutrina por estágio da venda
-  let tipSoundOn = true;
+  let tipSoundOn = false;          // som de dica DESLIGADO por padrão; o botão 🔔 religa
   let audioCtx = null;
 
   const esc = (s) => CoachCore.esc(s);

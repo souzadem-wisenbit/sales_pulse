@@ -53,7 +53,7 @@ const LiveCoach = (() => {
   let healthTimer = null;
   let lastCoachedCount = 0;
   let lastCoachAt = 0;
-  let tipSoundOn = true;           // aviso sonoro sutil ao chegar dica
+  let tipSoundOn = false;          // som de dica DESLIGADO por padrão (atrapalhava na chamada); o botão 🔔 religa
   let profile = null;
   let profileHistory = [];         // histórico cumulativo de aprendizados (live + treinos)
   let coach = null;                // coach atribuído pelo gestor: {id, name, special?, profile?}
@@ -1383,7 +1383,7 @@ tip null é ABSOLUTAMENTE PROIBIDO nesta resposta. Leia o momento da conversa e 
             <div class="lc-card lc-coach-card">
               <div style="display:flex;align-items:center;justify-content:space-between">
                 <div class="lc-card-title" style="margin-bottom:0.9rem">💡 Coach em tempo real</div>
-                <button class="lc-sound-btn" id="lc-sound-btn" onclick="LiveCoach.toggleSound()" title="Som de dica ligado">🔔</button>
+                <button class="lc-sound-btn" id="lc-sound-btn" onclick="LiveCoach.toggleSound()" title="${tipSoundOn ? 'Som de dica ligado' : 'Som de dica desligado'}">${tipSoundOn ? '🔔' : '🔕'}</button>
               </div>
               <button class="lc-ask-btn" id="lc-ask-btn" onclick="LiveCoach.askTip()" title="Peça uma jogada para este momento (barra de espaço)">💡 Dica agora <span class="lc-ask-kbd">espaço</span></button>
               <div id="lc-tips"><div class="lc-muted">As dicas aparecem sozinhas conforme a conversa evolui — ou peça uma agora no botão acima.</div></div>
