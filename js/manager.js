@@ -582,6 +582,15 @@ const Manager = (() => {
     container.innerHTML = `<div class="flex" style="justify-content:center;padding:3rem"><div class="spinner"></div></div>`;
     const clients = Storage.getClients();
     const sellers = await fetchSellersForUI();
+    // Dono (gestor) de cada cliente — só o superadmin precisa ver a atribuição.
+    const _cu = Auth.getUser();
+    const managersById = {};
+    if (_cu && _cu.role === 'superadmin') {
+      try {
+        const users = await API.request('/api/users');
+        (users || []).filter(u => u.role === 'manager').forEach(m => { managersById[m.id] = m.name; });
+      } catch (e) { /* segue sem os nomes */ }
+    }
 
     container.innerHTML = `
       <div class="flex flex-between mb-6">
@@ -623,6 +632,7 @@ const Manager = (() => {
                 </div>
 
                 <div class="client-badges">
+                  ${_cu && _cu.role === 'superadmin' ? `<span class="badge" style="background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.32);color:#ffd766">👑 ${escHtml(managersById[client.managerId] || 'Global (sem gestor)')}</span>` : ''}
                   <span class="badge badge-muted" style="color:${diffColors[client.difficulty] || 'var(--warning)'}">
                     ${diffEmoji[client.difficulty] || '🤔'} ${diffLabel[client.difficulty] || 'Médio'}
                   </span>
@@ -677,6 +687,13 @@ const Manager = (() => {
 
           <!-- TAB: PERFIL -->
           <div class="modal-tab-content" id="ctabcontent-perfil">
+            <!-- Dono do cliente: só o superadmin escolhe a qual gestor pertence.
+                 Sem isso, cliente criado pelo superadmin ficava órfão e nenhum
+                 gestor o via. Fica escondido para gestor (é dono automático). -->
+            <div class="form-group" id="cli-manager-group" style="display:none">
+              <label class="form-label">👑 Gestor responsável <span class="text-muted fs-xs">(a qual gestor este cliente pertence)</span></label>
+              <select class="form-select" id="cli-managerId"><option value="">— Global (sem gestor) —</option></select>
+            </div>
             <!-- ── A EMPRESA DO CLIENTE ──
                  O select de segmento era lido pelo código (cli-marketSegment)
                  mas NUNCA existiu na tela: todo cliente nascia "generico" e o
@@ -1099,6 +1116,26 @@ const Manager = (() => {
     `;
   }
 
+  // Seletor de "Gestor responsável" (só superadmin): a qual gestor o cliente
+  // pertence. Sem isso, cliente criado pelo superadmin ficava órfão (manager_id
+  // NULL) e nenhum gestor o via.
+  async function populateClientManagerSelect(selectedManagerId) {
+    const group = document.getElementById('cli-manager-group');
+    const sel = document.getElementById('cli-managerId');
+    if (!group || !sel) return;
+    const cu = Auth.getUser();
+    if (!cu || cu.role !== 'superadmin') { group.style.display = 'none'; return; }
+    group.style.display = '';
+    sel.value = selectedManagerId || '';
+    try {
+      const users = await API.request('/api/users');
+      const managers = (users || []).filter(u => u.role === 'manager');
+      sel.innerHTML = '<option value="">— Global (sem gestor) —</option>' +
+        managers.map(m => `<option value="${m.id}">${escHtml(m.name)}</option>`).join('');
+      sel.value = selectedManagerId || '';
+    } catch (e) { /* mantém só a opção global */ }
+  }
+
   function openClientModal(id) {
     editingClientId = id || null;
     clientModalTab = 'perfil';
@@ -1108,6 +1145,9 @@ const Manager = (() => {
 
     // Reset tab
     switchClientTab('perfil');
+    // Dono do cliente (só superadmin escolhe)
+    const _cli = id ? Storage.getClients().find(c => c.id === id) : null;
+    populateClientManagerSelect(_cli ? _cli.managerId : null);
 
     if (id) {
       const client = Storage.getClients().find(c => c.id === id);
@@ -1235,6 +1275,7 @@ const Manager = (() => {
 
     const data = {
       name,
+      managerId:           document.getElementById('cli-managerId')?.value || null, // só superadmin usa; backend ignora p/ gestor
       emoji:               document.getElementById('cli-emoji')?.value?.trim() || '👨‍💼',
       gender:              document.getElementById('cli-gender')?.value || null,
       voice:               document.getElementById('cli-voice')?.value || null,

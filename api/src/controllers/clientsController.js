@@ -38,6 +38,7 @@ async function listClients(req, res) {
       trickTypes: r.trick_types,
       vendedoresAtribuidos: r.vendedores_atribuidos,
       hiddenAgenda: r.hidden_agenda,
+      managerId: r.manager_id,
       marketSegment: r.market_segment,
       companyName: r.company_name,
       companyAbout: r.company_about,
@@ -60,8 +61,12 @@ async function createClient(req, res) {
   try {
     const data = req.body;
     const id = data.id || 'cli_' + Date.now();
-    // Cliente pertence ao gestor que o criou (superadmin cria sem dono = global)
-    const managerId = req.user.role === 'manager' ? req.user.id : null;
+    // Gestor cria como dono de si. Superadmin PODE atribuir a um gestor (campo
+    // managerId no corpo); sem isso, fica global (sem dono). Era esse o buraco:
+    // clientes criados pelo superadmin ficavam órfãos e nenhum gestor os via.
+    const managerId = req.user.role === 'manager'
+      ? req.user.id
+      : (data.managerId || data.manager_id || null);
     await db.query(`
       INSERT INTO clients (
         id, name, emoji, difficulty, description, humanidade, formalidade,
@@ -101,12 +106,17 @@ async function updateClient(req, res) {
   try {
     const { id } = req.params;
     const data = req.body;
-    // Gestor só edita os próprios clientes
-    if (req.user.role === 'manager') {
-      const { rows } = await db.query('SELECT manager_id FROM clients WHERE id = $1', [id]);
-      if (rows.length === 0) return res.status(404).json({ error: 'Cliente não encontrado' });
-      if (rows[0].manager_id !== req.user.id) return res.status(403).json({ error: 'Acesso negado' });
+    // Gestor só edita os próprios clientes; superadmin edita qualquer um.
+    const { rows: cur } = await db.query('SELECT manager_id FROM clients WHERE id = $1', [id]);
+    if (cur.length === 0) return res.status(404).json({ error: 'Cliente não encontrado' });
+    if (req.user.role === 'manager' && cur[0].manager_id !== req.user.id) {
+      return res.status(403).json({ error: 'Acesso negado' });
     }
+    // manager_id: gestor mantém a si; superadmin pode reatribuir (ou manter o atual).
+    const managerId = req.user.role === 'manager'
+      ? req.user.id
+      : (data.managerId !== undefined ? (data.managerId || null)
+        : (data.manager_id !== undefined ? (data.manager_id || null) : cur[0].manager_id));
     // For simplicity, we just do a full update
     await db.query(`
       UPDATE clients SET
@@ -119,9 +129,9 @@ async function updateClient(req, res) {
         hostile_mode = $29, hostile_competitors = $30, session_constraints = $31, custom_behavior = $32,
         gender = $33, voice = $34,
         company_name = $35, company_about = $36, company_size = $37,
-        company_city = $38, contact_role = $39,
+        company_city = $38, contact_role = $39, manager_id = $40,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $40
+      WHERE id = $41
     `, [
       data.name, data.emoji, data.difficulty, data.description, data.humanidade, data.formalidade,
       data.nivelErros, data.nivelGirias, data.emotividade, data.objetividade, data.sotaqueRegiao,
@@ -132,7 +142,7 @@ async function updateClient(req, res) {
       data.hostileMode, JSON.stringify(data.hostileCompetitors || []), JSON.stringify(data.sessionConstraints || {}), data.customBehavior,
       data.gender || null, data.voice || null,
       data.companyName || null, data.companyAbout || null, data.companySize || null,
-      data.companyCity || null, data.contactRole || null,
+      data.companyCity || null, data.contactRole || null, managerId,
       id
     ]);
     res.json({ success: true });
